@@ -21,6 +21,7 @@ type fakeTaskClient struct {
 	failExecuteRank         int32
 	commitWithoutIntentSeen bool
 	blockCreate             bool
+	withProof               bool
 }
 
 func newFakeTaskClient(run *Run) *fakeTaskClient {
@@ -92,6 +93,12 @@ func (f *fakeTaskClient) CommitTask(
 	task := f.tasks[taskID]
 	task.State = "committed"
 	task.Report = map[string]any{"status": "success"}
+	if f.withProof {
+		task.Report["proof"] = map[string]any{
+			"plan_id": "plan",
+			"root":    "sha256:" + strings.Repeat("a", 64),
+		}
+	}
 	f.tasks[taskID] = task
 	f.commitCount++
 	return task, nil
@@ -200,6 +207,68 @@ func TestRunnerPublishesAggregatedReportArtifact(t *testing.T) {
 	}
 	if _, err := store.Get(context.Background(), run.ReportRef()); err != nil {
 		t.Fatalf("read report artifact: %v", err)
+	}
+}
+
+type fakeProofMerger struct {
+	calls int
+}
+
+func (f *fakeProofMerger) MergeProof(
+	_ context.Context,
+	_ string,
+	proofs []map[string]any,
+) (map[string]any, error) {
+	f.calls++
+	if len(proofs) == 0 {
+		return nil, fmt.Errorf("no proofs")
+	}
+	return map[string]any{
+		"version": "1",
+		"root":    "sha256:" + strings.Repeat("b", 64),
+	}, nil
+}
+
+func TestRunnerPublishesMergedProofArtifact(t *testing.T) {
+	run := newTestRun(2)
+	client := newFakeTaskClient(run)
+	client.withProof = true
+	store := artifactstore.NewMemoryStore("http://controller:8082")
+	merger := &fakeProofMerger{}
+	runner := NewRunner(client, 2)
+	runner.SetArtifacts(store)
+	runner.SetProofMerger(merger)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for run.ProofRef() == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if run.ProofRef() == "" {
+		t.Fatal("proof artifact ref is empty")
+	}
+	if run.ProofHash() != "sha256:"+strings.Repeat("b", 64) {
+		t.Fatalf("proof hash = %q", run.ProofHash())
+	}
+	if merger.calls != 1 {
+		t.Fatalf("proof merger calls = %d, want 1", merger.calls)
+	}
+	payload, err := store.Get(context.Background(), run.ProofRef())
+	if err != nil {
+		t.Fatalf("read proof artifact: %v", err)
+	}
+	var proof map[string]any
+	if err := json.Unmarshal(payload, &proof); err != nil {
+		t.Fatal(err)
+	}
+	if proof["root"] != run.ProofHash() {
+		t.Fatalf("proof artifact root = %v", proof["root"])
 	}
 }
 

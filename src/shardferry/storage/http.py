@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -27,6 +28,7 @@ class HttpStorage:
         self.backoff = max(0.0, backoff)
         self.use_proxy = use_proxy
         self.rate_controller = rate_controller
+        self._connections: dict[tuple[str, str, int], http.client.HTTPConnection] = {}
         self._direct_opener = (
             None if use_proxy else build_opener(ProxyHandler({}))
         )
@@ -103,6 +105,9 @@ class HttpStorage:
         headers = {}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        parsed = urlsplit(url)
+        if not self.use_proxy and parsed.scheme in {"http", "https"}:
+            return self._open_pooled(method, url, parsed, headers)
         request = Request(url, method=method, headers=headers)
         try:
             if self._direct_opener is not None:
@@ -114,6 +119,59 @@ class HttpStorage:
             raise StorageError(f"HTTP request failed: {url}: {exc.reason}") from exc
         except OSError as exc:
             raise StorageError(f"HTTP request failed: {url}: {exc}") from exc
+
+    def _open_pooled(
+        self,
+        method: str,
+        url: str,
+        parsed,
+        headers: dict[str, str],
+    ):
+        host = parsed.hostname
+        if host is None:
+            raise StorageError(f"HTTP URL has no host: {url}")
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        key = (parsed.scheme, host, port)
+        connection = self._connections.get(key)
+        if connection is None:
+            if parsed.scheme == "https":
+                connection = http.client.HTTPSConnection(
+                    host,
+                    port,
+                    timeout=self.timeout,
+                )
+            else:
+                connection = http.client.HTTPConnection(
+                    host,
+                    port,
+                    timeout=self.timeout,
+                )
+            self._connections[key] = connection
+        headers["Connection"] = "keep-alive"
+        path = parsed.path or "/"
+        if parsed.query:
+            path += "?" + parsed.query
+        try:
+            connection.request(method, path, headers=headers)
+            response = connection.getresponse()
+        except (OSError, http.client.HTTPException) as exc:
+            self._connections.pop(key, None)
+            try:
+                connection.close()
+            except OSError:
+                pass
+            raise StorageError(f"HTTP request failed: {url}: {exc}") from exc
+        if response.status >= 400:
+            status = response.status
+            response.read()
+            response.close()
+            self._connections.pop(key, None)
+            try:
+                connection.close()
+            except OSError:
+                pass
+            raise StorageError(f"HTTP {status}: {url}")
+        return response
 
     def _request(self, method: str, url: str):
         last_error: StorageError | None = None
