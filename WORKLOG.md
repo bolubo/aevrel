@@ -499,6 +499,10 @@ Gate:
   rollback when the probe rejects the target.
 - Real `cutover-serve` HTTP smoke: promoted step-100 with
   `paused_seconds=0.0368`, `target_ready_seconds=0.0362`.
+- Benchmark target probe now defaults on: 128MiB x3 8→4 passed with wall
+  2.68s, RSS 94.3MiB, target-ready 0.035s; 1GiB x3 128→64 passed with wall
+  21.92s, RSS 73.9MiB, target-ready 0.062s. 1GiB 16→8 reached RSS 237.8MiB
+  and correctly failed the P1 150MiB gate.
 - Gate: `234 passed / 19 skipped` (PyTorch/native optional skips), compileall
   and `cutover-serve --help` pass. This work is on branch `python-rto` in
   worktree `shardferry-rto`; do not merge into the shared checkout while the
