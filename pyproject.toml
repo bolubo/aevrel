@@ -39,6 +39,8 @@ dcp = [
 
 [project.scripts]
 shardferry = "shardferry.cli:main"
+shardferry-target-load = "shardferry.target_load:main"
+shardferry-support-bundle = "shardferry.support_bundle:main"
 
 [project.urls]
 Homepage = "https://github.com/bolubo/shardferry"

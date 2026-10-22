@@ -32,6 +32,7 @@ spec:
             - --public-url={{ required "gateway.publicURL is required when gateway.enabled" .Values.gateway.publicURL }}
             - --cluster-name={{ default .Release.Name .Values.gateway.clusterName }}
             - --namespace={{ .Release.Namespace }}
+            - --version={{ .Chart.AppVersion }}
           env:
             - name: SHARDFERRY_GATEWAY_TOKEN
               valueFrom:

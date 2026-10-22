@@ -8,8 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	shardferryv1 "github.com/shardferry/shardferry/api/v1"
 	"github.com/shardferry/shardferry/internal/agentclient"
 	"github.com/shardferry/shardferry/internal/clusterclient"
 	"github.com/shardferry/shardferry/internal/controller"
@@ -118,6 +121,18 @@ func executePreflight(
 	}
 	sourceRanks := len(resolved.Spec.Source.RankMap)
 	targetRanks := len(resolved.Spec.Target.RankMap)
+	sourceCluster := clusterStatus(
+		ctx,
+		kubeClient,
+		migration.Namespace,
+		migration.Spec.Source.ClusterRef,
+	)
+	targetCluster := clusterStatus(
+		ctx,
+		kubeClient,
+		migration.Namespace,
+		migration.Spec.Target.ClusterRef,
+	)
 	if jsonOut {
 		return writeJSON(out, map[string]any{
 			"status":       "ok",
@@ -127,6 +142,10 @@ func executePreflight(
 			"target_ranks": targetRanks,
 			"source":       resolved.Spec.Source.RankMap,
 			"target":       resolved.Spec.Target.RankMap,
+			"clusters": map[string]any{
+				"source": sourceCluster,
+				"target": targetCluster,
+			},
 		})
 	}
 	fmt.Fprintf(
@@ -138,6 +157,43 @@ func executePreflight(
 		targetRanks,
 	)
 	return nil
+}
+
+func clusterStatus(
+	ctx context.Context,
+	kubeClient client.Client,
+	namespace string,
+	ref string,
+) map[string]any {
+	if ref == "" {
+		return map[string]any{"mode": "local"}
+	}
+	var cluster shardferryv1.ShardferryCluster
+	err := kubeClient.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      ref,
+	}, &cluster)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return map[string]any{
+				"name":    ref,
+				"ready":   false,
+				"message": "ShardferryCluster not found",
+			}
+		}
+		return map[string]any{
+			"name":    ref,
+			"ready":   false,
+			"message": err.Error(),
+		}
+	}
+	return map[string]any{
+		"name":     ref,
+		"ready":    cluster.Status.Ready,
+		"version":  cluster.Status.Version,
+		"message":  cluster.Status.Message,
+		"lastSeen": cluster.Status.LastSeen,
+	}
 }
 
 type preflightOptions struct {

@@ -22,10 +22,12 @@ func main() {
 	var publicURL string
 	var clusterName string
 	var namespace string
+	var version string
 	flag.StringVar(&bindAddr, "bind-address", ":9445", "gateway listen address")
 	flag.StringVar(&publicURL, "public-url", "", "URL controller uses to reach this gateway")
 	flag.StringVar(&clusterName, "cluster-name", "", "cluster name reported to the controller")
 	flag.StringVar(&namespace, "namespace", "default", "default namespace for agent discovery")
+	flag.StringVar(&version, "version", "dev", "gateway build version")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(false)))
@@ -55,6 +57,7 @@ func main() {
 	server, err := gateway.New(gateway.Config{
 		PublicURL:    publicURL,
 		ClusterName:  clusterName,
+		Version:      version,
 		GatewayToken: gatewayToken,
 		AgentToken:   agentToken,
 		AgentClient:  agentclient.New(agentToken),

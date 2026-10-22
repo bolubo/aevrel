@@ -27,7 +27,7 @@ jobs:
           cache: true
       - run: go test -count=1 ./...
       - run: go vet ./...
-      - run: go build ./cmd/controller ./cmd/ctl
+      - run: go build ./cmd/controller ./cmd/ctl ./cmd/gateway
 
   helm:
     runs-on: ubuntu-latest

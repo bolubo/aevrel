@@ -118,6 +118,35 @@ func TestGatewayResolveAndProxySourceAgent(t *testing.T) {
 	}
 }
 
+func TestGatewayInfoReportsVersion(t *testing.T) {
+	server, err := New(Config{
+		PublicURL:    "http://gateway.example",
+		ClusterName:  "source",
+		Version:      "0.2.0",
+		GatewayToken: "gateway-token",
+		AgentToken:   "agent-token",
+		AgentClient:  directAgentClient("agent-token"),
+		Client:       fake.NewClientBuilder().Build(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/v1/info", nil)
+	request.Header.Set("Authorization", "Bearer gateway-token")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	var info clusterclient.GatewayInfo
+	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
+		t.Fatal(err)
+	}
+	if info.GatewayVersion != "0.2.0" || info.Cluster != "source" {
+		t.Fatalf("info = %#v", info)
+	}
+}
+
 func directAgentClient(token string) *agentclient.Client {
 	client := agentclient.New(token)
 	client.HTTP.Transport = &http.Transport{Proxy: nil}

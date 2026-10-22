@@ -60,12 +60,14 @@ mTLS 是下一轮硬化项。
 ```bash
 export SHARDFERRY_AGENT_TOKEN='replace-with-the-agent-token'
 kubectl --context management apply -f clusters.yaml
+kubectl --context management -n shardferry-control get shardferryclusters -o wide
 shardferryctl preflight -f migration.yaml --json
 shardferryctl migrate -f migration.yaml --wait
 ```
 
 `preflight` 会通过 gateway 实际读取 source inventory，并探测 target
-agent capabilities；不是只检查 YAML。
+agent capabilities；不是只检查 YAML。JSON 输出里的 `clusters` 会显示
+gateway 的 `ready/version/lastSeen`。
 
 ### P0 凭据简化
 

@@ -1,6 +1,7 @@
 # shardferry Helm chart
 
-这个 chart 部署 controller、artifact PVC，以及 source/target node agents。
+这个 chart 可以部署 controller、artifact PVC、source/target node agents，
+以及跨集群用的 gateway。
 
 镜像构建（国内网络可用镜像站参数）：
 
@@ -8,22 +9,22 @@
 docker build -f deploy/docker/Dockerfile.controller \
   --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.24-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
-  -t ghcr.io/shardferry/shardferry-controller:0.1.0 .
+  -t ghcr.io/bolubo/shardferry-controller:0.1.0 .
 
 docker build -f deploy/docker/Dockerfile.agent \
   --build-arg PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.11-slim \
   --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-  -t ghcr.io/shardferry/shardferry-agent:0.1.0 .
+  -t ghcr.io/bolubo/shardferry-agent:0.1.0 .
 
 docker build -f deploy/docker/Dockerfile.gateway \
   --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.24-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
-  -t ghcr.io/shardferry/shardferry-gateway:0.1.0 .
+  -t ghcr.io/bolubo/shardferry-gateway:0.1.0 .
 ```
 
-当前源码首发不自动发布 GHCR 镜像；上面的 tag 需要你自己构建并推送，或把
-`image.controller` / `image.agent` 改成你的镜像仓库。不要把未推送的 tag
-当成可拉取的生产镜像。
+发布 tag 会通过 `.github/workflows/release.yml` 自动构建并推送
+controller/gateway/agent 镜像到 `ghcr.io/bolubo/shardferry-*`。发布前必须
+确认 GHCR 包为 public；否则 Helm 默认 values 仍会拉取失败。
 
 ```bash
 kubectl -n default create secret generic shardferry-agent-token \

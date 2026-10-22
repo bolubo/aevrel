@@ -30,9 +30,10 @@ uv build --wheel --out-dir dist
 
 ## 镜像
 
-发布镜像前固定 tag 和 digest；Helm values 不应指向不存在的
-`ghcr.io/shardferry/...:0.1.0`。在镜像 workflow 成功前，README 应明确说明
-“需要本地构建镜像”。
+发布 tag 会触发 `.github/workflows/release.yml`，构建并推送
+`ghcr.io/bolubo/shardferry-controller`、`shardferry-gateway`、
+`shardferry-agent`。Helm values 必须指向本次 tag 对应的真实镜像；GHCR 包
+需要设置为 public，否则用户安装会失败。
 
 ## 未验证项
 

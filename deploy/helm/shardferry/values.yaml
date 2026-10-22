@@ -1,7 +1,7 @@
 image:
-  controller: ghcr.io/shardferry/shardferry-controller:0.1.0
-  gateway: ghcr.io/shardferry/shardferry-gateway:0.1.0
-  agent: ghcr.io/shardferry/shardferry-agent:0.1.0
+  controller: ghcr.io/bolubo/shardferry-controller:0.1.0
+  gateway: ghcr.io/bolubo/shardferry-gateway:0.1.0
+  agent: ghcr.io/bolubo/shardferry-agent:0.1.0
   pullPolicy: IfNotPresent
 
 agentToken:

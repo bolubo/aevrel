@@ -209,6 +209,13 @@ func main() {
 		ctrl.Log.Error(err, "unable to create controller")
 		os.Exit(1)
 	}
+	if err := (&controller.ClusterHealthReconciler{
+		Client:   mgr.GetClient(),
+		Clusters: clusterclient.New(agentToken),
+	}).SetupWithManager(mgr); err != nil {
+		ctrl.Log.Error(err, "unable to create cluster health controller")
+		os.Exit(1)
+	}
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		ctrl.Log.Error(err, "unable to set health check")
 		os.Exit(1)

@@ -115,9 +115,26 @@ for the two-cluster install and migration example. The current alpha assumes one
 agent token across the control plane and both gateways; per-cluster token routing
 and mTLS are later hardening steps.
 
-The two-kind control-plane path has been exercised for 16→8 and small 128→64
-DCP migrations, including target DCP load and source checksum preservation. This
-is a control-plane proof, not a 1GiB/GPU performance claim.
+The two-kind control-plane path has been exercised for 16→8 and 128→64 DCP
+migrations, including a 1GiB data path, target DCP load and source checksum
+preservation. This is a control-plane proof, not a GPU/performance claim.
+
+## After migration
+
+The installed package includes two user-facing checks:
+
+```bash
+# Model-independent DCP readability smoke; use --rank for a local rank root.
+shardferry-target-load --checkpoint /targets/job42/rank0 --rank 0 --json
+
+# Redacted cluster diagnostics for issues and support.
+shardferry-support-bundle --namespace shardferry-control
+```
+
+For the training-job load pattern, see
+[`docs/TARGET-LOAD.zh-CN.md`](docs/TARGET-LOAD.zh-CN.md). For the failure map
+and support workflow, see [`docs/ERROR-CATALOG.zh-CN.md`](docs/ERROR-CATALOG.zh-CN.md)
+and [`docs/SUPPORT.zh-CN.md`](docs/SUPPORT.zh-CN.md).
 
 CPU-only rank simulation:
 
@@ -157,7 +174,8 @@ and planned bytes match the plan.
 - `api/v1/`, `internal/controller/`, `cmd/controller/`: Go controller-runtime
   API, generated CRD/deepcopy, commit coordinator, and manager.
 - `cmd/ctl/`: `shardferryctl migrate -f ... --wait`, get/describe, cancel, retry.
-- `internal/controller/resolver.go`: selector-based agent and local-rank discovery.
+- `internal/controller/resolver.go`: selector-based and gateway-based agent/rank discovery.
+- `internal/gateway/`, `cmd/gateway/`: cross-cluster agent discovery and reverse proxy.
 - `examples/k8s/migration.yaml`: minimal selector-based 128 -> 64 migration.
 - `deploy/docker/`: controller and CPU-DCP agent image builds.
 - `config/crd/bases/`: controller-gen generated `CheckpointMigration` CRD.

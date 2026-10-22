@@ -9,16 +9,18 @@
 | Target 拓扑 | world size 和 placement 可变化 |
 | 数据位置 | 单机文件、共享文件系统、HTTP source agent |
 | 执行后端 | CPU/PyTorch CPU DCP；GPU 真实训练待验证 |
-| Kubernetes | controller + source/target agents + selector 发现 |
-| 验证 | bitwise target verification、rank-local DCP load smoke |
+| Kubernetes | controller + source/target agents；同集群 selector 和跨集群 `ShardferryCluster`/gateway |
+| 验证 | bitwise target verification、rank-local DCP load smoke、`shardferry-target-load` |
 | 进度/恢复 | staging、journal、rank task、resume |
+| 跨集群证据 | 两套 kind、16→8、128→64、1GiB 控制面/数据面闭环 |
+| 鉴权 | P0 alpha 单 token + 可信网络；per-cluster token/mTLS 未完成 |
 
 ## 暂不支持或未验证
 
 - 任意非 DCP checkpoint 格式；
 - 没有统一 `.metadata` 的 custom shard 格式；
 - S3 作为 source checkpoint 的直接全量迁移；
-- 真实 128 节点、1GB/10GB local-disk 的 Kubernetes 验收；
+- 真实 128 节点、10GiB local-disk 的 Kubernetes 验收；
 - 真实 GPU/FSDP target load 的完整矩阵；
 - 在线 cutover 的生产 SLA；
 - 多租户隔离的完整产品化。
