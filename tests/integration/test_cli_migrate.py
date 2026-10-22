@@ -64,6 +64,7 @@ def test_migrate_cli_4to3_json(tmp_path, capsys) -> None:
     assert len(list(output.glob("*.distcp"))) == 3
     assert (work / "plan.json").is_file()
     assert (work / "report.json").is_file()
+    assert not (work / "source").exists()
 
 
 def test_doctor_cli_checks_real_dcp(tmp_path, capsys) -> None:

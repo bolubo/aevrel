@@ -911,9 +911,11 @@ def migrate_dcp(
     if output_path.exists() and any(output_path.iterdir()) and not force:
         raise DcpError(f"output DCP directory is not empty: {output_path}")
     notify("reading DCP metadata and indexing local shards")
-    spec = inspect_dcp(
+    from .dcp_local import build_local_range_spec
+
+    spec = build_local_range_spec(
         checkpoint_path,
-        work_path,
+        target_storage_uri=(work_path / "target").as_uri(),
         source_mesh_shape=source_mesh_shape,
         source_placements=source_placements,
         target_world_size=target_world_size,

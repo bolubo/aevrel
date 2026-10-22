@@ -12,6 +12,7 @@ from .dcp import export_dcp_local
 from .executor import apply, commit_staged
 from .manifest import load_payload
 from .proof import build_proof
+from .target_ready import DcpTargetReady
 
 
 class ArtifactError(ValueError):
@@ -94,10 +95,12 @@ class TargetTaskExecutor:
         source_token: str | None = None,
         *,
         proof_enabled: bool = False,
+        load_smoke: bool = True,
     ) -> None:
         self.resolver = resolver
         self.source_token = source_token
         self.proof_enabled = proof_enabled
+        self.load_smoke = load_smoke
 
     def __call__(self, task: TaskRecord) -> dict[str, Any]:
         spec = self.resolver.resolve(task.spec_ref)
@@ -128,6 +131,11 @@ class TargetTaskExecutor:
             ranks=(task.rank,),
             force=True,
         )
+        if self.load_smoke:
+            DcpTargetReady(
+                task.target_root,
+                rank=task.rank,
+            )(task.migration_uid)
         report = dict(report)
         report["dcp_root"] = str(dcp_root)
         if self.proof_enabled:

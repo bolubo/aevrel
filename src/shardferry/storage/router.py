@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from ..adaptive import AdaptiveRateRegistry
 from .file import FileStorage, StorageError
 from .http import HttpStorage
+from .dcpzip import DcpZipStorage
 
 
 class StorageRouter:
@@ -26,6 +27,7 @@ class StorageRouter:
                 except ValueError:
                     rate_registry = None
         self.file = FileStorage()
+        self.dcpzip = DcpZipStorage()
         self.http = HttpStorage(
             base_url=source_base,
             token=token,
@@ -49,6 +51,8 @@ class StorageRouter:
         scheme = urlsplit(uri).scheme
         if scheme == "file":
             return self.file
+        if scheme == "dcpzip":
+            return self.dcpzip
         if scheme in {"http", "https"}:
             return self.http
         if self.http.base_url is not None:
