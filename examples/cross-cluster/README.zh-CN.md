@@ -105,6 +105,28 @@ agent capabilities；不是只检查 YAML。
 
 当前 token 仍保留为应用层第二因子；mTLS 负责传输身份。
 
+### 注册集群
+
+`cluster add` 只生成本地 manifest，不连接、不扫描、也不会自动修改任何集群：
+
+```bash
+shardferryctl cluster add source \
+  --endpoint https://source-gateway.example:9445 \
+  --role source \
+  --secret source-auth \
+  --file clusters-source.yaml
+```
+
+输出是一份多文档 YAML：`Secret` 只含 `token`，`ShardferryCluster` 指向该
+Secret。`role` 默认 `both`；省略 `--secret` 时使用
+`<cluster-name>-gateway-auth`；省略 `--token` 时生成 32 字节随机 token。
+文件以 `0600` 创建且拒绝覆盖。`--json` 输出等价的 Kubernetes `List`。
+确认内容后再显式应用：
+
+```bash
+kubectl apply -f clusters-source.yaml -n shardferry-control
+```
+
 ## 已验证（2026-10-22，两套 kind）
 
 - 16 source ranks → 8 target ranks：`succeeded`，8/8 target rank committed，

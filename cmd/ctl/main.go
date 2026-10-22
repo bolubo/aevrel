@@ -78,6 +78,9 @@ func needsKubeClient(args []string) bool {
 	if len(args) == 0 {
 		return false
 	}
+	if args[0] == "cluster" && len(args) > 1 && args[1] == "add" {
+		return false
+	}
 	if args[0] == "migrate" {
 		for _, arg := range args[1:] {
 			if arg == "--dry-run" {
@@ -96,6 +99,7 @@ func printUsage(out io.Writer) {
 	fmt.Fprintln(out, "       shardferryctl get clusters|cluster NAME")
 	fmt.Fprintln(out, "       shardferryctl describe migration NAME")
 	fmt.Fprintln(out, "       shardferryctl describe cluster NAME")
+	fmt.Fprintln(out, "       shardferryctl cluster add NAME --endpoint URL [--role source|target|both] [--file PATH]")
 	fmt.Fprintln(out, "       shardferryctl delete migration NAME [--purge-target] [--dry-run]")
 	fmt.Fprintln(out, "       shardferryctl cancel|retry migration NAME")
 	fmt.Fprintln(out, "global: -n/--namespace NAMESPACE, --json")
@@ -123,6 +127,11 @@ func execute(
 		return executeGet(ctx, kubeClient, namespace, jsonOut, args[1:], out)
 	case "describe":
 		return executeDescribe(ctx, kubeClient, namespace, jsonOut, args[1:], out)
+	case "cluster":
+		if len(args) >= 2 && args[1] == "add" {
+			return executeClusterAdd(jsonOut, namespace, args[2:], out)
+		}
+		return fmt.Errorf("usage: shardferryctl cluster add NAME --endpoint URL")
 	case "delete":
 		return executeDelete(ctx, kubeClient, namespace, args[1:], out)
 	case "cancel":
