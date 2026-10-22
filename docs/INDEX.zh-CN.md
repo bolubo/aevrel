@@ -3,6 +3,7 @@
 ## 产品与定位
 
 - [定位](POSITIONING.zh-CN.md)
+- [竞争与移动层策略](COMPETITIVE-STRATEGY.zh-CN.md)
 - [迁移品类](CATEGORY.zh-CN.md)
 - [v0 场景](SCENARIO.zh-CN.md)
 - [用户交付与排障](USER-ENABLEMENT.zh-CN.md)

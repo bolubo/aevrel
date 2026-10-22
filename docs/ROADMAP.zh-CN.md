@@ -158,10 +158,14 @@ source keeps training
 - 更丰富的 proof、timeline 和故障注入；
 - 训练平台/Kueue 的显式 handoff 集成。
 
-## 0.3：自动迁移策略（Autopilot）
+## 0.3：Provider planner + 自动迁移策略（Autopilot）
 
 从“用户显式 handoff”提升到“平台策略触发 handoff”：
 
+- 抽象 StateProvider / TransportProvider / TargetLoader；
+- 在 DCP 原生、ByteCheckpoint、ETC/Tenplex、TierCheck/FastCheck、
+  shardferry range transport 之间做成本/兼容性选择；
+- 有共享盘时明确推荐 DCP 原生，不强行走 shardferry；
 - spot/节点故障/集群升级事件；
 - target capacity 和兼容性预检；
 - 迁移策略、配额、审批和冷却；
