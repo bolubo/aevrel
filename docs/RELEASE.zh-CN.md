@@ -65,5 +65,5 @@ gh release upload v0.2.0-rc.1 dist/shardferry-0.2.0-rc.1-evidence.tar.gz
 
 不要把 kind、物理多节点或 GPU 验证写成已完成；在得到证据前保留
 “environment-dependent / pending”标记。0.1.1 的已验证范围以
-[`GPU-VALIDATION-2026-10-22.md`](research/gpu/GPU-VALIDATION-2026-10-22.md) 和
-[`LIVE-ACCEPTANCE.zh-CN.md`](LIVE-ACCEPTANCE.zh-CN.md) 为准。
+[`LIVE-ACCEPTANCE.zh-CN.md`](LIVE-ACCEPTANCE.zh-CN.md) 为准；GPU 原始证据
+保留在私有验证目录。

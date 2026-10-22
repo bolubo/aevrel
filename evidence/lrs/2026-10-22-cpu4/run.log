@@ -1,4 +1,0 @@
-LRS CPU4 · real gloo · 4 -> 3 -> 4
-param_diff=1.388e-17 target_diff=1.388e-17 loss_diff=0.000e+00 sampler=True
-evidence /root/lines/oss/aicluster/shardferry-lrs/evidence/lrs/2026-10-22-cpu4/live-split.json
-CPU4 PASSED

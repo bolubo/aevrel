@@ -102,11 +102,8 @@ checkpoint readiness 层。这个判断以内部验收矩阵和真实环境测�
 
 更完整的生态盘点、竞品矩阵和用户证据见
 [Checkpoint 生态与用户需求调研](CHECKPOINT-RESEARCH.zh-CN.md)。
-工程执行、阶段顺序和硬验收见
-[产品构建计划](BUILD-PLAN.zh-CN.md)。
 模块边界、接口和依赖方向见
-[控制面架构](ARCHITECTURE.zh-CN.md)，具体重构任务见
-[重构与任务计划](REFACTOR-PLAN.zh-CN.md)。
+[控制面架构](ARCHITECTURE.zh-CN.md)。
 
 ## 4. 我们的定位
 

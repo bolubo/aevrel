@@ -50,5 +50,4 @@ published release remains `0.1.1` until the GPU and cross-machine gates pass.
 
 Use the `0.1.1` release for the currently published static path. Use this
 candidate from source only after reading
-[`LRS-4GPU-RUNBOOK.zh-CN.md`](research/lrs/LRS-4GPU-RUNBOOK.zh-CN.md) and
 [`0.2-ACCEPTANCE.zh-CN.md`](0.2-ACCEPTANCE.zh-CN.md).

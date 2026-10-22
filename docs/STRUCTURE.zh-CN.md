@@ -2,8 +2,7 @@
 
 日期：2026-10-22
 状态：兼容布局说明；控制面目标结构以
-[控制面架构](ARCHITECTURE.zh-CN.md) 和
-[重构与任务计划](REFACTOR-PLAN.zh-CN.md) 为准
+[控制面架构](ARCHITECTURE.zh-CN.md) 为准
 
 ## 原则
 

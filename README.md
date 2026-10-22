@@ -194,9 +194,9 @@ helm lint deploy/helm/shardferry
 python scripts/check_release.py --json
 ```
 
-Historical design and research notes are intentionally separated under
-[`docs/archive/`](docs/archive/README.md) and
-[`docs/research/`](docs/research/README.md).
+Historical design and research notes are intentionally kept outside the public
+repository; public docs contain only current product, usage, architecture and
+release material.
 
 ## License
 

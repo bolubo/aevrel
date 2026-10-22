@@ -144,4 +144,4 @@ volume、dataset）、workload provider（manifests、镜像、配置、依赖�
 
 否则进入 backlog，不因为“技术上很酷”而进入产品面。
 
-品类和市场分析见 [历史品类笔记](archive/product/CATEGORY.zh-CN.md)。
+品类和市场分析属于内部产品研究，不放在公开文档树。

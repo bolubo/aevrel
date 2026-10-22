@@ -1,8 +1,7 @@
 # shardferry 文档索引
 
 > 当前产品：**Checkpoint readiness, recovery and mobility control plane**。
-> 历史实验已移入 [`archive/`](archive/README.md)，研究证据见
-> [`research/`](research/README.md)。
+> 内部研究、历史实验和验收证据不放在公开仓库。
 
 ## 先读这些
 
@@ -17,10 +16,7 @@
 - [定位](POSITIONING.zh-CN.md)
 - [产品契约](PRODUCT.zh-CN.md)
 - [路线图](ROADMAP.zh-CN.md)
-- [构建计划](BUILD-PLAN.zh-CN.md)
-- [控制面重构计划](REFACTOR-PLAN.zh-CN.md)
 - [Checkpoint 生态与需求调研](CHECKPOINT-RESEARCH.zh-CN.md)
-- [用户发现记录](USER-DISCOVERY-2026-10-22.md)
 - [兼容性](COMPATIBILITY.zh-CN.md)
 
 ## 使用与集成
@@ -49,12 +45,4 @@
 - [性能与方法](BENCHMARK.zh-CN.md)
 - [跨集群 live acceptance](LIVE-ACCEPTANCE.zh-CN.md)
 
-## 研究证据
-
-- [LRS research](research/lrs/README.md)
-- [GPU / CPU experiments](research/gpu/README.md)
 - [0.1 静态迁移验收](0.1-ACCEPTANCE.zh-CN.md)
-
-## 历史归档
-
-- [Archive index](archive/README.md)

@@ -158,7 +158,7 @@ fallback 到 Python ingest。
 ### P1 acceptance
 
 性能契约和硬门槛见
-`docs/archive/design/specs/2026-10-22-rto-performance-contract.md`。完整 CDP
+内部 RTO 性能契约文档。完整 CDP
 benchmark 支持：
 
 ```bash

@@ -4,7 +4,6 @@
 
 ## 迁移前
 
-- [历史品类笔记](archive/product/CATEGORY.zh-CN.md)
 - [定位](POSITIONING.zh-CN.md)
 - [兼容性矩阵](COMPATIBILITY.zh-CN.md)
 
@@ -19,9 +18,8 @@
 
 ## GPU 环境
 
-- [GPU/FSDP 实验卡](research/gpu/GPU-EXPERIMENT.zh-CN.md)
-- [GPU 两小时验收 Runbook](research/gpu/GPU-RUNBOOK.zh-CN.md)
 - 预检：`scripts/gpu_preflight.py`
+- GPU 原始实验记录保留在私有验证目录，不进入公开文档树。
 
 ## 用户最短路径
 
