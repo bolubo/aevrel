@@ -16,6 +16,9 @@ shardferry doctor --checkpoint /path/to/source.dcp
 shardferry migrate --checkpoint /path/to/source.dcp --target-world 3
 ```
 
+The product migration path reads tensor byte ranges directly from source
+`.distcp` files; it does not extract a second raw copy into the work directory.
+
 For distributed local disks, see `docs/USAGE.zh-CN.md` and use
 `examples/k8s/migration.yaml` with `shardferryctl migrate -f ... --dry-run` or
 `--wait`. Before creating the CR, run `shardferryctl preflight -f ...` to
@@ -27,6 +30,10 @@ discover the actual source/target agents and ranks.
 cluster/DeviceMesh and rebuilds them for a target cluster/DeviceMesh, including
 different world sizes, placements, and partial mesh overlap, without requiring a
 global remote checkpoint.
+
+## License
+
+Apache-2.0. See [`LICENSE`](LICENSE).
 
 ## Physical A/B quick path
 
@@ -108,14 +115,12 @@ and planned bytes match the plan.
 - `tests/fixtures/`: toy tensors and mesh fixtures.
 - `examples/toy-4to3/`: example MigrationSpec.
 - `scripts/snapshot.sh`: phase snapshot helper.
-- `WORKLOG.md`: current phase, decisions, known issues, next step.
 
 ## Local workflow
 
 Git is present for recovery/rollback. Keep virtualenvs, build outputs, and
 benchmark data out of commits; use an explicit branch/worktree for parallel
-development. Phase evidence remains under
-`/root/lines/oss/aicluster/snapshots/`.
+development. Phase evidence is kept outside the public checkout.
 
 V1 contract and preflight checks:
 

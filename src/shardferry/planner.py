@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from bisect import bisect_left
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import product
 from math import prod
 from pathlib import Path
@@ -38,6 +40,122 @@ class SourceShard:
     coord: tuple[int, ...]
 
 
+class _SourceIndex:
+    """Exact axis-filtered index for rectangular source regions.
+
+    For each axis, sources are sorted by their start coordinate. A target
+    query intersects the prefix that starts before the target end, then filters
+    by the source end. Intersecting axis candidates avoids the O(sources)
+    scan for every target shard while retaining exact final overlap checks.
+    """
+
+    def __init__(self, sources: list[SourceShard]) -> None:
+        self.sources = sources
+        self.start_values: list[list[int]] = []
+        self.start_entries: list[list[tuple[int, int]]] = []
+        self.max_end_trees: list[list[int]] = []
+        self.tree_sizes: list[int] = []
+        if not sources:
+            return
+        dimensions = len(sources[0].region.offset)
+        for axis in range(dimensions):
+            entries = sorted(
+                (source.region.offset[axis], index)
+                for index, source in enumerate(sources)
+            )
+            self.start_entries.append(entries)
+            self.start_values.append([entry[0] for entry in entries])
+            ends = [
+                sources[index].region.offset[axis]
+                + sources[index].region.size[axis]
+                for _, index in entries
+            ]
+            size = 1
+            while size < len(ends):
+                size *= 2
+            tree = [-1] * (size * 2)
+            tree[size : size + len(ends)] = ends
+            for index in range(size - 1, 0, -1):
+                tree[index] = max(tree[index * 2], tree[index * 2 + 1])
+            self.max_end_trees.append(tree)
+            self.tree_sizes.append(size)
+
+    def query(self, target: Region) -> list[SourceShard]:
+        if not self.sources:
+            return []
+        prefixes = [
+            bisect_left(
+                self.start_values[axis],
+                target.offset[axis] + target.size[axis],
+            )
+            for axis in range(len(target.offset))
+        ]
+        base_axis = min(range(len(prefixes)), key=prefixes.__getitem__)
+        if prefixes[base_axis] == 0:
+            return []
+        candidates: set[int] = set()
+        self._collect_candidates(
+            base_axis,
+            prefixes[base_axis],
+            target.offset[base_axis],
+            1,
+            0,
+            self.tree_sizes[base_axis],
+            candidates,
+        )
+        return [
+            self.sources[index]
+            for index in sorted(candidates)
+            if all(
+                source_start < target_start + target_length
+                and target_start < source_start + source_length
+                for source_start, source_length, target_start, target_length in zip(
+                    self.sources[index].region.offset,
+                    self.sources[index].region.size,
+                    target.offset,
+                    target.size,
+                )
+            )
+        ]
+
+    def _collect_candidates(
+        self,
+        axis: int,
+        limit: int,
+        threshold: int,
+        node: int,
+        left: int,
+        right: int,
+        result: set[int],
+    ) -> None:
+        tree = self.max_end_trees[axis]
+        if left >= limit or tree[node] <= threshold:
+            return
+        if right - left == 1:
+            if left < len(self.start_entries[axis]):
+                result.add(self.start_entries[axis][left][1])
+            return
+        middle = (left + right) // 2
+        self._collect_candidates(
+            axis,
+            limit,
+            threshold,
+            node * 2,
+            left,
+            middle,
+            result,
+        )
+        self._collect_candidates(
+            axis,
+            limit,
+            threshold,
+            node * 2 + 1,
+            middle,
+            right,
+            result,
+        )
+
+
 def plan(spec: dict[str, Any]) -> dict[str, Any]:
     validate_spec(spec)
     source_mesh = parse_mesh(spec["source"]["mesh"])
@@ -49,19 +167,23 @@ def plan(spec: dict[str, Any]) -> dict[str, Any]:
         )
 
     source_shards = _source_catalog(spec, source_mesh)
-    partial_axes, reduce_op = _partial_layout(source_mesh)
     tensors = {
         tensor["name"]: tensor for tensor in spec["checkpoint"]["tensors"]
     }
+    source_indexes = {
+        tensor_name: _SourceIndex(
+            [shard for shard in source_shards if shard.tensor == tensor_name]
+        )
+        for tensor_name in tensors
+    }
+    partial_axes, reduce_op = _partial_layout(source_mesh)
     nodes: list[dict[str, Any]] = []
     total_bytes = 0
 
     for tensor_name, tensor in tensors.items():
         shape = tuple(tensor["shape"])
         item_size = DTYPE_BYTES[tensor["dtype"]]
-        tensor_sources = [
-            shard for shard in source_shards if shard.tensor == tensor_name
-        ]
+        tensor_index = source_indexes[tensor_name]
         for target_rank in range(target_mesh.world_size):
             target_region = local_region(
                 target_mesh,
@@ -95,7 +217,7 @@ def plan(spec: dict[str, Any]) -> dict[str, Any]:
                 tensor_name,
                 target_rank,
                 target_region,
-                tensor_sources,
+                tensor_index,
                 source_mesh,
                 partial_axes,
                 reduce_op,
@@ -137,13 +259,26 @@ def plan(spec: dict[str, Any]) -> dict[str, Any]:
         "cost": _plan_cost(spec, nodes, total_bytes),
         "nodes": nodes,
     }
-    validate_plan(result, spec)
+    validate_plan(
+        result,
+        spec,
+        _spec_validated=True,
+        _schema_validated=True,
+    )
     return result
 
 
-def validate_plan(plan_payload: dict[str, Any], spec: dict[str, Any]) -> None:
-    validate_spec(spec)
-    _validate_schema(plan_payload)
+def validate_plan(
+    plan_payload: dict[str, Any],
+    spec: dict[str, Any],
+    *,
+    _spec_validated: bool = False,
+    _schema_validated: bool = False,
+) -> None:
+    if not _spec_validated:
+        validate_spec(spec)
+    if not _schema_validated:
+        _validate_schema(plan_payload)
     if plan_payload["migration_id"] not in _accepted_migration_ids(spec):
         raise PlannerError("migration_id does not match the spec")
 
@@ -156,6 +291,13 @@ def validate_plan(plan_payload: dict[str, Any], spec: dict[str, Any]) -> None:
         )
 
     source_shards = _source_catalog(spec, source_mesh)
+    source_by_id = {source.id: source for source in source_shards}
+    source_by_rank: dict[tuple[str, int], list[SourceShard]] = {}
+    for source in source_shards:
+        source_by_rank.setdefault(
+            (source.tensor, source.rank),
+            [],
+        ).append(source)
     partial_axes, reduce_op = _partial_layout(source_mesh)
     tensors = {
         tensor["name"]: tensor for tensor in spec["checkpoint"]["tensors"]
@@ -231,17 +373,24 @@ def validate_plan(plan_payload: dict[str, Any], spec: dict[str, Any]) -> None:
             if len(source_offset) != len(shape):
                 raise PlannerError(f"{node['id']}: source rank mismatch")
             requested_id = source_input.get("source_id")
-            source_candidates = [
-                shard
-                for shard in source_shards
-                if shard.tensor == tensor_name
-                and (
-                    shard.id == requested_id
-                    if requested_id
-                    else shard.rank == source_rank
+            if requested_id:
+                source = source_by_id.get(requested_id)
+                source_candidates = (
+                    [source]
+                    if source is not None
+                    and source.tensor == tensor_name
+                    and contains(source.region, source_offset, size)
+                    else []
                 )
-                and contains(shard.region, source_offset, size)
-            ]
+            else:
+                source_candidates = [
+                    source
+                    for source in source_by_rank.get(
+                        (tensor_name, source_rank),
+                        [],
+                    )
+                    if contains(source.region, source_offset, size)
+                ]
             if not source_candidates:
                 raise PlannerError(
                     f"{node['id']}: source range is not present in source shard"
@@ -254,32 +403,22 @@ def validate_plan(plan_payload: dict[str, Any], spec: dict[str, Any]) -> None:
                 raise PlannerError(f"{node['id']}: source checksum does not match")
 
         if partial_axes and node["op"] != "zeros":
-            source_by_id = {
-                source.id: source
-                for source in source_shards
-                if source.tensor == tensor_name
-            }
-            source_by_rank = {}
-            for source in source_shards:
-                if source.tensor != tensor_name:
-                    continue
-                if source.rank in source_by_rank:
-                    source_by_rank[source.rank] = None
-                else:
-                    source_by_rank[source.rank] = source
             selected = []
             for source_input in node["inputs"]:
                 identifier = source_input.get("source_id")
                 if identifier:
                     selected.append(source_by_id[identifier])
                 else:
-                    candidate = source_by_rank.get(source_input["source_rank"])
-                    if candidate is None:
+                    candidates = source_by_rank.get(
+                        (tensor_name, source_input["source_rank"]),
+                        [],
+                    )
+                    if len(candidates) != 1:
                         raise PlannerError(
                             f"{node['id']}: source_id is required for a "
                             "multi-chunk Partial rank"
                         )
-                    selected.append(candidate)
+                    selected.append(candidates[0])
             non_partial_axes = tuple(
                 axis
                 for axis in range(len(source_mesh.shape))
@@ -459,19 +598,98 @@ def _plan_cost(
 
 def _coalesce_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
+    by_key: dict[tuple[Any, ...], list[int]] = {}
+    index_keys: dict[int, list[tuple[Any, ...]]] = {}
+
+    def add_index(node: dict[str, Any], index: int) -> None:
+        keys = _merge_keys(node)
+        index_keys[index] = keys
+        for key in keys:
+            by_key.setdefault(key, []).append(index)
+
+    def remove_index(index: int) -> None:
+        for key in index_keys.pop(index, []):
+            bucket = by_key.get(key)
+            if bucket is None:
+                continue
+            try:
+                bucket.remove(index)
+            except ValueError:
+                continue
+            if not bucket:
+                by_key.pop(key, None)
+
     for node in nodes:
-        merged = False
-        for index in range(len(result) - 1, -1, -1):
+        candidates: set[int] = set()
+        for key in _merge_keys(node):
+            candidates.update(by_key.get(key, ()))
+        selected: tuple[int, int] | None = None
+        for index in candidates:
             axis = _merge_axis(result[index], node)
-            if axis is not None:
-                result[index] = _merge_nodes(result[index], node, axis)
-                merged = True
-                break
-        if not merged:
+            if axis is None:
+                continue
+            if selected is None or index > selected[0]:
+                selected = (index, axis)
+        if selected is None:
+            index = len(result)
             result.append(deepcopy(node))
+            add_index(result[index], index)
+            continue
+        index, axis = selected
+        remove_index(index)
+        result[index] = _merge_nodes(result[index], node, axis)
+        add_index(result[index], index)
     for index, node in enumerate(result):
         node["id"] = f"n{index:06d}"
     return result
+
+
+def _merge_keys(node: dict[str, Any]) -> list[tuple[Any, ...]]:
+    dimensions = len(node["size"])
+    source_signature = tuple(
+        (
+            source_input.get("source_id"),
+            source_input.get("source_rank"),
+            source_input.get("checksum"),
+            tuple(
+                source_input["source_offset"][dim]
+                for dim in range(dimensions)
+            ),
+        )
+        for source_input in node.get("inputs", [])
+    )
+    keys = []
+    for axis in range(dimensions):
+        target_signature = tuple(
+            (node["target_offset"][dim], node["size"][dim])
+            for dim in range(dimensions)
+            if dim != axis
+        )
+        source_signature_without_axis = tuple(
+            (
+                source_id,
+                source_rank,
+                checksum,
+                tuple(
+                    offset
+                    for dim, offset in enumerate(offsets)
+                    if dim != axis
+                ),
+            )
+            for source_id, source_rank, checksum, offsets in source_signature
+        )
+        keys.append(
+            (
+                node["tensor"],
+                node["target_rank"],
+                node["op"],
+                dimensions,
+                axis,
+                target_signature,
+                source_signature_without_axis,
+            )
+        )
+    return keys
 
 
 def _merge_axis(left: dict[str, Any], right: dict[str, Any]) -> int | None:
@@ -580,20 +798,16 @@ def _plan_region(
     tensor_name: str,
     target_rank: int,
     target_region: Region,
-    sources: list[SourceShard],
+    source_index: _SourceIndex,
     source_mesh: Mesh,
     partial_axes: tuple[int, ...],
     reduce_op: str,
     item_size: int,
 ) -> list[tuple[str, list[SourceShard], Region]]:
-    if not sources:
+    if not source_index.sources:
         raise PlannerError(f"no source shards for tensor {tensor_name}")
 
-    relevant = [
-        source
-        for source in sources
-        if _overlaps(source.region, target_region)
-    ]
+    relevant = source_index.query(target_region)
     if not relevant:
         raise PlannerError(
             f"{tensor_name}/rank{target_rank}: no source overlaps target region"
@@ -828,14 +1042,22 @@ def _check_exact_cover(expected: Region, regions: list[Region], label: str) -> N
 
 
 def _validate_schema(payload: dict[str, Any]) -> None:
-    if not PLAN_SCHEMA_PATH.is_file():
-        raise PlannerError(f"plan schema not found: {PLAN_SCHEMA_PATH}")
-    schema = json.loads(PLAN_SCHEMA_PATH.read_text(encoding="utf-8"))
-    validator = Draft202012Validator(schema)
-    errors = sorted(validator.iter_errors(payload), key=lambda error: list(error.path))
+    validator = _plan_validator()
+    errors = sorted(
+        validator.iter_errors(payload),
+        key=lambda error: list(error.path),
+    )
     if errors:
         details = "; ".join(error.message for error in errors)
         raise PlannerError(f"plan schema validation failed: {details}")
+
+
+@lru_cache(maxsize=1)
+def _plan_validator() -> Draft202012Validator:
+    if not PLAN_SCHEMA_PATH.is_file():
+        raise PlannerError(f"plan schema not found: {PLAN_SCHEMA_PATH}")
+    schema = json.loads(PLAN_SCHEMA_PATH.read_text(encoding="utf-8"))
+    return Draft202012Validator(schema)
 
 
 def _migration_id(spec: dict[str, Any]) -> str:

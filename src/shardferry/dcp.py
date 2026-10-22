@@ -5,6 +5,7 @@ import json
 import mmap
 import pickle
 import re
+import shutil
 import sys
 import uuid
 import warnings
@@ -866,6 +867,7 @@ def migrate_dcp(
     target_mesh_shape: tuple[int, ...] | None = None,
     target_placements: tuple[str, ...] = DEFAULT_TARGET_PLACEMENTS,
     force: bool = False,
+    keep_work: bool = False,
     progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     def notify(message: str) -> None:
@@ -941,6 +943,10 @@ def migrate_dcp(
     )
     notify("verification passed; writing target DCP")
     export_dcp(spec, output_path, force=force)
+    if not keep_work:
+        target_work = (work_path / "target").resolve()
+        if target_work.exists() and target_work.is_dir():
+            shutil.rmtree(target_work)
     notify("migration complete")
     return {
         "spec": spec,

@@ -33,6 +33,9 @@ spec:
             - --state-dir=/var/lib/shardferry/state
             - --artifact-base-url={{ include "shardferry.artifactURL" . }}
             - --cache-bytes={{ .Values.target.cacheBytes | int64 }}
+            {{- if .Values.target.loadSmoke }}
+            - --load-smoke
+            {{- end }}
             {{- if .Values.tls.enabled }}
             - --tls-cert=/tls/{{ .Values.tls.certKey }}
             - --tls-key=/tls/{{ .Values.tls.keyKey }}

@@ -48,6 +48,7 @@ target:
   enabled: false
   checkpointHostPath: /var/lib/shardferry/target
   stateHostPath: /var/lib/shardferry/target-state
+  loadSmoke: false
   port: 9444
   cacheBytes: 536870912
   securityContext:

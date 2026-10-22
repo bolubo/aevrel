@@ -95,7 +95,7 @@ class TargetTaskExecutor:
         source_token: str | None = None,
         *,
         proof_enabled: bool = False,
-        load_smoke: bool = True,
+        load_smoke: bool = False,
     ) -> None:
         self.resolver = resolver
         self.source_token = source_token

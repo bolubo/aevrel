@@ -76,8 +76,10 @@ def paired_run_batches(
     source_run_lists: Iterable[Iterable[tuple[int, int]]],
     max_bytes: int = DEFAULT_RUN_BATCH_BYTES,
 ) -> list[tuple[tuple[int, int], list[tuple[int, int]]]]:
-    target_list = list(target_runs)
-    source_lists = [list(runs) for runs in source_run_lists]
+    target_list = _split_runs(target_runs, max_bytes)
+    source_lists = [
+        _split_runs(runs, max_bytes) for runs in source_run_lists
+    ]
     if any(len(runs) != len(target_list) for runs in source_lists):
         raise TensorIOError("target and source run counts differ")
 
@@ -115,6 +117,26 @@ def paired_run_batches(
         )
         target_start = target_end
     return batches
+
+
+def _split_runs(
+    runs: Iterable[tuple[int, int]],
+    max_bytes: int,
+) -> list[tuple[int, int]]:
+    if max_bytes <= 0:
+        raise TensorIOError("run batch size must be positive")
+    result: list[tuple[int, int]] = []
+    for offset, length in runs:
+        if length <= 0:
+            continue
+        remaining = length
+        cursor = offset
+        while remaining > 0:
+            chunk = min(remaining, max_bytes)
+            result.append((cursor, chunk))
+            cursor += chunk
+            remaining -= chunk
+    return result
 
 
 def reduce_bytes(data: Iterable[bytes], op: str, dtype: str) -> bytes:

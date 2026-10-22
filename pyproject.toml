@@ -6,7 +6,21 @@ build-backend = "hatchling.build"
 name = "shardferry"
 version = "0.1.0"
 description = "Move and reshard local checkpoint shards across DeviceMeshes and clusters."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "shardferry contributors" }]
 requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Go",
+  "Topic :: System :: Distributed Computing",
+]
 dependencies = [
   "numpy>=1.26",
   "PyYAML>=6.0",

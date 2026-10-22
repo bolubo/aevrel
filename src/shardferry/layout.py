@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from math import prod
 
 from .mesh import Mesh, Placement
@@ -30,6 +31,7 @@ class Region:
         return prod(self.size)
 
 
+@lru_cache(maxsize=65536)
 def rank_coord(rank: int, shape: tuple[int, ...]) -> tuple[int, ...]:
     if rank < 0 or rank >= prod(shape):
         raise ValueError(f"rank {rank} is out of range for mesh shape {shape}")
@@ -41,6 +43,7 @@ def rank_coord(rank: int, shape: tuple[int, ...]) -> tuple[int, ...]:
     return tuple(coord)
 
 
+@lru_cache(maxsize=65536)
 def split_lengths(length: int, parts: int) -> tuple[int, ...]:
     if length < 0:
         raise ValueError("length must be non-negative")
@@ -50,6 +53,7 @@ def split_lengths(length: int, parts: int) -> tuple[int, ...]:
     return tuple(base + (1 if index < extra else 0) for index in range(parts))
 
 
+@lru_cache(maxsize=65536)
 def local_region(
     mesh: Mesh,
     placements: tuple[Placement, ...],

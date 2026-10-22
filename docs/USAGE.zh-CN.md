@@ -138,11 +138,11 @@ state，再走正常 DCP load。`scripts/gpu_target_load.py` 是一个 4 -> 3 FS
 
 ### 磁盘预算
 
-用户至少要预留：
+产品 `migrate` 不再抽取 source raw shard；它直接读取 `.distcp` 的 tensor
+range。用户至少要预留：
 
 ```text
 source 原目录（只读）
-+ work dir 中抽取的 source raw shard
 + work dir 中的 target staging/final shard
 + output DCP
 ```
@@ -244,8 +244,9 @@ controller 会：
   w/rank37.bin        # 原始 staging 产物仍保留作证据
 ```
 
-finalize 后 target agent 还会执行一次 rank-local DCP load smoke；失败会让
-task 停在 `commit-incomplete`，而不是报告成功。
+需要时可在 target agent 上启用 `--load-smoke`，finalize 后执行一次
+rank-local DCP load smoke；默认关闭，避免大 checkpoint 为原子提交增加额外
+CPU/IO 成本。
 
 目标训练任务需要按 rank 使用本机 `targetRoot` 下的 DCP 目录；这避免在
 local-disk 场景把所有 rank 汇总到一台机器。完整目标任务的 `load` smoke

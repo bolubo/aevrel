@@ -170,6 +170,11 @@ def _build_parser() -> argparse.ArgumentParser:
     agent.add_argument("--cache-bytes", type=int, default=512 * 1024 * 1024)
     agent.add_argument("--artifact-base-url", required=True)
     agent.add_argument("--proof", action="store_true")
+    agent.add_argument(
+        "--load-smoke",
+        action="store_true",
+        help="verify each completed target rank with a local DCP load",
+    )
 
     cutover = sub.add_parser("cutover-serve")
     cutover.add_argument("--source", required=True)
@@ -319,6 +324,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="allow writing into a non-empty output directory",
+    )
+    migrate.add_argument(
+        "--keep-work",
+        action="store_true",
+        help="keep target raw staging files after successful export",
     )
     migrate.add_argument(
         "--json",
@@ -579,6 +589,7 @@ def main(argv: list[str] | None = None) -> int:
                 HttpArtifactResolver(args.artifact_base_url, token),
                 source_token=token,
                 proof_enabled=args.proof,
+                load_smoke=args.load_smoke,
             )
             server = build_agent_server(
                 args.listen,
@@ -781,6 +792,7 @@ def main(argv: list[str] | None = None) -> int:
                 target_mesh_shape=target_shape,
                 target_placements=_parse_csv(args.target_placements),
                 force=args.force,
+                keep_work=args.keep_work,
                 progress=report_progress,
             )
             summary = _migration_summary(args.checkpoint, result)

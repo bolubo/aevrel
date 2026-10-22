@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
     [
         "scripts/ab_target.py",
         "scripts/benchmark.py",
+        "scripts/planner_benchmark.py",
         "scripts/summarize_reports.py",
         "scripts/gpu_source_save.py",
         "scripts/gpu_target_load.py",

@@ -15,6 +15,7 @@ from shardferry.dcp import (
 from shardferry.executor import apply
 from shardferry.planner import plan
 from shardferry.storage.file import FileStorage
+from shardferry.target_ready import DcpTargetReady
 from shardferry.verify import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
@@ -82,3 +83,4 @@ def test_dcp_roundtrip_4to3(tmp_path) -> None:
     )
     assert (rank_dcp / ".metadata").is_file()
     assert len(list(rank_dcp.glob("*.distcp"))) == 1
+    DcpTargetReady(rank_dcp, rank=0)("local-rank")
