@@ -374,17 +374,20 @@ warm target job 预热完成后的正式本地结果：
 `237.8MiB` 已确认是源生成一次性大块造成的 benchmark artifact，不是数据面
 RSS；这个旧数字不能再作为产品结论。
 
-## 0.2 计划中的爆炸性 benchmark：Handoff RTO / RPO
+## 0.2/0.3 计划中的爆炸性 benchmark：Preemption → target-first-step
 
-这一组不是“谁复制得快”，而是“source 出事后，target 多快能以同一个
-checkpoint 边界继续训练”。它是 0.2 的发布门禁，不是营销附录。
+这一组不是“谁复制得快”，而是“source 被预抢占后，平台能不能按最近
+checkpoint 快速把任务恢复到 target，并让 target 真的继续训练”。
+
+0.2 先测“source 已停止 → checkpoint-aware migration → target Job 继续”；
+0.3 再测“source 还活着 → warm shadow → cutover”。
 
 ### 场景
 
-1. source 训练任务持续产生 DCP version；
-2. target follower 预先追赶到最新 version；
-3. source 在 checkpoint 边界被停止/回收；
-4. target 做 final delta、promote，并继续 N 个训练 step；
+1. source 训练任务产生完整 DCP version；
+2. Kueue/平台按 checkpoint freshness 决定 preemption；
+3. target 从本地 shard 迁移到不同 DeviceMesh；
+4. target Job 加载 DCP 并继续 N 个训练 step；
 5. 另跑一次“搬运到 90% 时中断”，记录重传字节。
 
 ### 对照
@@ -393,7 +396,7 @@ checkpoint 边界继续训练”。它是 0.2 的发布门禁，不是营销附�
 |---|---|
 | 冷恢复 | source 已死；从最近完整 checkpoint 重新启动 |
 | 共享盘原生 load | target 直接挂载 source；最快但不能跨控制域 |
-| ShardFerry warm handoff | target shadow 已就绪；只做 final delta + promote |
+| ShardFerry checkpoint migration | source 已停止；从最近完整版本迁移并启动 target |
 | 90% 故障恢复 | 搬运中断后续跑，验证不重复已提交 chunk |
 
 ### 必报指标
@@ -412,6 +415,6 @@ checkpoint 边界继续训练”。它是 0.2 的发布门禁，不是营销附�
 
 ### 发布叙事
 
-如果 0.2 跑出来的是“2 秒暂停、0 个已提交 step 丢失、最后只传几十 MiB
-delta”，这比“比 rsync 快 8%”有意义得多。若没有这个结果，0.2 的 Live
-Handoff 不能发布成主卖点。
+如果 0.2 跑出来的是“按 checkpoint freshness 选择抢占、跨 mesh 搬到 target、
+target 真的继续 N step”，这比“比 rsync 快 8%”有意义得多。若没有这个结果，
+0.2 不能把 checkpoint-aware preemption 作为主卖点。

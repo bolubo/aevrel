@@ -24,7 +24,7 @@ not promise online/live training cutover.
 
 Roadmap: [`0.1.x` static checkpoint mobility](docs/0.1-ACCEPTANCE.zh-CN.md) is
 released; next are `0.1.2` Rescue Demo, `0.1.3` performance, then
-[`0.2.0` Live Handoff](docs/0.2-ACCEPTANCE.zh-CN.md). See the full
+[`0.2.0` Checkpoint Mobility Control Plane](docs/0.2-ACCEPTANCE.zh-CN.md). See the full
 [`roadmap`](docs/ROADMAP.zh-CN.md).
 
 ## Why

@@ -7,7 +7,7 @@
 - **0.1.x**：静态 checkpoint 迁移的维护线；
 - **0.1.2**：Rescue Demo，做出可传播、可复现的第一次体验；
 - **0.1.3**：迁移性能专项，消掉当前可优化的 I/O 和实现开销；
-- **0.2.0**：训练热接力（Live Handoff）大版本；
+- **0.2.0**：Checkpoint Mobility Control Plane；
 - 口语中的“0.11/0.12/0.13”统一写作 `0.1.1/0.1.2/0.1.3`，都属于 0.1 维护线。
 
 大版本的门槛不是“功能变多”，而是用户完成任务的形态发生变化。
@@ -100,46 +100,41 @@
 
 0.1.3 完成后，直接进入 0.2.0。不要再把 0.1.x 扩成新品类。
 
-## 0.2.0：Live Handoff（训练热接力）
+## 0.2.0：Checkpoint Mobility Control Plane
 
 启动条件：0.1.2 Demo 可用，0.1.3 性能基线稳定。
 
 ### 用户任务
 
-> source 训练任务还在写 checkpoint；target 已准备好不同 world size 的 shadow；
-> 在明确的 checkpoint 边界暂停 source，让 target 接管并继续训练。
+> 当训练任务被抢占或需要换集群时，平台知道它最近一个完整 checkpoint，
+> 能把本地分片搬到目标 DeviceMesh，并确认 target Job 真的可以继续训练。
 
-0.2 不是把 CUDA 进程搬过去，而是：
+0.2 的三个功能：
 
-```text
-source keeps training
-      -> target follower catches up committed versions
-      -> source pauses at a checkpoint boundary
-      -> final delta + fence + promote
-      -> target loads and continues for N steps
-      -> source can stop; failure rolls back to source
-```
+1. **Checkpoint-aware preemption / restore**：checkpoint freshness/state
+   进入 Kueue 抢占决策，区分 restore 与 fresh start；
+2. **Separate-Mesh local-shard migration**：不共享目录，跨 DeviceMesh
+   搬运和重分片；
+3. **Target-ready integration**：target Job 加载 DCP 并运行 N 个训练 step，
+   失败不能误报成功。
+
+三个功能共享 `CheckpointState + MobilityPlan + Transaction + Proof` 内核。
 
 ### 0.2 必须交付
 
-- source checkpoint version 协议和持续 follower；
-- target 不同 world size 的 shadow；
-- `shardferryctl handoff -f FILE`；
-- checkpoint boundary、pause budget、fence、final delta；
-- promote / rollback / stale fence / duplicate handoff 的明确状态；
-- target 训练 harness 至少继续 N 个 step；
-- 4×L20 上真实 `4→3` 或 `4→2` live handoff；
+- Kueue `PreemptionConfig` 可消费 checkpoint freshness/cost；
+- source/target 不同 DeviceMesh 的本地分片迁移；
+- target Job/TrainJob readiness 与 proof；
+- 4×L20 上真实 `4→3` 或 `4→2`；
 - 128→64 CPU/控制面规模验证；
-- timeline、pause/RPO、proof、source digest 证据。
-- **Handoff RTO/RPO benchmark**：source 停止后的 time-to-first-step、
-  steps_lost、cutover delta bytes、90% 故障重传字节；100Mbps/1Gbps/10Gbps
-  三档网络整形。
+- source digest、target load、failure/rollback 日志。
 
 ### 0.2 明确不做
 
 - CUDA context / Python 堆的内存在线迁移；
 - 任意 tensor/pipeline parallel 布局自动转换；
 - 未保存 dataloader/RNG/scheduler 时的“完全相同训练轨迹”承诺；
+- Live Handoff（放到 0.3+，不是 0.2 发布门槛）；
 - 生产 SLA 和任意公网条件下的 RTO 承诺。
 
 详细门槛见 [0.2 目标与验收](0.2-ACCEPTANCE.zh-CN.md)。
@@ -158,11 +153,12 @@ source keeps training
 - 更丰富的 proof、timeline 和故障注入；
 - 训练平台/Kueue 的显式 handoff 集成。
 
-## 0.3：Provider planner + 自动迁移策略（Autopilot）
+## 0.3：Provider planner + Live Handoff + Autopilot
 
 从“用户显式 handoff”提升到“平台策略触发 handoff”：
 
 - 抽象 StateProvider / TransportProvider / TargetLoader；
+- 将 Live Handoff 作为显式可选模式，而不是默认路径；
 - 在 DCP 原生、ByteCheckpoint、ETC/Tenplex、TierCheck/FastCheck、
   shardferry range transport 之间做成本/兼容性选择；
 - 有共享盘时明确推荐 DCP 原生，不强行走 shardferry；
@@ -172,7 +168,8 @@ source keeps training
 - 自动 target job 启动与验证；
 - 失败后的人工接管路径。
 
-自动发现和自动触发必须建立在 0.2 的显式 handoff 已经可靠之上。
+自动发现和自动触发必须建立在 0.2 的 checkpoint state、跨 mesh 迁移和
+target-ready 已经可靠之上。
 
 ## 1.0：跨控制域状态移动层
 
@@ -195,8 +192,9 @@ source keeps training
 
 1. `0.1.2` Rescue Demo；
 2. `0.1.3` 性能专项；
-3. `0.2.0` source version 协议、follower、fence、target-ready；
-4. 真实 GPU live handoff 和故障/规模矩阵；
+3. `0.2.0` checkpoint-aware preemption、跨 mesh local-shard migration、
+   target-ready integration；
+4. 真实 GPU 跨 mesh 迁移和 0.2 故障/规模矩阵；
 5. 0.2 实现中冒出的问题按 `0.2.x` 补丁登记。
 
 不在当前优先级：更多格式、更多 provider、模型推理和通用工作负载迁移。

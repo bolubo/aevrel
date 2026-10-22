@@ -79,7 +79,8 @@ Provider 只回答“如何读/写/验证”，不拥有跨域事务语义。
 - `0.1`：DCP 静态移动；
 - `0.1.2`：Rescue Demo，首次体验；
 - `0.1.3`：性能专项，消除可优化 I/O；
-- `0.2`：Live Handoff，source 还在训练时 target 接管；
+- `0.2`：Checkpoint Mobility Control Plane，checkpoint-aware preemption、
+  跨 mesh 移动和 target-ready；
 - `0.3`：Provider planner + Autopilot，开始吸收 DCP/ByteCheckpoint/
   ETC/Tenplex/TierCheck；
 - `1.0`：跨控制域状态移动层，成为调度器和平台可调用的 primitive。
@@ -116,7 +117,7 @@ Provider 只回答“如何读/写/验证”，不拥有跨域事务语义。
 
 ## 8. 唯一值得追的 benchmark
 
-不是同机 MB/s，而是跨域 Live Handoff：
+不是同机 MB/s，而是跨域 checkpoint-aware preemption / migration：
 
 - `time_to_first_step`
 - `steps_lost`
