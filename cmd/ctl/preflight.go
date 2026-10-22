@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/shardferry/shardferry/internal/agentclient"
+	"github.com/shardferry/shardferry/internal/clusterclient"
 	"github.com/shardferry/shardferry/internal/controller"
 )
 
@@ -35,20 +36,57 @@ func executePreflight(
 		return fmt.Errorf("invalid migration: %w", err)
 	}
 	token := os.Getenv("SHARDFERRY_AGENT_TOKEN")
-	if token == "" &&
-		(migration.Spec.Source.AgentSelector != nil ||
-			migration.Spec.Target.AgentSelector != nil) {
-		return fmt.Errorf(
-			"SHARDFERRY_AGENT_TOKEN is required for selector preflight",
-		)
+	needsSourceProbe := migration.Spec.Source.AgentSelector != nil ||
+		migration.Spec.Source.ClusterRef != ""
+	needsTargetProbe := migration.Spec.Target.AgentSelector != nil ||
+		migration.Spec.Target.ClusterRef != ""
+	if token == "" && (needsSourceProbe || needsTargetProbe) {
+		return fmt.Errorf("SHARDFERRY_AGENT_TOKEN is required for preflight")
 	}
+	agents := agentclient.New(token)
 	resolver := &controller.AgentResolver{
-		Client: kubeClient,
-		Agents: agentclient.New(token),
+		Client:   kubeClient,
+		Agents:   agents,
+		Clusters: clusterclient.New(""),
 	}
 	resolved, err := resolver.Resolve(ctx, migration)
 	if err != nil {
 		return fmt.Errorf("preflight: %w", err)
+	}
+	if needsSourceProbe {
+		for _, entry := range resolved.Spec.Source.RankMap {
+			inventory, err := agents.Inventory(ctx, entry.Endpoint, entry.Rank)
+			if err != nil {
+				return fmt.Errorf(
+					"preflight source rank %d: %w",
+					entry.Rank,
+					err,
+				)
+			}
+			if inventory.Rank != entry.Rank {
+				return fmt.Errorf(
+					"preflight source rank %d: agent returned rank %d",
+					entry.Rank,
+					inventory.Rank,
+				)
+			}
+		}
+	}
+	if needsTargetProbe {
+		checked := make(map[string]struct{})
+		for _, entry := range resolved.Spec.Target.RankMap {
+			if _, ok := checked[entry.Endpoint]; ok {
+				continue
+			}
+			checked[entry.Endpoint] = struct{}{}
+			if _, err := agents.Capabilities(ctx, entry.Endpoint); err != nil {
+				return fmt.Errorf(
+					"preflight target endpoint %s: %w",
+					entry.Endpoint,
+					err,
+				)
+			}
+		}
 	}
 	sourceRanks := len(resolved.Spec.Source.RankMap)
 	targetRanks := len(resolved.Spec.Target.RankMap)

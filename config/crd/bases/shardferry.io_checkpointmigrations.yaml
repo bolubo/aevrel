@@ -132,6 +132,10 @@ spec:
                         - https
                         type: string
                     type: object
+                  clusterRef:
+                    description: ClusterRef selects a registered ShardferryCluster
+                      gateway instead of the local Kubernetes cluster.
+                    type: string
                   checkpointRoot:
                     minLength: 1
                     type: string
@@ -210,6 +214,10 @@ spec:
                         - https
                         type: string
                     type: object
+                  clusterRef:
+                    description: ClusterRef selects a registered ShardferryCluster
+                      gateway instead of the local Kubernetes cluster.
+                    type: string
                   mesh:
                     description: MeshSpec describes a DeviceMesh.
                     properties:

@@ -47,6 +47,20 @@
 只有在阶段 C 稳定后，才把持续 shadow follower、pause、promote、rollback
 和 RTO/RPO 作为可选能力暴露给用户。
 
+## 长期品类演进（不影响当前交付）
+
+DCP 是第一个 vertical，不是最终品类。当前阶段的扩展顺序是：
+
+1. **DCP state provider**：把 local-disk checkpoint 迁移打穿；
+2. **通用 state provider**：文件、volume、dataset、model artifact；
+3. **workload provider**：manifests、镜像、配置、依赖和接线；
+4. **迁移判定与规划层**：判断能不能迁、迁移闭包、最快安全路径和成本；
+5. **跨控制域迁移**：本地多集群、云上云下、灾备和计划性扩缩容；
+6. **在线 cutover**：停顿窗口、增量追赶、promote/rollback。
+
+叙事可以放大，交付范围不能放大。只有当当前 vertical 的真实闭环稳定后，
+才把下一层纳入主线。
+
 ## 开发优先级
 
 1. 目标训练 load smoke；

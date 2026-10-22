@@ -160,7 +160,7 @@ func buildExecutionRun(
 	migration *shardferryv1.CheckpointMigration,
 	prepared Prepared,
 ) *execution.Run {
-	return execution.NewRun(execution.RunConfig{
+	run := execution.NewRun(execution.RunConfig{
 		ID:             migration.Namespace + "/" + migration.Name + ":" + prepared.PlanHash,
 		PlanID:         prepared.PlanHash,
 		MigrationUID:   migrationUID(migration),
@@ -173,6 +173,10 @@ func buildExecutionRun(
 		MaxAttempts:    int(migration.Spec.Policy.MaxAttemptsPerRank),
 		MaxConcurrency: int(migration.Spec.Policy.MaxConcurrentTransfers),
 	})
+	for rank := int32(0); rank < migration.Spec.Target.WorldSize; rank++ {
+		run.RegisterRank(rank)
+	}
+	return run
 }
 
 func targetEndpoints(migration *shardferryv1.CheckpointMigration) map[int32]string {

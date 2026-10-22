@@ -54,6 +54,33 @@ type AgentSelector struct {
 	Scheme string `json:"scheme,omitempty"`
 }
 
+// ClusterSecretRef points at the bearer token used to call a cluster gateway.
+type ClusterSecretRef struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+	// Key defaults to token.
+	Key string `json:"key,omitempty"`
+}
+
+// ShardferryClusterSpec describes a reachable agent gateway in one cluster.
+type ShardferryClusterSpec struct {
+	// +kubebuilder:validation:Enum=source;target;both
+	// +kubebuilder:default=both
+	Role string `json:"role,omitempty"`
+	// +kubebuilder:validation:MinLength=1
+	Endpoint    string           `json:"endpoint"`
+	SecretRef   ClusterSecretRef `json:"secretRef"`
+	Description string           `json:"description,omitempty"`
+}
+
+// ShardferryClusterStatus is the observed gateway state.
+type ShardferryClusterStatus struct {
+	Ready    bool   `json:"ready,omitempty"`
+	Version  string `json:"version,omitempty"`
+	Message  string `json:"message,omitempty"`
+	LastSeen string `json:"lastSeen,omitempty"`
+}
+
 // SourceSpec describes the source checkpoint location and topology.
 type SourceSpec struct {
 	// +kubebuilder:validation:Minimum=0
@@ -62,6 +89,7 @@ type SourceSpec struct {
 	// +kubebuilder:validation:Maximum=256
 	WorldSize     int32          `json:"worldSize"`
 	Mesh          MeshSpec       `json:"mesh"`
+	ClusterRef    string         `json:"clusterRef,omitempty"`
 	RankMap       []RankEndpoint `json:"rankMap,omitempty"`
 	AgentSelector *AgentSelector `json:"agentSelector,omitempty"`
 	// +kubebuilder:validation:MinLength=1
@@ -74,6 +102,7 @@ type TargetSpec struct {
 	// +kubebuilder:validation:Maximum=256
 	WorldSize     int32          `json:"worldSize"`
 	Mesh          MeshSpec       `json:"mesh"`
+	ClusterRef    string         `json:"clusterRef,omitempty"`
 	RankMap       []RankEndpoint `json:"rankMap,omitempty"`
 	AgentSelector *AgentSelector `json:"agentSelector,omitempty"`
 	// +kubebuilder:validation:MinLength=1
@@ -159,8 +188,30 @@ type CheckpointMigrationList struct {
 	Items           []CheckpointMigration `json:"items"`
 }
 
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Namespaced,shortName=sfc
+type ShardferryCluster struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              ShardferryClusterSpec   `json:"spec,omitempty"`
+	Status            ShardferryClusterStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+type ShardferryClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ShardferryCluster `json:"items"`
+}
+
 func init() {
-	SchemeBuilder.Register(&CheckpointMigration{}, &CheckpointMigrationList{})
+	SchemeBuilder.Register(
+		&CheckpointMigration{},
+		&CheckpointMigrationList{},
+		&ShardferryCluster{},
+		&ShardferryClusterList{},
+	)
 }
 
 var _ runtime.Object = &CheckpointMigration{}

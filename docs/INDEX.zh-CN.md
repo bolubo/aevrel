@@ -3,8 +3,10 @@
 ## 产品与定位
 
 - [定位](POSITIONING.zh-CN.md)
+- [迁移品类](CATEGORY.zh-CN.md)
 - [为什么不用原生 DCP](WHY-SHARDFERRY.zh-CN.md)
 - [典型使用场景](USE-CASES.zh-CN.md)
+- [跨集群示例](../examples/cross-cluster/README.zh-CN.md)
 - [兼容性矩阵](COMPATIBILITY.zh-CN.md)
 - [路线图](ROADMAP.zh-CN.md)
 - [0.2 目标与验收](0.2-ACCEPTANCE.zh-CN.md)

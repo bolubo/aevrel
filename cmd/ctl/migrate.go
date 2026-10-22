@@ -243,6 +243,7 @@ func validateProductMigration(
 		"source",
 		spec.Source.RankMap,
 		spec.Source.AgentSelector,
+		spec.Source.ClusterRef,
 	); err != nil {
 		return err
 	}
@@ -250,6 +251,7 @@ func validateProductMigration(
 		"target",
 		spec.Target.RankMap,
 		spec.Target.AgentSelector,
+		spec.Target.ClusterRef,
 	); err != nil {
 		return err
 	}
@@ -284,7 +286,31 @@ func validateAgentConfig(
 	role string,
 	rankMap []shardferryv1.RankEndpoint,
 	selector *shardferryv1.AgentSelector,
+	clusterRef string,
 ) error {
+	if clusterRef != "" {
+		if len(rankMap) > 0 {
+			return fmt.Errorf(
+				"%s must not set rankMap when clusterRef is set",
+				role,
+			)
+		}
+		if selector == nil || len(selector.MatchLabels) == 0 {
+			return fmt.Errorf(
+				"%s.agentSelector.matchLabels is required with clusterRef",
+				role,
+			)
+		}
+		if selector.Port < 0 || selector.Port > 65535 {
+			return fmt.Errorf("%s.agentSelector.port is out of range", role)
+		}
+		switch selector.Scheme {
+		case "", "http", "https":
+		default:
+			return fmt.Errorf("%s.agentSelector.scheme must be http or https", role)
+		}
+		return nil
+	}
 	if len(rankMap) > 0 && selector != nil {
 		return fmt.Errorf(
 			"%s must set either rankMap or agentSelector, not both",

@@ -585,6 +585,26 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         try:
+            public_url = args.public_url
+            if public_url:
+                public_url = (
+                    public_url.replace(
+                        "${POD_NAME}",
+                        os.environ.get("POD_NAME", ""),
+                    )
+                    .replace(
+                        "${HOSTNAME}",
+                        os.environ.get("HOSTNAME", ""),
+                    )
+                    .replace(
+                        "${NODE_IP}",
+                        os.environ.get("NODE_IP", ""),
+                    )
+                    .replace(
+                        "{pod}",
+                        os.environ.get("POD_NAME", ""),
+                    )
+                )
             executor = TargetTaskExecutor(
                 HttpArtifactResolver(args.artifact_base_url, token),
                 source_token=token,
@@ -600,7 +620,7 @@ def main(argv: list[str] | None = None) -> int:
                 spec_path=args.spec,
                 dcp_checkpoint=args.checkpoint,
                 dcp_metadata=args.metadata,
-                public_url=args.public_url,
+                public_url=public_url,
                 max_cache_bytes=args.cache_bytes,
             )
             print(

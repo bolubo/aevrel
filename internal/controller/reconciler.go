@@ -71,7 +71,7 @@ func (r *Reconciler) Reconcile(
 				err.Error(),
 			)
 		}
-		r.Runner.Ensure(run)
+		run = r.Runner.Ensure(run)
 		if err := r.setExecutionStatus(
 			ctx,
 			&migration,
@@ -401,6 +401,7 @@ func validateMigration(migration *shardferryv1.CheckpointMigration) error {
 		spec.Source.WorldSize,
 		spec.Source.RankMap,
 		spec.Source.AgentSelector,
+		spec.Source.ClusterRef,
 	); err != nil {
 		return err
 	}
@@ -409,6 +410,7 @@ func validateMigration(migration *shardferryv1.CheckpointMigration) error {
 		spec.Target.WorldSize,
 		spec.Target.RankMap,
 		spec.Target.AgentSelector,
+		spec.Target.ClusterRef,
 	); err != nil {
 		return err
 	}
@@ -504,7 +506,31 @@ func validateAgentOrRanks(
 	worldSize int32,
 	ranks []shardferryv1.RankEndpoint,
 	selector *shardferryv1.AgentSelector,
+	clusterRef string,
 ) error {
+	if clusterRef != "" {
+		if len(ranks) > 0 {
+			return fmt.Errorf(
+				"%s must not set rankMap when clusterRef is set",
+				role,
+			)
+		}
+		if selector == nil || len(selector.MatchLabels) == 0 {
+			return fmt.Errorf(
+				"%s.agentSelector.matchLabels is required with clusterRef",
+				role,
+			)
+		}
+		if selector.Port < 0 || selector.Port > 65535 {
+			return fmt.Errorf("%s.agentSelector.port is out of range", role)
+		}
+		switch selector.Scheme {
+		case "", "http", "https":
+		default:
+			return fmt.Errorf("%s.agentSelector.scheme must be http or https", role)
+		}
+		return nil
+	}
 	if len(ranks) > 0 {
 		if selector != nil {
 			return fmt.Errorf(

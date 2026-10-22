@@ -1,5 +1,6 @@
 image:
   controller: ghcr.io/shardferry/shardferry-controller:0.1.0
+  gateway: ghcr.io/shardferry/shardferry-gateway:0.1.0
   agent: ghcr.io/shardferry/shardferry-agent:0.1.0
   pullPolicy: IfNotPresent
 
@@ -16,9 +17,36 @@ tls:
   keyKey: tls.key
 
 controller:
+  enabled: true
   replicas: 1
+  serviceType: ClusterIP
+  nodePort: 0
   artifactPublicURL: ""
   servicePort: 8082
+  resources: {}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+gateway:
+  enabled: false
+  replicas: 1
+  bindAddress: ":9445"
+  port: 9445
+  serviceType: ClusterIP
+  nodePort: 0
+  # Must be reachable from the management cluster. Set to a LoadBalancer,
+  # Ingress or port-forward URL in real cross-cluster deployments.
+  publicURL: ""
+  clusterName: ""
+  gatewayToken:
+    existingSecret: shardferry-agent-token
+    key: token
+  agentToken:
+    existingSecret: shardferry-agent-token
+    key: token
   resources: {}
   securityContext:
     runAsNonRoot: true
@@ -33,6 +61,9 @@ artifacts:
 
 source:
   enabled: true
+  # Optional. Use a gateway proxy URL for cross-cluster range access, e.g.
+  # http://source-gateway:9445/v1/agents/{pod}
+  publicURL: ""
   checkpointHostPath: /var/lib/shardferry/source
   metadataHostPath: /var/lib/shardferry/metadata
   stateHostPath: /var/lib/shardferry/source-state

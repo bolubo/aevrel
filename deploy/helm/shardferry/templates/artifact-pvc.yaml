@@ -1,4 +1,4 @@
-{{- if not .Values.artifacts.existingClaim }}
+{{- if and .Values.controller.enabled (not .Values.artifacts.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

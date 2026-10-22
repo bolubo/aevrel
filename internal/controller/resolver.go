@@ -11,16 +11,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	"github.com/shardferry/shardferry/internal/clusterclient"
 )
 
 type RankAPI interface {
 	Ranks(context.Context, string) ([]int32, error)
 }
 
+type ClusterAPI interface {
+	Resolve(context.Context, string, string, clusterclient.ResolveRequest) (clusterclient.ResolveResponse, error)
+}
+
 // AgentResolver expands label-selector based agent discovery into rank maps.
 type AgentResolver struct {
-	Client client.Client
-	Agents RankAPI
+	Client   client.Client
+	Reader   client.Reader
+	Agents   RankAPI
+	Clusters ClusterAPI
 }
 
 func (r *AgentResolver) Resolve(
@@ -29,20 +36,184 @@ func (r *AgentResolver) Resolve(
 ) (*shardferryv1.CheckpointMigration, error) {
 	effective := migration.DeepCopy()
 	if len(effective.Spec.Source.RankMap) == 0 {
-		ranks, err := r.sourceRanks(ctx, effective, effective.Spec.Source.AgentSelector)
+		var ranks []shardferryv1.RankEndpoint
+		var err error
+		if effective.Spec.Source.ClusterRef != "" {
+			ranks, err = r.remoteRanks(
+				ctx,
+				effective,
+				"source",
+				effective.Spec.Source.ClusterRef,
+				effective.Spec.Source.AgentSelector,
+				effective.Spec.Source.WorldSize,
+			)
+		} else {
+			ranks, err = r.sourceRanks(ctx, effective, effective.Spec.Source.AgentSelector)
+		}
 		if err != nil {
 			return nil, err
 		}
 		effective.Spec.Source.RankMap = ranks
+		effective.Spec.Source.AgentSelector = nil
+		effective.Spec.Source.ClusterRef = ""
 	}
 	if len(effective.Spec.Target.RankMap) == 0 {
-		ranks, err := r.targetRanks(ctx, effective, effective.Spec.Target.AgentSelector)
+		var ranks []shardferryv1.RankEndpoint
+		var err error
+		if effective.Spec.Target.ClusterRef != "" {
+			ranks, err = r.remoteRanks(
+				ctx,
+				effective,
+				"target",
+				effective.Spec.Target.ClusterRef,
+				effective.Spec.Target.AgentSelector,
+				effective.Spec.Target.WorldSize,
+			)
+		} else {
+			ranks, err = r.targetRanks(ctx, effective, effective.Spec.Target.AgentSelector)
+		}
 		if err != nil {
 			return nil, err
 		}
 		effective.Spec.Target.RankMap = ranks
+		effective.Spec.Target.AgentSelector = nil
+		effective.Spec.Target.ClusterRef = ""
 	}
 	return effective, nil
+}
+
+func (r *AgentResolver) remoteRanks(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+	role string,
+	clusterRef string,
+	selector *shardferryv1.AgentSelector,
+	worldSize int32,
+) ([]shardferryv1.RankEndpoint, error) {
+	if r.Clusters == nil {
+		return nil, fmt.Errorf("cluster gateway client is not configured")
+	}
+	if selector == nil || len(selector.MatchLabels) == 0 {
+		return nil, fmt.Errorf("%s.agentSelector.matchLabels is required", role)
+	}
+	reader := r.Reader
+	if reader == nil {
+		reader = r.Client
+	}
+	var cluster shardferryv1.ShardferryCluster
+	if err := reader.Get(
+		ctx,
+		client.ObjectKey{Namespace: migration.Namespace, Name: clusterRef},
+		&cluster,
+	); err != nil {
+		return nil, fmt.Errorf("%s cluster %s/%s: %w", role, migration.Namespace, clusterRef, err)
+	}
+	if cluster.Spec.Role != "" &&
+		cluster.Spec.Role != "both" &&
+		cluster.Spec.Role != role {
+		return nil, fmt.Errorf(
+			"%s cluster %s has role %q",
+			role,
+			clusterRef,
+			cluster.Spec.Role,
+		)
+	}
+	if cluster.Spec.Endpoint == "" {
+		return nil, fmt.Errorf("cluster %s has no gateway endpoint", clusterRef)
+	}
+	token, err := r.clusterToken(
+		ctx,
+		reader,
+		migration.Namespace,
+		cluster.Spec.SecretRef,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cluster %s auth: %w", clusterRef, err)
+	}
+	port := selector.Port
+	if port == 0 {
+		port = 9443
+	}
+	scheme := selector.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
+	response, err := r.Clusters.Resolve(ctx, cluster.Spec.Endpoint, token, clusterclient.ResolveRequest{
+		Version:     "1",
+		Role:        role,
+		Namespace:   selector.Namespace,
+		MatchLabels: selector.MatchLabels,
+		Port:        port,
+		Scheme:      scheme,
+		WorldSize:   worldSize,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%s cluster %s resolve: %w", role, clusterRef, err)
+	}
+	if len(response.Ranks) != int(worldSize) {
+		return nil, fmt.Errorf(
+			"%s cluster %s returned %d ranks, want %d",
+			role,
+			clusterRef,
+			len(response.Ranks),
+			worldSize,
+		)
+	}
+	result := make([]shardferryv1.RankEndpoint, 0, len(response.Ranks))
+	for _, entry := range response.Ranks {
+		if entry.Rank < 0 || entry.Rank >= worldSize {
+			return nil, fmt.Errorf(
+				"%s cluster %s returned out-of-range rank %d",
+				role,
+				clusterRef,
+				entry.Rank,
+			)
+		}
+		if entry.Endpoint == "" {
+			return nil, fmt.Errorf(
+				"%s cluster %s returned rank %d without endpoint",
+				role,
+				clusterRef,
+				entry.Rank,
+			)
+		}
+		result = append(result, shardferryv1.RankEndpoint{
+			Rank:     entry.Rank,
+			Endpoint: entry.Endpoint,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Rank < result[j].Rank
+	})
+	return result, nil
+}
+
+func (r *AgentResolver) clusterToken(
+	ctx context.Context,
+	reader client.Reader,
+	namespace string,
+	ref shardferryv1.ClusterSecretRef,
+) (string, error) {
+	if ref.Name == "" {
+		return "", fmt.Errorf("secretRef.name is required")
+	}
+	key := ref.Key
+	if key == "" {
+		key = "token"
+	}
+	var secret corev1.Secret
+	if err := reader.Get(
+		ctx,
+		client.ObjectKey{Namespace: namespace, Name: ref.Name},
+		&secret,
+	); err != nil {
+		return "", err
+	}
+	value := secret.Data[key]
+	if len(value) == 0 {
+		return "", fmt.Errorf("secret %s/%s key %s is empty", namespace, ref.Name, key)
+	}
+	return string(value), nil
 }
 
 func (r *AgentResolver) sourceRanks(

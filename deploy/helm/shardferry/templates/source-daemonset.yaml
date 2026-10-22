@@ -33,7 +33,7 @@ spec:
             - --state-dir=/var/lib/shardferry/state
             - --checkpoint=/checkpoints
             - --metadata=/metadata
-            - --public-url={{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://${NODE_IP}:{{ .Values.source.port }}
+            - --public-url={{ if .Values.source.publicURL }}{{ .Values.source.publicURL }}{{ else }}{{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://${NODE_IP}:{{ .Values.source.port }}{{ end }}
             - --artifact-base-url={{ include "shardferry.artifactURL" . }}
             - --cache-bytes={{ .Values.source.cacheBytes | int64 }}
             {{- if .Values.tls.enabled }}
@@ -51,6 +51,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           ports:
             - name: agent
               containerPort: {{ .Values.source.port }}

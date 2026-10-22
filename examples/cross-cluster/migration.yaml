@@ -1,0 +1,48 @@
+apiVersion: shardferry.io/v1
+kind: CheckpointMigration
+metadata:
+  name: job42-16-to-8
+  namespace: shardferry-control
+spec:
+  checkpoint:
+    format: dcp
+    formatVersion: "1.0.0"
+  source:
+    clusterRef: source
+    worldSize: 16
+    mesh:
+      shape: [16]
+      placements: ["Shard(0)"]
+    metadataOwnerRank: 0
+    checkpointRoot: /checkpoints/job42
+    agentSelector:
+      namespace: shardferry
+      matchLabels:
+        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/component: source
+      port: 9443
+      scheme: http
+  target:
+    clusterRef: target
+    worldSize: 8
+    mesh:
+      shape: [8]
+      placements: ["Shard(0)"]
+    rootTemplate: /targets/job42/rank{rank}
+    agentSelector:
+      namespace: shardferry
+      matchLabels:
+        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/component: target
+      port: 9444
+      scheme: http
+  policy:
+    verify: bitwise
+    commit: all-or-nothing
+    maxConcurrentTransfers: 8
+    maxAttemptsPerRank: 5
+    timeoutSeconds: 3600
+    sourceChunkCacheBytes: 536870912
+  artifacts:
+    store: pvc
+    claimName: shardferry-control-artifacts

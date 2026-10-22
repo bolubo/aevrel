@@ -5,8 +5,37 @@
 
 ## 一句话
 
-**shardferry 是面向 local-disk 训练集群的 DCP checkpoint 迁移层：不先把
-checkpoint 汇总到全局存储，而是直接按目标拓扑搬运和 reshard。**
+**shardferry 的长期品类是跨控制域迁移层：A 有、B 缺时，判断能不能迁，
+选择最快且安全的路径，执行迁移，并证明 B 真正可用。**
+
+当前版本只交付其中一个最难、最具体的垂直场景：local-disk 训练集群的
+DCP checkpoint 迁移与 reshard。DCP 是第一条产品线，不是品类上限。
+
+长期不是重写 Velero、CSI、数据库复制或云迁移服务，而是把它们作为
+provider 纳入统一的迁移控制面，由 planner 做全局组合和判错。
+
+我们的默认位置是上层控制面和迁移语义，不是通用数据面性能竞赛。底层
+provider 能满足语义、正确性和 SLO 时优先集成；只有它无法表达关键语义、
+无法恢复或没有稳定 API 时，才考虑自研。
+
+整体问题定义和迁移方案必须自研；内部实现优先复用成熟组件，并通过
+provider/adapter 隔离，避免第三方类型和生命周期渗透到核心状态机。
+
+“集群”是用户最直观的说法；更准确的边界是不同控制域。A/B 可以是两个
+Kubernetes、云上云下、本地多集群，或单机到集群。同集群内交给
+Kubernetes/CSI；A/B 都有且持续同步的主从/双活不是迁移。
+
+## 品类判据
+
+一条迁移成立，至少满足：
+
+1. A/B 属于不同控制域；
+2. A 有所需的工作负载或状态，B 缺；
+3. 目标环境具备承载能力，或能明确报告不可迁的阻塞项。
+
+B 缺的可以是服务、状态，或两者都缺。只缺服务时，迁移对象是 manifests、
+镜像、配置、依赖和接线；只缺状态时，迁移对象是数据/checkpoint；两者都缺
+时按依赖顺序一起迁。通用迁移不承诺重写应用本身。
 
 ## 解决的问题
 
@@ -66,13 +95,22 @@ source/target agent 按节点的 hostPath 工作，controller 通过 label selec
 在线 cutover、CDP 持续追赶和 RPO/RTO 是独立能力，只有在真实 target load
 和故障矩阵验证后才进入稳定产品面。
 
+在 DCP 垂直场景稳定后，产品按 provider 扩展：state provider（文件、
+volume、dataset）、workload provider（manifests、镜像、配置、依赖）和
+迁移判定/规划 provider。控制面可以是 Kubernetes-native，但内核状态机不能
+绑死 DCP 或 AI。
+
 ## 非目标
 
 - 通用 checkpoint 格式转换；
 - 训练调度器或 Kueue/Kubernetes 替代品；
 - 模型推理和 serving；
 - 通用分布式文件系统；
-- 对所有 checkpoint 格式、所有存储后端和所有网络环境的一次性支持。
+- 对所有 checkpoint 格式、所有存储后端和所有网络环境的一次性支持；
+- 同集群内 Pod/卷重调度（交给 Kubernetes/CSI/平台现有能力）；
+- A/B 双活、持续主从复制和 CDC；
+- 承诺所有工作负载都可迁；不能迁时必须报告阻塞，不重写应用；
+- 当前 0.2 不交付通用 workload provider。
 
 ## 核心差异
 
@@ -102,3 +140,5 @@ source/target agent 按节点的 hostPath 工作，controller 通过 label selec
 4. 让安装、诊断或目标加载更可靠。
 
 否则进入 backlog，不因为“技术上很酷”而进入产品面。
+
+品类和市场分析见 [迁移品类](CATEGORY.zh-CN.md)。

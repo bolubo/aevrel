@@ -22,6 +22,7 @@ type fakeTaskClient struct {
 	commitWithoutIntentSeen bool
 	blockCreate             bool
 	withProof               bool
+	omitCommitReport        bool
 }
 
 func newFakeTaskClient(run *Run) *fakeTaskClient {
@@ -92,16 +93,38 @@ func (f *fakeTaskClient) CommitTask(
 	}
 	task := f.tasks[taskID]
 	task.State = "committed"
-	task.Report = map[string]any{"status": "success"}
-	if f.withProof {
-		task.Report["proof"] = map[string]any{
-			"plan_id": "plan",
-			"root":    "sha256:" + strings.Repeat("a", 64),
-		}
+	if !f.omitCommitReport {
+		task.Report = f.report(true)
 	}
 	f.tasks[taskID] = task
 	f.commitCount++
 	return task, nil
+}
+
+func (f *fakeTaskClient) GetTask(
+	_ context.Context,
+	_ string,
+	taskID string,
+) (agentclient.Task, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	task := f.tasks[taskID]
+	if task.Report == nil {
+		task.Report = f.report(false)
+	}
+	f.tasks[taskID] = task
+	return task, nil
+}
+
+func (f *fakeTaskClient) report(withProof bool) map[string]any {
+	report := map[string]any{"status": "success"}
+	if withProof && f.withProof {
+		report["proof"] = map[string]any{
+			"plan_id": "plan",
+			"root":    "sha256:" + strings.Repeat("a", 64),
+		}
+	}
+	return report
 }
 
 func newTestRun(world int32) *Run {
@@ -181,6 +204,27 @@ func TestRunnerSetsCommitIntentBeforeEveryCommit(t *testing.T) {
 	}
 	if client.commitWithoutIntentSeen {
 		t.Fatal("a commit was sent before CommitIntent")
+	}
+}
+
+func TestRunnerReadsBackReportWhenCommitResponseOmitsIt(t *testing.T) {
+	run := newTestRun(1)
+	client := newFakeTaskClient(run)
+	client.omitCommitReport = true
+	runner := NewRunner(client, 1)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := run.Summary().Phase; got != PhaseSucceeded {
+		t.Fatalf("phase = %s, want succeeded", got)
+	}
+	if got := len(run.Reports()); got != 1 {
+		t.Fatalf("reports = %d, want 1", got)
 	}
 }
 

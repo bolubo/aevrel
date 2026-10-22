@@ -21,6 +21,10 @@ type TaskClient interface {
 	CommitTask(context.Context, string, string) (agentclient.Task, error)
 }
 
+type TaskReader interface {
+	GetTask(context.Context, string, string) (agentclient.Task, error)
+}
+
 type TaskCanceller interface {
 	CancelTask(context.Context, string, string) (agentclient.Task, error)
 }
@@ -253,6 +257,33 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 		if task.State != "committed" {
 			err := fmt.Errorf("rank %d did not commit: %s", key.Rank, task.State)
 			run.SetPhase(key.Rank, PhaseCommitIncomplete, task.TaskID, err.Error())
+			if run.Rank(key.Rank).Attempts >= run.MaxAttempts() {
+				run.FailTerminal(err)
+				return nil
+			}
+			return err
+		}
+		if task.Report == nil {
+			if reader, ok := r.client.(TaskReader); ok {
+				getCtx, getCancel := context.WithTimeout(ctx, r.taskTimeout)
+				if fetched, getErr := reader.GetTask(
+					getCtx,
+					run.Endpoint(key.Rank),
+					task.TaskID,
+				); getErr == nil {
+					task = fetched
+				}
+				getCancel()
+			}
+		}
+		if task.Report == nil {
+			err := fmt.Errorf("rank %d committed without a report", key.Rank)
+			run.SetPhase(
+				key.Rank,
+				PhaseCommitIncomplete,
+				task.TaskID,
+				err.Error(),
+			)
 			if run.Rank(key.Rank).Attempts >= run.MaxAttempts() {
 				run.FailTerminal(err)
 				return nil

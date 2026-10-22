@@ -18,6 +18,7 @@ import (
 	shardferryv1 "github.com/shardferry/shardferry/api/v1"
 	"github.com/shardferry/shardferry/internal/agentclient"
 	"github.com/shardferry/shardferry/internal/artifactstore"
+	"github.com/shardferry/shardferry/internal/clusterclient"
 	"github.com/shardferry/shardferry/internal/controller"
 	"github.com/shardferry/shardferry/internal/cutoverclient"
 	"github.com/shardferry/shardferry/internal/execution"
@@ -182,8 +183,10 @@ func main() {
 		4,
 	)
 	preparer.SetResolver(&controller.AgentResolver{
-		Client: mgr.GetClient(),
-		Agents: agents,
+		Client:   mgr.GetClient(),
+		Reader:   mgr.GetAPIReader(),
+		Agents:   agents,
+		Clusters: clusterclient.New(agentToken),
 	})
 	if err := mgr.Add(preparer); err != nil {
 		ctrl.Log.Error(err, "unable to add preparation runner")

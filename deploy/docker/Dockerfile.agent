@@ -2,6 +2,7 @@ ARG PYTHON_IMAGE=python:3.11-slim
 FROM ${PYTHON_IMAGE}
 
 ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG INSTALL_TORCH=true
 ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -12,14 +13,25 @@ RUN groupadd --gid 10001 shardferry \
     && useradd --uid 10001 --gid 10001 --create-home shardferry
 
 WORKDIR /app
-COPY pyproject.toml ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 COPY spec ./spec
 
-RUN pip install --no-cache-dir \
-      --index-url https://download.pytorch.org/whl/cpu \
-      torch \
+RUN if [ "$INSTALL_TORCH" = "true" ]; then \
+      pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch; \
+    fi \
     && pip install --no-cache-dir .
+
+RUN python - <<'PY'
+import shutil
+import sysconfig
+from pathlib import Path
+
+spec_root = Path(sysconfig.get_paths()["purelib"]).parent / "spec"
+shutil.copytree("/app/spec", spec_root, dirs_exist_ok=True)
+PY
 
 USER 10001:10001
 EXPOSE 9443 9444

@@ -100,6 +100,25 @@ rank, put the offsets in `source.mesh.rank_map`, and run `apply --target-rank N
 --target-root /local/path` on each target rank. The 4/3 commands are the smoke
 path; the rank-scoped path is the scale path.
 
+## Cross-cluster alpha
+
+The cross-cluster control-plane path is under active development. It uses a
+small `ShardferryCluster` gateway in each source/target cluster so the
+controller never depends on remote Pod IPs:
+
+```text
+management cluster -> ShardferryCluster(source/target) -> gateway -> local agents
+```
+
+See [`examples/cross-cluster/README.zh-CN.md`](examples/cross-cluster/README.zh-CN.md)
+for the two-cluster install and migration example. The current alpha assumes one
+agent token across the control plane and both gateways; per-cluster token routing
+and mTLS are later hardening steps.
+
+The two-kind control-plane path has been exercised for 16→8 and small 128→64
+DCP migrations, including target DCP load and source checksum preservation. This
+is a control-plane proof, not a 1GiB/GPU performance claim.
+
 CPU-only rank simulation:
 
 ```bash

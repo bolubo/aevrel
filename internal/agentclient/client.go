@@ -149,6 +149,17 @@ func (c *Client) Ranks(
 	return response.Ranks, nil
 }
 
+func (c *Client) Capabilities(
+	ctx context.Context,
+	endpoint string,
+) (map[string]any, error) {
+	var response map[string]any
+	if err := c.do(ctx, http.MethodGet, endpoint+"/v1/capabilities", nil, &response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func (c *Client) Plan(
 	ctx context.Context,
 	endpoint string,

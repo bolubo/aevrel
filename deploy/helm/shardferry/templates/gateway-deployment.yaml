@@ -1,0 +1,59 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shardferry.fullname" . }}-gateway
+  labels:
+    {{- include "shardferry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "shardferry.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "shardferry.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: gateway
+    spec:
+      serviceAccountName: {{ include "shardferry.fullname" . }}-controller
+      securityContext:
+        {{- toYaml .Values.gateway.securityContext | nindent 8 }}
+      containers:
+        - name: gateway
+          image: "{{ .Values.image.gateway }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --bind-address={{ .Values.gateway.bindAddress }}
+            - --public-url={{ required "gateway.publicURL is required when gateway.enabled" .Values.gateway.publicURL }}
+            - --cluster-name={{ default .Release.Name .Values.gateway.clusterName }}
+            - --namespace={{ .Release.Namespace }}
+          env:
+            - name: SHARDFERRY_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.gatewayToken.existingSecret }}
+                  key: {{ .Values.gateway.gatewayToken.key }}
+            - name: SHARDFERRY_AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.agentToken.existingSecret }}
+                  key: {{ .Values.gateway.agentToken.key }}
+          ports:
+            - name: gateway
+              containerPort: {{ .Values.gateway.port }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: gateway
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: gateway
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+{{- end }}
