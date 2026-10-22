@@ -141,6 +141,34 @@ def test_cutover_service_persists_last_cutover(tmp_path: Path) -> None:
     assert last["target_ready_seconds"] >= 0
 
 
+def test_cutover_service_applies_retention_after_follow(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    make_version(source, "step-100", b"v1-data")
+    make_version(source, "step-200", b"v2-data", parent_id="step-100")
+    make_version(source, "step-300", b"v3-data", parent_id="step-200")
+    service = CutoverService(
+        source,
+        tmp_path / "target",
+        retain_versions=1,
+    )
+
+    service.follow_once()
+
+    status = service.status()
+    assert status["target_latest"] == "step-300"
+    assert [item.version_id for item in service.target.manifests.list()] == [
+        "step-300"
+    ]
+    assert status["retention"]["keep"] == 1
+    assert status["retention"]["last"]["deleted_versions"] == [
+        "step-100",
+        "step-200",
+    ]
+    assert status["retention"]["error"] is None
+
+
 def test_cutover_service_http_requires_token(tmp_path: Path) -> None:
     source = tmp_path / "source"
     make_version(source, "step-100", b"v1-data")

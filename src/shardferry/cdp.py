@@ -653,6 +653,49 @@ class ChunkStore:
             raise CDPError(f"chunk digest mismatch: {digest}")
         return size
 
+    def collect_garbage(self, referenced: Iterable[str]) -> tuple[int, int]:
+        """Delete CAS chunks not referenced by a retained manifest."""
+        keep = set(referenced)
+        base = self.cas / "sha256"
+        if not base.is_dir():
+            return 0, 0
+        deleted = 0
+        freed_bytes = 0
+        hex_digits = set("0123456789abcdef")
+        for prefix in sorted(base.iterdir()):
+            if not prefix.is_dir():
+                continue
+            prefix_name = prefix.name
+            if len(prefix_name) != 2 or any(
+                char not in hex_digits for char in prefix_name
+            ):
+                continue
+            for path in sorted(prefix.iterdir()):
+                if not path.is_file():
+                    continue
+                name = path.name
+                if len(name) != 62 or any(
+                    char not in hex_digits for char in name
+                ):
+                    continue
+                digest = "sha256:" + prefix_name + name
+                if digest in keep:
+                    continue
+                try:
+                    size = path.stat().st_size
+                    path.unlink()
+                except OSError as exc:
+                    raise CDPError(
+                        f"could not delete chunk {digest}: {exc}"
+                    ) from exc
+                deleted += 1
+                freed_bytes += size
+            try:
+                prefix.rmdir()
+            except OSError:
+                pass
+        return deleted, freed_bytes
+
 
 class ManifestStore:
     """Persistent version manifests, separate from checkpoint data."""
@@ -694,6 +737,17 @@ class ManifestStore:
             except (OSError, ValueError) as exc:
                 raise CDPError(f"could not read manifest {path}: {exc}") from exc
         return manifests
+
+    def delete(self, version_id: str) -> bool:
+        path = self.path(version_id)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            raise CDPError(f"could not delete manifest {path}: {exc}") from exc
+        _fsync_directory(self.versions)
+        return True
 
 
 @dataclass(frozen=True)
@@ -946,6 +1000,104 @@ class VersionTarget:
                 raise CDPError(f"could not clear current version: {exc}") from exc
             _fsync_directory(self.current_path.parent)
 
+    def prune(self, retain_versions: int) -> RetentionResult:
+        """Keep recent versions plus current/fenced versions and reclaim storage."""
+        if retain_versions < 1:
+            raise ValueError("retain_versions must be positive")
+        with TargetLock(self.root):
+            manifests = self.manifests.list()
+            if not manifests:
+                return RetentionResult((), (), 0, 0)
+            by_id = {
+                manifest.version_id: manifest
+                for manifest in manifests
+            }
+            current = self.current()
+            if current is not None and current.version_id not in by_id:
+                raise CDPError(
+                    f"current version manifest is missing: "
+                    f"{current.version_id}"
+                )
+            protected = set()
+            if current is not None:
+                protected.add(current.version_id)
+            fence = FenceStore(self.root).current()
+            if fence is not None and fence.version_id in by_id:
+                protected.add(fence.version_id)
+            ordered = sorted(
+                manifests,
+                key=lambda manifest: (
+                    manifest.created_at,
+                    manifest.version_id,
+                ),
+            )
+            protected.update(
+                manifest.version_id
+                for manifest in ordered[-retain_versions:]
+            )
+            for version_id in protected:
+                manifest = by_id[version_id]
+                if not self._shadow_path(version_id).is_dir():
+                    raise CDPError(
+                        f"shadow version not found: {version_id}"
+                    )
+                for chunk in manifest.chunks:
+                    if not self.chunks.has(chunk.digest):
+                        raise CDPError(
+                            f"missing chunk {chunk.digest} for retained "
+                            f"version {version_id}"
+                        )
+            deleted_versions = tuple(
+                manifest.version_id
+                for manifest in ordered
+                if manifest.version_id not in protected
+            )
+            for version_id in deleted_versions:
+                shadow = self._shadow_path(version_id)
+                try:
+                    shutil.rmtree(shadow)
+                except FileNotFoundError:
+                    pass
+                except OSError as exc:
+                    raise CDPError(
+                        f"could not delete shadow version {version_id}: {exc}"
+                    ) from exc
+                self.manifests.delete(version_id)
+            referenced = {
+                chunk.digest
+                for manifest in ordered
+                if manifest.version_id in protected
+                for chunk in manifest.chunks
+            }
+            deleted_chunks, freed_bytes = self.chunks.collect_garbage(referenced)
+            retained_versions = tuple(
+                manifest.version_id
+                for manifest in ordered
+                if manifest.version_id in protected
+            )
+            return RetentionResult(
+                retained_versions=retained_versions,
+                deleted_versions=deleted_versions,
+                deleted_chunks=deleted_chunks,
+                freed_bytes=freed_bytes,
+            )
+
+
+@dataclass(frozen=True)
+class RetentionResult:
+    retained_versions: tuple[str, ...]
+    deleted_versions: tuple[str, ...]
+    deleted_chunks: int
+    freed_bytes: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "retained_versions": list(self.retained_versions),
+            "deleted_versions": list(self.deleted_versions),
+            "deleted_chunks": self.deleted_chunks,
+            "freed_bytes": self.freed_bytes,
+        }
+
 
 @dataclass(frozen=True)
 class SyncResult:
@@ -995,89 +1147,90 @@ class CheckpointFollower:
     def sync_once(self, *, max_versions: int | None = None) -> list[SyncResult]:
         if max_versions is not None and max_versions < 1:
             raise CDPError("max_versions must be positive")
-        descriptors = scan_versions(self.source_root)
-        existing = {
-            manifest.version_id: manifest
-            for manifest in self.target.manifests.list()
-        }
-        results: list[SyncResult] = []
-        staged_count = 0
-        for descriptor in descriptors:
-            if max_versions is not None and staged_count >= max_versions:
-                break
-            current = existing.get(descriptor.version_id)
-            if current is not None:
-                if current.metadata_hash != descriptor.marker.metadata_hash:
-                    raise CDPError(
-                        f"source version changed after being staged: "
-                        f"{descriptor.version_id}"
+        with TargetLock(self.target.root):
+            descriptors = scan_versions(self.source_root)
+            existing = {
+                manifest.version_id: manifest
+                for manifest in self.target.manifests.list()
+            }
+            results: list[SyncResult] = []
+            staged_count = 0
+            for descriptor in descriptors:
+                if max_versions is not None and staged_count >= max_versions:
+                    break
+                current = existing.get(descriptor.version_id)
+                if current is not None:
+                    if current.metadata_hash != descriptor.marker.metadata_hash:
+                        raise CDPError(
+                            f"source version changed after being staged: "
+                            f"{descriptor.version_id}"
+                        )
+                    if not self.target._shadow_path(descriptor.version_id).is_dir():
+                        self.target._stage_locked(current)
+                    results.append(
+                        SyncResult(
+                            version_id=descriptor.version_id,
+                            parent_id=descriptor.marker.parent_id,
+                            total_bytes=sum(
+                                chunk.size for chunk in current.chunks
+                            ),
+                            missing_bytes=0,
+                            reused_bytes=sum(
+                                chunk.size for chunk in current.chunks
+                            ),
+                            staged=False,
+                        )
                     )
-                if not self.target._shadow_path(descriptor.version_id).is_dir():
-                    self.target.stage(current)
-                results.append(
-                    SyncResult(
+                    continue
+
+                previous: VersionManifest | None = None
+                parent_id = descriptor.marker.parent_id
+                if parent_id is not None:
+                    previous = existing.get(parent_id)
+                    if previous is None:
+                        raise CDPError(
+                            f"parent version has not been staged: {parent_id}"
+                        )
+                policy = self.chunking or ChunkingPolicy.fixed(self.chunk_bytes)
+                if self.manifest_provider is not None:
+                    manifest = self.manifest_provider(
+                        descriptor,
+                        self.target.chunks,
+                        policy,
+                    )
+                elif self.file_provider is None:
+                    manifest = build_manifest(
+                        descriptor,
+                        self.target.chunks,
+                        chunk_bytes=self.chunk_bytes,
+                        chunking=self.chunking,
+                    )
+                else:
+                    files = self.file_provider(descriptor)
+                    manifest = build_manifest_from_files(
                         version_id=descriptor.version_id,
                         parent_id=descriptor.marker.parent_id,
-                        total_bytes=sum(
-                            chunk.size for chunk in current.chunks
-                        ),
-                        missing_bytes=0,
-                        reused_bytes=sum(
-                            chunk.size for chunk in current.chunks
-                        ),
-                        staged=False,
+                        metadata_hash=descriptor.marker.metadata_hash,
+                        created_at=descriptor.marker.created_at,
+                        files=files,
+                        chunk_store=self.target.chunks,
+                        chunking=policy,
+                    )
+                delta = delta_manifest(previous, manifest)
+                self.target._stage_locked(manifest)
+                existing[manifest.version_id] = manifest
+                staged_count += 1
+                results.append(
+                    SyncResult(
+                        version_id=manifest.version_id,
+                        parent_id=manifest.parent_id,
+                        total_bytes=delta.total_bytes,
+                        missing_bytes=delta.missing_bytes,
+                        reused_bytes=delta.reused_bytes,
+                        staged=True,
                     )
                 )
-                continue
-
-            previous: VersionManifest | None = None
-            parent_id = descriptor.marker.parent_id
-            if parent_id is not None:
-                previous = existing.get(parent_id)
-                if previous is None:
-                    raise CDPError(
-                        f"parent version has not been staged: {parent_id}"
-                    )
-            policy = self.chunking or ChunkingPolicy.fixed(self.chunk_bytes)
-            if self.manifest_provider is not None:
-                manifest = self.manifest_provider(
-                    descriptor,
-                    self.target.chunks,
-                    policy,
-                )
-            elif self.file_provider is None:
-                manifest = build_manifest(
-                    descriptor,
-                    self.target.chunks,
-                    chunk_bytes=self.chunk_bytes,
-                    chunking=self.chunking,
-                )
-            else:
-                files = self.file_provider(descriptor)
-                manifest = build_manifest_from_files(
-                    version_id=descriptor.version_id,
-                    parent_id=descriptor.marker.parent_id,
-                    metadata_hash=descriptor.marker.metadata_hash,
-                    created_at=descriptor.marker.created_at,
-                    files=files,
-                    chunk_store=self.target.chunks,
-                    chunking=policy,
-                )
-            delta = delta_manifest(previous, manifest)
-            self.target.stage(manifest)
-            existing[manifest.version_id] = manifest
-            staged_count += 1
-            results.append(
-                SyncResult(
-                    version_id=manifest.version_id,
-                    parent_id=manifest.parent_id,
-                    total_bytes=delta.total_bytes,
-                    missing_bytes=delta.missing_bytes,
-                    reused_bytes=delta.reused_bytes,
-                    staged=True,
-                )
-            )
-        return results
+            return results
 
 
 def build_manifest(

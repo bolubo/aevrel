@@ -374,6 +374,26 @@ spec:
                   format: int32
                   type: integer
                 type: array
+              ranks:
+                items:
+                  properties:
+                    attempts:
+                      format: int32
+                      type: integer
+                    error:
+                      type: string
+                    phase:
+                      type: string
+                    rank:
+                      format: int32
+                      type: integer
+                    taskID:
+                      type: string
+                  required:
+                  - phase
+                  - rank
+                  type: object
+                type: array
               phase:
                 enum:
                 - pending

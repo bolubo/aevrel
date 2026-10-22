@@ -23,6 +23,18 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       securityContext:
         {{- toYaml .Values.source.securityContext | nindent 8 }}
+      {{- with .Values.source.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.source.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.source.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: source-agent
           image: "{{ .Values.image.agent }}"

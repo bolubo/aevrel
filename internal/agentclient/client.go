@@ -215,6 +215,28 @@ func (c *Client) Preflight(
 	return response, nil
 }
 
+func (c *Client) CleanupTarget(
+	ctx context.Context,
+	endpoint string,
+	targetRoot string,
+	purgeTarget bool,
+) (map[string]any, error) {
+	var response map[string]any
+	if err := c.do(
+		ctx,
+		http.MethodPost,
+		endpoint+"/v1/cleanup",
+		map[string]any{
+			"target_root":  targetRoot,
+			"purge_target": purgeTarget,
+		},
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func (c *Client) Plan(
 	ctx context.Context,
 	endpoint string,

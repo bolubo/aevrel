@@ -89,6 +89,20 @@ func (s *FileStore) Get(_ context.Context, ref string) ([]byte, error) {
 	return payload, nil
 }
 
+func (s *FileStore) Delete(_ context.Context, ref string) error {
+	name := artifactName(ref)
+	if len(name) != 64 {
+		return fmt.Errorf("invalid artifact hash: %s", ref)
+	}
+	if _, err := hex.DecodeString(name); err != nil {
+		return fmt.Errorf("invalid artifact hash: %s", ref)
+	}
+	if err := os.Remove(filepath.Join(s.root, name)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func (s *FileStore) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

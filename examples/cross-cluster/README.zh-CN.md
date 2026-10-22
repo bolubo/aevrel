@@ -71,9 +71,27 @@ export SHARDFERRY_TLS_CERT=/path/to/tls.crt
 export SHARDFERRY_TLS_KEY=/path/to/tls.key
 kubectl --context management apply -f clusters.yaml
 kubectl --context management -n shardferry-control get shardferryclusters -o wide
+shardferryctl get clusters -n shardferry-control
+shardferryctl describe cluster source -n shardferry-control
+shardferryctl plan -f migration.yaml --dry-run
 shardferryctl preflight -f migration.yaml --json
 shardferryctl migrate -f migration.yaml --wait
+shardferryctl describe migration job42-16-to-8 -n shardferry-control --ranks
 ```
+
+生命周期命令：
+
+```bash
+shardferryctl cancel migration job42-16-to-8 -n shardferry-control
+shardferryctl retry migration job42-16-to-8 -n shardferry-control
+shardferryctl delete migration job42-16-to-8 -n shardferry-control
+shardferryctl delete migration job42-16-to-8 -n shardferry-control --purge-target
+```
+
+`cancel` 只允许在 commit intent 前；`retry` 当前只修复
+`commit-incomplete`，不会把已提交的 rank 重新传一遍。`delete` 默认保留
+target，只清理 controller artifact 和 staging；`--purge-target` 才显式删除
+target 目录，source 永不被删除。
 
 `preflight` 会通过 gateway 实际读取 source inventory，并探测 target
 agent capabilities；不是只检查 YAML。JSON 输出里的 `clusters` 会显示
@@ -99,6 +117,28 @@ gateway 的 `ready/version/lastSeen`。
 - target 复制的 8 个 rank-local DCP 全部通过 `shardferry-target-load`；
 - 使用 per-cluster gateway token + mTLS，不依赖远程 Pod IP。
 
+### 注册集群
+
+`cluster add` 只生成本地 manifest，不连接、不扫描、也不会自动修改任何集群：
+
+```bash
+shardferryctl cluster add source \
+  --endpoint https://source-gateway.example:9445 \
+  --role source \
+  --secret source-auth \
+  --file clusters-source.yaml
+```
+
+输出是一份多文档 YAML：`Secret` 只含 `token`，`ShardferryCluster` 指向该
+Secret。`role` 默认 `both`；省略 `--secret` 时使用
+`<cluster-name>-gateway-auth`；省略 `--token` 时生成 32 字节随机 token。
+文件以 `0600` 创建且拒绝覆盖。`--json` 输出等价的 Kubernetes `List`。
+确认内容后再显式应用：
+
+```bash
+kubectl apply -f clusters-source.yaml -n shardferry-control
+```
+
 ## 已验证（2026-10-22，两套 kind）
 
 - 16 source ranks → 8 target ranks：`succeeded`，8/8 target rank committed，
@@ -117,6 +157,12 @@ gateway 的 `ready/version/lastSeen`。
   最终 `commit-pending → succeeded`，64/64 load，report/proof 完整。
 - per-cluster token：source/target 使用各自 gateway token，16→8 和 1GiB
   controller 重启路径均通过；不再是单一全局 gateway token。
+- cluster health：`get clusters` / `describe cluster` 已实测显示 gateway
+  ready、endpoint、version 和错误信息。
+- rank observability：`describe migration --ranks` 显示每个 target rank 的
+  phase、task、retries 和 error。
+- plan preview：`shardferryctl plan -f ... --dry-run` 已实测输出 bytes、
+  theoretical min、full gather、nodes、range/fan-in 和 target roots，不创建资源。
 - mTLS：controller/gateway/agent 使用同一 CA；16→8 全链路成功，target
   8/8 load；无客户端证书访问受保护 resolve 返回 401，health 保持 200。
 

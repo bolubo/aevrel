@@ -270,6 +270,42 @@ func TestReconcilerRestoresExecutionSnapshot(t *testing.T) {
 	}
 }
 
+func TestReconcilerCancelsPendingMigrationAndClearsAnnotation(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := shardferryv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	migration := validMigration("cancel-me")
+	migration.Annotations = map[string]string{
+		"shardferry.io/cancel": "true",
+	}
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithObjects(migration).
+		Build()
+	reconciler := &Reconciler{Client: client, Scheme: scheme}
+	request := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: migration.Namespace,
+			Name:      migration.Name,
+		},
+	}
+	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	var got shardferryv1.CheckpointMigration
+	if err := client.Get(context.Background(), request.NamespacedName, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.Phase != shardferryv1.MigrationPhaseCancelled {
+		t.Fatalf("phase = %q, want cancelled", got.Status.Phase)
+	}
+	if got.Annotations["shardferry.io/cancel"] == "true" {
+		t.Fatal("cancel annotation was not cleared")
+	}
+}
+
 func validMigration(name string) *shardferryv1.CheckpointMigration {
 	return &shardferryv1.CheckpointMigration{
 		ObjectMeta: metav1.ObjectMeta{

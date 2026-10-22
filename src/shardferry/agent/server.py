@@ -187,6 +187,37 @@ class AgentApp:
             "nonempty": bool(root.exists() and any(root.iterdir())),
         }
 
+    def cleanup_target(
+        self,
+        target_root: str | Path,
+        *,
+        purge_target: bool = False,
+    ) -> dict[str, Any]:
+        if self.target_root is None:
+            raise AgentError("target root is not configured")
+        root = Path(target_root).resolve()
+        try:
+            root.relative_to(self.target_root)
+        except ValueError as exc:
+            raise AgentError(
+                f"target root {root} is outside {self.target_root}"
+            ) from exc
+        if root == self.target_root:
+            raise AgentError("refusing to remove the configured target root")
+        staging = root / ".shardferry"
+        if staging.exists():
+            shutil.rmtree(staging)
+        purged = False
+        if purge_target and root.exists():
+            shutil.rmtree(root)
+            purged = True
+        return {
+            "ok": True,
+            "target_root": str(root),
+            "staging_removed": True,
+            "target_purged": purged,
+        }
+
     def inventory(self, rank: int) -> dict[str, Any]:
         if self.dcp_checkpoint is not None:
             inventory, refs = inventory_dcp_descriptors(
@@ -589,6 +620,28 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                         "input",
                         False,
                         "preflight",
+                        0,
+                        str(exc),
+                    )
+                return
+            if path == "/v1/cleanup":
+                try:
+                    body = self._body()
+                    target_root = body["target_root"]
+                    purge_target = bool(body.get("purge_target", False))
+                    self._json(
+                        app.cleanup_target(
+                            target_root,
+                            purge_target=purge_target,
+                        )
+                    )
+                except (KeyError, AgentError, OSError, ValueError) as exc:
+                    self._error(
+                        400,
+                        "INVALID_SPEC",
+                        "input",
+                        False,
+                        "cleanup",
                         0,
                         str(exc),
                     )

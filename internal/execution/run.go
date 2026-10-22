@@ -136,9 +136,31 @@ func (r *Run) SetPhase(rank int32, phase Phase, taskID, errorText string) {
 	observeRankPhaseTransition(previous, phase)
 }
 
+// RestorePhase applies a target task state observed after a controller
+// restart. Unlike SetPhase, it does not consume a retry attempt.
+func (r *Run) RestorePhase(rank int32, phase Phase, taskID, errorText string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state := r.ranks[rank]
+	if state == nil {
+		return
+	}
+	state.Phase = phase
+	if taskID != "" {
+		state.TaskID = taskID
+	}
+	state.Error = errorText
+	if phase == PhaseCommitting || phase == PhaseCommitIncomplete {
+		r.commitIntent = true
+	}
+}
+
 func (r *Run) TryBeginCommit() ([]int32, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.cancelRequested {
+		return nil, false
+	}
 	if r.commitIntent {
 		return r.ranksToCommitLocked(), true
 	}
@@ -190,6 +212,8 @@ func (r *Run) Summary() Summary {
 		summary.Phase = PhaseCommitIncomplete
 	case summary.Failed > 0:
 		summary.Phase = PhaseFailed
+	case hasPhase(r.ranks, PhaseCancelled):
+		summary.Phase = PhaseCancelled
 	case r.allCommittedLocked():
 		if r.config.RequireReport && r.reportRef == "" {
 			summary.Phase = PhaseFinalizing
@@ -302,6 +326,16 @@ func (r *Run) AddReport(rank int32, report map[string]any) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	rankText := fmt.Sprint(rank)
+	for index, item := range r.reports {
+		if fmt.Sprint(item["rank"]) == rankText {
+			r.reports[index] = map[string]any{
+				"rank":   rank,
+				"report": report,
+			}
+			return
+		}
+	}
 	r.reports = append(r.reports, map[string]any{
 		"rank":   rank,
 		"report": report,
@@ -311,9 +345,38 @@ func (r *Run) AddReport(rank int32, report map[string]any) {
 func (r *Run) Reports() []map[string]any {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	result := make([]map[string]any, len(r.reports))
-	copy(result, r.reports)
+	byRank := make(map[string]map[string]any, len(r.reports))
+	order := make([]string, 0, len(r.reports))
+	for _, item := range r.reports {
+		rank := fmt.Sprint(item["rank"])
+		if _, exists := byRank[rank]; !exists {
+			order = append(order, rank)
+		}
+		if previous, exists := byRank[rank]; exists &&
+			reportPriority(item) < reportPriority(previous) {
+			continue
+		}
+		byRank[rank] = item
+	}
+	result := make([]map[string]any, 0, len(order))
+	for _, rank := range order {
+		result = append(result, byRank[rank])
+	}
 	return result
+}
+
+func reportPriority(item map[string]any) int {
+	report, ok := item["report"].(map[string]any)
+	if !ok {
+		return 0
+	}
+	if _, ok := report["proof"]; ok {
+		return 2
+	}
+	if report["status"] == "success" {
+		return 1
+	}
+	return 0
 }
 
 func (r *Run) SetReportRef(ref string) {

@@ -278,11 +278,19 @@ shardferry cutover-serve \
   --source /checkpoints/job42 \
   --target /targets/job42 \
   --token "$SHARDFERRY_CUTOVER_TOKEN" \
-  --follow-interval 2
+  --follow-interval 2 \
+  --retain-versions 3
 ```
 
 默认分块策略是 `file`，这是 RTO 优先路径；需要更小的字节增量时可显式传
 `--chunk-alg cdc`，需要固定块验证时传 `--chunk-alg fixed --chunk-bytes ...`。
+
+`--retain-versions N` 默认关闭（0）；显式开启后，每轮 follow 成功后会保留
+最近 N 个 target 版本，并额外保护 `current` 和 fence 指向的版本。旧 shadow
+和 manifest 删除后，只 GC 不再被保留 manifest 引用的 CAS chunk；source
+永远不删除。删除前会先检查所有保留版本的 chunk 和 shadow，发现缺失就中止，
+不会继续扩大清理。`/v1/status.retention` 返回最近一次删除的版本、chunk 数和
+释放字节数。
 
 切流时 `--target-ready-command` 会在 promote 后执行；命令返回非零或超时会
 回滚 target pointer 并恢复 source。`--max-pause-seconds` 必须覆盖 final delta

@@ -21,6 +21,10 @@ type Store interface {
 	Get(ctx context.Context, ref string) ([]byte, error)
 }
 
+type Deleter interface {
+	Delete(ctx context.Context, ref string) error
+}
+
 type MemoryStore struct {
 	mu      sync.RWMutex
 	baseURL string
@@ -66,6 +70,14 @@ func (s *MemoryStore) Get(_ context.Context, ref string) ([]byte, error) {
 		return nil, fmt.Errorf("artifact not found: %s", hash)
 	}
 	return append([]byte(nil), payload...), nil
+}
+
+func (s *MemoryStore) Delete(_ context.Context, ref string) error {
+	hash := artifactName(ref)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.items, hash)
+	return nil
 }
 
 func (s *MemoryStore) Handler() http.Handler {

@@ -44,6 +44,12 @@ func executeMigrate(
 	if options.artifactClaim != "" {
 		migration.Spec.Artifacts.ClaimName = options.artifactClaim
 	}
+	if !containsFinalizer(migration, "shardferry.io/cleanup") {
+		migration.Finalizers = append(
+			migration.Finalizers,
+			"shardferry.io/cleanup",
+		)
+	}
 	if err := validateProductMigration(migration); err != nil {
 		return fmt.Errorf("invalid migration: %w", err)
 	}

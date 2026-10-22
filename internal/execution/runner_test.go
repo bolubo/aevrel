@@ -23,6 +23,8 @@ type fakeTaskClient struct {
 	blockCreate             bool
 	withProof               bool
 	omitCommitReport        bool
+	executeConflict         bool
+	getState                string
 }
 
 func newFakeTaskClient(run *Run) *fakeTaskClient {
@@ -71,6 +73,13 @@ func (f *fakeTaskClient) ExecuteTask(
 ) (agentclient.Task, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.executeConflict {
+		return agentclient.Task{}, &agentclient.AgentError{
+			StatusCode: 409,
+			Code:       "TARGET_CONFLICT",
+			Details:    "cannot be executed from commit-incomplete",
+		}
+	}
 	task := f.tasks[taskID]
 	if task.Rank == f.failExecuteRank {
 		task.State = "failed"
@@ -109,6 +118,9 @@ func (f *fakeTaskClient) GetTask(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	task := f.tasks[taskID]
+	if f.getState != "" {
+		task.State = f.getState
+	}
 	if task.Report == nil {
 		task.Report = f.report(false)
 	}
@@ -169,6 +181,111 @@ func TestRunnerCommits128Ranks(t *testing.T) {
 	}
 	if client.commitWithoutIntentSeen {
 		t.Fatal("commit happened before CommitIntent")
+	}
+}
+
+func TestRunnerRecoversCommitIncompleteTaskAfterRestart(t *testing.T) {
+	run := newTestRun(1)
+	run.SetPhase(0, PhasePrepared, "task-0", "")
+	client := newFakeTaskClient(run)
+	client.executeConflict = true
+	client.getState = "commit-incomplete"
+	client.tasks["task-0"] = agentclient.Task{
+		TaskID: "task-0",
+		State:  "commit-incomplete",
+	}
+	runner := NewRunner(client, 1)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := run.Summary().Phase; got != PhaseSucceeded {
+		t.Fatalf("phase = %s, want succeeded", got)
+	}
+	if !run.HasCommitIntent() {
+		t.Fatal("recovered commit-incomplete task did not restore commit intent")
+	}
+	if client.commitWithoutIntentSeen {
+		t.Fatal("commit request happened before commit intent was restored")
+	}
+}
+
+func TestRunnerRecoversCommittedTaskReportAfterRestart(t *testing.T) {
+	run := newTestRun(1)
+	run.SetPhase(0, PhaseCommitted, "task-0", "")
+	client := newFakeTaskClient(run)
+	client.getState = "committed"
+	client.tasks["task-0"] = agentclient.Task{
+		TaskID: "task-0",
+		State:  "committed",
+	}
+	store := artifactstore.NewMemoryStore("http://controller:8082")
+	runner := NewRunner(client, 1)
+	runner.SetArtifacts(store)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := run.Summary().Phase; got != PhaseSucceeded {
+		t.Fatalf("phase = %s, want succeeded", got)
+	}
+	if len(run.Reports()) != 1 {
+		t.Fatalf("reports = %d, want 1", len(run.Reports()))
+	}
+	if run.ReportRef() == "" {
+		t.Fatal("report ref was not restored")
+	}
+}
+
+func TestRunReportsDeduplicateRanksOnRestore(t *testing.T) {
+	run := newTestRun(2)
+	run.mu.Lock()
+	run.reports = []map[string]any{
+		{
+			"rank": float64(1),
+			"report": map[string]any{
+				"status": "staged",
+			},
+		},
+		{
+			"rank": float64(1),
+			"report": map[string]any{
+				"status": "success",
+			},
+		},
+		{
+			"rank": float64(0),
+			"report": map[string]any{
+				"status": "success",
+			},
+		},
+		{
+			"rank": float64(1),
+			"report": map[string]any{
+				"status": "staged",
+			},
+		},
+	}
+	run.mu.Unlock()
+
+	reports := run.Reports()
+	if len(reports) != 2 {
+		t.Fatalf("reports = %d, want 2", len(reports))
+	}
+	statuses := make(map[string]string, len(reports))
+	for _, item := range reports {
+		statuses[fmt.Sprint(item["rank"])] = item["report"].(map[string]any)["status"].(string)
+	}
+	if statuses["1"] != "success" {
+		t.Fatalf("last report for rank 1 was not retained: %#v", reports)
 	}
 }
 
@@ -248,6 +365,33 @@ func TestRunDoesNotSucceedBeforeReportIsFinalized(t *testing.T) {
 	case <-run.done:
 	default:
 		t.Fatal("run did not finish after report was finalized")
+	}
+}
+
+func TestRunRequestCancelBeforeCommit(t *testing.T) {
+	run := newTestRun(2)
+	if !run.RequestCancel() {
+		t.Fatal("cancel should be accepted before commit intent")
+	}
+	if got := run.Summary().Phase; got != PhaseCancelled {
+		t.Fatalf("phase = %s, want cancelled", got)
+	}
+	if !run.CancelRequested() {
+		t.Fatal("cancel flag was not recorded")
+	}
+	if run.RequestCancel() != true {
+		t.Fatal("repeated cancel should be idempotent")
+	}
+}
+
+func TestRunCancelPreventsCommitIntent(t *testing.T) {
+	run := newTestRun(1)
+	run.SetPhase(0, PhaseStaged, "task", "")
+	if !run.RequestCancel() {
+		t.Fatal("cancel should be accepted before commit intent")
+	}
+	if _, ok := run.TryBeginCommit(); ok {
+		t.Fatal("cancelled run must not enter commit intent")
 	}
 }
 

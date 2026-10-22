@@ -34,4 +34,5 @@
 - [GPU/FSDP 实验卡](GPU-EXPERIMENT.zh-CN.md)
 - [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)
 - [GPU 验证记录（2026-10-22）](GPU-VALIDATION-2026-10-22.md)
+- [控制器 GPU 实验卡](CONTROLLER-GPU-EXPERIMENT.zh-CN.md)
 - [Benchmark](BENCHMARK.zh-CN.md)

@@ -71,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/healthz", s.health)
 	mux.HandleFunc("/readyz", s.health)
 	mux.HandleFunc("/v1/info", s.authorized(s.info, false))
+	mux.HandleFunc("/v1/cluster", s.authorized(s.clusterInfo, false))
 	mux.HandleFunc("/v1/resolve", s.authorized(s.resolve, false))
 	mux.HandleFunc("/v1/agents/", s.authorized(s.proxy, true))
 	return mux
@@ -86,6 +87,14 @@ func (s *Server) info(w http.ResponseWriter, _ *http.Request) {
 		Version:        "1",
 		Cluster:        s.config.ClusterName,
 		GatewayVersion: s.config.Version,
+	})
+}
+
+func (s *Server) clusterInfo(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]any{
+		"version": "1",
+		"cluster": s.config.ClusterName,
+		"ready":   true,
 	})
 }
 

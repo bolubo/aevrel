@@ -29,6 +29,8 @@ type TaskCanceller interface {
 	CancelTask(context.Context, string, string) (agentclient.Task, error)
 }
 
+var ErrCannotCancel = errors.New("migration has passed commit intent")
+
 type ProofMerger interface {
 	MergeProof(context.Context, string, []map[string]any) (map[string]any, error)
 }
@@ -111,6 +113,43 @@ func (r *Runner) Get(runID string) *Run {
 	return r.runs[runID]
 }
 
+func (r *Runner) Cancel(ctx context.Context, run *Run) error {
+	states := run.Ranks()
+	if !run.RequestCancel() {
+		return ErrCannotCancel
+	}
+	var firstErr error
+	if canceller, ok := r.client.(TaskCanceller); ok {
+		for _, state := range states {
+			if state.TaskID == "" ||
+				state.Phase == PhaseCommitted ||
+				state.Phase == PhaseCommitting {
+				continue
+			}
+			callCtx, cancel := context.WithTimeout(ctx, r.taskTimeout)
+			_, err := canceller.CancelTask(
+				callCtx,
+				run.Endpoint(state.Rank),
+				state.TaskID,
+			)
+			cancel()
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	if err := r.persist(ctx, run); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
+}
+
+func (r *Runner) Requeue(run *Run, ranks []int32) {
+	for _, rank := range ranks {
+		r.queue.Add(Key{RunID: run.config.ID, Rank: rank})
+	}
+}
+
 func (r *Runner) Start(ctx context.Context) {
 	_ = ctx
 	r.mu.Lock()
@@ -168,6 +207,9 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 	if run == nil {
 		return nil
 	}
+	if run.CancelRequested() {
+		return nil
+	}
 	defer func(processErr *error) {
 		if persistErr := r.persist(ctx, run); persistErr != nil && *processErr == nil {
 			*processErr = persistErr
@@ -204,6 +246,9 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 				fmt.Errorf("rank %d did not prepare: %s", key.Rank, prepared.State),
 			)
 		}
+		if run.CancelRequested() {
+			return nil
+		}
 		run.SetPhase(key.Rank, PhasePrepared, prepared.TaskID, "")
 		r.queue.Add(key)
 		return nil
@@ -217,7 +262,26 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 		)
 		cancel()
 		if err != nil {
+			if phase, recovered := r.recoverTask(
+				ctx,
+				run,
+				key,
+				state.TaskID,
+			); recovered {
+				r.resumeRecovered(ctx, run, key, phase)
+				return nil
+			}
 			return r.fail(run, key, err)
+		}
+		if phase, recovered := r.taskPhase(task); recovered {
+			run.RestorePhase(
+				key.Rank,
+				phase,
+				task.TaskID,
+				taskError(task, phase),
+			)
+			r.resumeRecovered(ctx, run, key, phase)
+			return nil
 		}
 		if task.State != "staged" {
 			return r.fail(
@@ -226,7 +290,27 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 				fmt.Errorf("rank %d did not stage: %s", key.Rank, task.State),
 			)
 		}
+		if run.CancelRequested() {
+			return nil
+		}
 		run.SetPhase(key.Rank, PhaseStaged, task.TaskID, "")
+		if ranks, ok := run.TryBeginCommit(); ok {
+			for _, rank := range ranks {
+				r.queue.Add(Key{RunID: key.RunID, Rank: rank})
+			}
+		}
+		return nil
+
+	case PhaseStaged:
+		if phase, recovered := r.recoverTask(
+			ctx,
+			run,
+			key,
+			state.TaskID,
+		); recovered {
+			r.resumeRecovered(ctx, run, key, phase)
+			return nil
+		}
 		if ranks, ok := run.TryBeginCommit(); ok {
 			for _, rank := range ranks {
 				r.queue.Add(Key{RunID: key.RunID, Rank: rank})
@@ -262,6 +346,9 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 				return nil
 			}
 			return err
+		}
+		if run.CancelRequested() {
+			return nil
 		}
 		if task.Report == nil {
 			if reader, ok := r.client.(TaskReader); ok {
@@ -311,10 +398,95 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 		return errors.New(state.Error)
 
 	case PhaseCommitted:
+		r.recoverTask(
+			ctx,
+			run,
+			key,
+			state.TaskID,
+		)
 		return r.maybeFinalize(ctx, run)
 
 	default:
 		return nil
+	}
+}
+
+func (r *Runner) recoverTask(
+	ctx context.Context,
+	run *Run,
+	key Key,
+	taskID string,
+) (Phase, bool) {
+	reader, ok := r.client.(TaskReader)
+	if !ok || taskID == "" {
+		return "", false
+	}
+	callCtx, cancel := context.WithTimeout(ctx, r.taskTimeout)
+	task, err := reader.GetTask(callCtx, run.Endpoint(key.Rank), taskID)
+	cancel()
+	if err != nil {
+		return "", false
+	}
+	phase, ok := r.taskPhase(task)
+	if !ok {
+		return "", false
+	}
+	run.RestorePhase(key.Rank, phase, taskID, taskError(task, phase))
+	if task.Report != nil {
+		run.AddReport(key.Rank, task.Report)
+	}
+	return phase, true
+}
+
+func (r *Runner) taskPhase(task agentclient.Task) (Phase, bool) {
+	switch task.State {
+	case "created":
+		return PhasePending, true
+	case "preparing", "prepared", "transferring":
+		return PhasePrepared, true
+	case "staged", "commit-ready":
+		return PhaseStaged, true
+	case "committing":
+		return PhaseCommitting, true
+	case "commit-incomplete":
+		return PhaseCommitIncomplete, true
+	case "committed":
+		return PhaseCommitted, true
+	case "failed":
+		return PhaseFailed, true
+	case "cancelled":
+		return PhaseCancelled, true
+	default:
+		return "", false
+	}
+}
+
+func taskError(task agentclient.Task, phase Phase) string {
+	if phase == PhaseFailed || phase == PhaseCommitIncomplete {
+		return "target task state: " + task.State
+	}
+	return ""
+}
+
+func (r *Runner) resumeRecovered(
+	ctx context.Context,
+	run *Run,
+	key Key,
+	phase Phase,
+) {
+	switch phase {
+	case PhasePending, PhasePrepared:
+		r.queue.Add(key)
+	case PhaseStaged:
+		if ranks, ok := run.TryBeginCommit(); ok {
+			for _, rank := range ranks {
+				r.queue.Add(Key{RunID: key.RunID, Rank: rank})
+			}
+		}
+	case PhaseCommitting, PhaseCommitIncomplete:
+		r.queue.Add(key)
+	case PhaseCommitted:
+		_ = r.maybeFinalize(ctx, run)
 	}
 }
 
