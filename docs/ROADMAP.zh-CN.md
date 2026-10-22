@@ -18,6 +18,8 @@
 
 目标：16→8 小集群 selector 迁移可以交给平台用户试用。
 
+详细目标与验收标准见 [0.2 目标与验收](0.2-ACCEPTANCE.zh-CN.md)。
+
 - controller + source/target agents 的真实 kind 或小集群部署；
 - `agentSelector` 自动发现 Pod、rank 和 endpoint；
 - `preflight` 真实报告 source/target rank 覆盖；

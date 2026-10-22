@@ -7,6 +7,7 @@
 - [典型使用场景](USE-CASES.zh-CN.md)
 - [兼容性矩阵](COMPATIBILITY.zh-CN.md)
 - [路线图](ROADMAP.zh-CN.md)
+- [0.2 目标与验收](0.2-ACCEPTANCE.zh-CN.md)
 - [发布检查清单](RELEASE.zh-CN.md)
 
 ## 使用
