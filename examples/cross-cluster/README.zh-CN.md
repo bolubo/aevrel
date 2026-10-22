@@ -82,6 +82,9 @@ per-cluster token 路由。`ShardferryCluster.secretRef` 的 token 必须与
   target DCP 8/8 本地 load 通过，source checkpoint SHA256 不变。
 - 128 source ranks → 64 target ranks：`succeeded`，64/64 target rank committed，
   target DCP 64/64 本地 load 通过，report 包含 64 个 rank reports 和 64 个 proof。
+- 1 GiB / 128→64 数据面：target DCP 64/64 本地 load 通过，source SHA256 不变，
+  plan `full_gather=false`；但 report finalization 仍有一个 rank committing 的
+  收口问题，暂不作为完整成功样本，下一步修。
 - source gateway 停止时，`preflight` 明确失败，已有成功 migration 不受影响。
 - controller 重启后，已成功 migration 仍保持 `succeeded`，不会静默重跑。
 
