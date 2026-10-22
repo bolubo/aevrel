@@ -16,6 +16,7 @@ from .gpu_codec import (
 BATCH_MAGIC = b"SFB1"
 BATCH_VERSION = 1
 BATCH_HEADER = struct.Struct(">4sBQQQ")
+BATCH_ENCODING = "sfb1"
 
 
 class BatchCodecError(CodecError):

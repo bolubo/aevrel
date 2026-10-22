@@ -5,7 +5,9 @@ import random
 
 import pytest
 
+from shardferry.agent import AgentApp
 from shardferry.gpu_adaptive import AdaptiveRangeCodec
+from shardferry.gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
 from shardferry.gpu_codec import ZlibCodec
 from shardferry.gpu_transport import (
     RANGE_ENCODING,
@@ -138,3 +140,50 @@ def test_storage_router_reads_range_codec_from_environment(
 
     assert router.range_codec is not None
     assert router.http.range_codec is router.range_codec
+    assert router.batch_enabled is True
+
+
+def test_http_storage_decodes_batch_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    codec = _range_codec()
+    batch = AdaptiveBatchCodec(codec.adaptive, max_ranges=4)
+    chunks = [b"one-" * 4096, b"two-" * 4096, b"three-" * 4096]
+    encoded = batch.encode(chunks)
+    response = _Response(
+        encoded.frame,
+        {"X-Shard-Encoding": BATCH_ENCODING},
+    )
+    storage = HttpStorage(base_url="http://source", range_codec=codec)
+    monkeypatch.setattr(storage, "_request", lambda *_args: response)
+
+    assert storage.read_batch(
+        [
+            ("v1/shards/one", 0, len(chunks[0])),
+            ("v1/shards/two", 0, len(chunks[1])),
+            ("v1/shards/three", 0, len(chunks[2])),
+        ]
+    ) == chunks
+
+
+def test_agent_encodes_batch_from_shard_ranges() -> None:
+    codec = _range_codec()
+    app = AgentApp.__new__(AgentApp)
+    app.batch_codec = AdaptiveBatchCodec(codec.adaptive, max_ranges=4)
+    shards = {
+        "one": b"one-" * 4096,
+        "two": b"two-" * 4096,
+    }
+
+    def read_shard(chunk: str, offset: int, length: int):
+        return shards[chunk][offset : offset + length], _checksum(shards[chunk])
+
+    app.read_shard = read_shard
+    frame = app.encode_shard_batch(
+        [
+            {"chunk": "one", "offset": 0, "length": len(shards["one"])},
+            {"chunk": "two", "offset": 0, "length": len(shards["two"])},
+        ]
+    )
+    decoded = app.batch_codec.decode(frame)
+    assert decoded == [shards["one"], shards["two"]]

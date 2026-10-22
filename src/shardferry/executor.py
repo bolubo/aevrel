@@ -508,23 +508,44 @@ def _apply_node(
         if copied is not None:
             return copied
 
+    requests: list[tuple[str, int, int]] = []
+    batch_plan: list[
+        tuple[tuple[int, int], list[int]]
+    ] = []
     for target_range, source_ranges in batches:
-        target_offset, run_size = target_range
-        source_data = [
-            source_storage.read_range(
-                resolve_source(
-                    source_by_id,
-                    source_by_rank,
-                    node["tensor"],
-                    source_input,
-                )["uri"],
-                source_offset,
-                source_size,
+        indices = []
+        for source_input, (source_offset, source_size) in zip(
+            node["inputs"], source_ranges
+        ):
+            shard = resolve_source(
+                source_by_id,
+                source_by_rank,
+                node["tensor"],
+                source_input,
             )
-            for source_input, (source_offset, source_size) in zip(
-                node["inputs"], source_ranges
-            )
+            indices.append(len(requests))
+            requests.append((shard["uri"], source_offset, source_size))
+        batch_plan.append((target_range, indices))
+
+    can_batch = (
+        getattr(source_storage, "batch_enabled", False)
+        and len(requests) > 1
+        and all(
+            uri.startswith(("http://", "https://"))
+            for uri, _, _ in requests
+        )
+    )
+    if can_batch:
+        fetched = source_storage.read_batch(requests)
+    else:
+        fetched = [
+            source_storage.read_range(uri, offset, size)
+            for uri, offset, size in requests
         ]
+
+    for target_range, indices in batch_plan:
+        target_offset, run_size = target_range
+        source_data = [fetched[index] for index in indices]
         data = reduce_bytes(source_data, node["op"], tensor["dtype"])
         target_storage.write_range(target_path.as_uri(), target_offset, data)
     return prod(node["size"]) * bytes_per_item * len(node["inputs"])

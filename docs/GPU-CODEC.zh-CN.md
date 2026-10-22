@@ -101,7 +101,7 @@ RTX 5070 Ti Laptop 12GB，32 个 4MiB range：
 - 随机高熵数据：ratio `1.000`，identity，投影收益 `-0.131s`。
 - 硬件吞吐不同，但启用/禁用边界与本地一致。
 
-`gpu_codec_probe.py --adaptive --batch-ranges N` 可复现；默认仍未接入主路径。
+`gpu_codec_probe.py --adaptive --batch-ranges N` 可复现；接入路径默认关闭。
 
 ## 接入现状
 
@@ -114,8 +114,9 @@ RTX 5070 Ti Laptop 12GB，32 个 4MiB range：
 - source/target 的 Helm 都暴露了 `gpuCodec`、`gpuCodecNetworkGbps`、
   `runBatchBytes`，默认关闭。
 
-`gpu_batch.py` 的 `SFB1` 多 range batch 已实现，但还没接 HTTP batch endpoint；
-当前 HTTP 接入先使用 16MiB 单 range 形态，后续再换成真正的多 range batch。
+`SFB1` 多 range batch 已接到 `POST /v1/shards/batch`；target 的
+`HttpStorage.read_batch` 解码后拆回，executor 会按一个 node 的多个 range
+聚合请求。默认仍由 `SHARDFERRY_GPU_CODEC=off` 关闭。
 
 GPUDirect Storage 不在 G0/G1 范围；它是硬件相关后端，等压缩路径和真实数据
 证明有收益后再评估。

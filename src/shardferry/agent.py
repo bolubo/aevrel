@@ -39,6 +39,7 @@ from .gpu_transport import (
     encode_response,
     make_range_codec_from_env,
 )
+from .gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
 
 
 class AgentError(RuntimeError):
@@ -127,6 +128,11 @@ class AgentApp:
             range_codec
             if range_codec is not None
             else make_range_codec_from_env()
+        )
+        self.batch_codec = (
+            AdaptiveBatchCodec(self.range_codec.adaptive)
+            if self.range_codec is not None
+            else None
         )
         self._shards: dict[str, DcpChunkRef] = {}
         self._cache = _ShardCache(max_cache_bytes)
@@ -338,6 +344,23 @@ class AgentApp:
         if ref is None:
             raise AgentError(f"source shard not found: {chunk_hash}")
         return ref.size, ref.checksum
+
+    def encode_shard_batch(self, ranges: list[dict[str, Any]]) -> bytes:
+        if self.batch_codec is None:
+            raise AgentError("batch codec is not configured")
+        if not isinstance(ranges, list) or not ranges:
+            raise AgentError("batch ranges must be a non-empty list")
+        chunks = []
+        for item in ranges:
+            try:
+                chunk_hash = str(item["chunk"])
+                offset = int(item["offset"])
+                length = int(item["length"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise AgentError("invalid batch range") from exc
+            data, _ = self.read_shard(chunk_hash, offset, length)
+            chunks.append(data)
+        return self.batch_codec.encode(chunks).frame
 
     def plan(self, spec: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -618,6 +641,34 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                 return
             parsed = urlsplit(self.path)
             path = parsed.path
+            if path == "/v1/shards/batch":
+                try:
+                    body = self._body()
+                    frame = app.encode_shard_batch(body["ranges"])
+                except (KeyError, AgentError, TypeError, ValueError) as exc:
+                    self._error(
+                        400,
+                        "INVALID_SPEC",
+                        "input",
+                        False,
+                        "batch",
+                        0,
+                        str(exc),
+                    )
+                    return
+                self.send_response(200)
+                self.send_header(
+                    "Content-Type",
+                    "application/octet-stream",
+                )
+                self.send_header("Content-Length", str(len(frame)))
+                self.send_header(
+                    RANGE_ENCODING_HEADER,
+                    BATCH_ENCODING,
+                )
+                self.end_headers()
+                self.wfile.write(frame)
+                return
             if path == "/v1/plan":
                 try:
                     body = self._body()

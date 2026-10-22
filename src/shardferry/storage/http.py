@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import json
 import os
 import ssl
 import time
@@ -16,6 +17,7 @@ from ..gpu_transport import (
     RANGE_RAW_LENGTH_HEADER,
     RangeCodec,
 )
+from ..gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
 from .file import StorageError
 
 
@@ -54,6 +56,11 @@ class HttpStorage:
         self.rate_controller = rate_controller
         self.rate_registry = rate_registry
         self.range_codec = range_codec
+        self.batch_codec = (
+            AdaptiveBatchCodec(range_codec.adaptive)
+            if range_codec is not None
+            else None
+        )
         self._connections: dict[tuple[str, str, int], http.client.HTTPConnection] = {}
         self._ssl_context = _tls_context_from_env()
         handlers = []
@@ -121,6 +128,64 @@ class HttpStorage:
         response.close()
         return True
 
+    @property
+    def batch_enabled(self) -> bool:
+        return self.batch_codec is not None
+
+    def read_batch(
+        self,
+        requests: list[tuple[str, int, int]],
+    ) -> list[bytes]:
+        if self.batch_codec is None:
+            raise StorageError("HTTP batch requires a range codec")
+        if not requests:
+            return []
+        urls = [urlsplit(self._url(uri)) for uri, _, _ in requests]
+        origins = {(url.scheme, url.netloc) for url in urls}
+        if len(origins) != 1:
+            raise StorageError("HTTP batch requires one source origin")
+        body = {
+            "ranges": [
+                {
+                    "chunk": url.path.rstrip("/").rsplit("/", 1)[-1],
+                    "offset": offset,
+                    "length": size,
+                }
+                for url, (_, offset, size) in zip(urls, requests)
+            ]
+        }
+        origin = next(iter(origins))
+        url = f"{origin[0]}://{origin[1]}/v1/shards/batch"
+        response = self._request(
+            "POST",
+            url,
+            json.dumps(body).encode("utf-8"),
+        )
+        try:
+            data = response.read()
+            encoding = response.headers.get(RANGE_ENCODING_HEADER)
+        finally:
+            response.close()
+        if encoding != BATCH_ENCODING:
+            raise StorageError(
+                f"HTTP batch response uses unknown encoding: {encoding}"
+            )
+        try:
+            chunks = self.batch_codec.decode(data)
+        except Exception as exc:
+            raise StorageError(f"batch decode failed: {exc}") from exc
+        if len(chunks) != len(requests):
+            raise StorageError(
+                f"batch returned {len(chunks)} ranges, "
+                f"expected {len(requests)}"
+            )
+        for chunk, (_, _, size) in zip(chunks, requests):
+            if len(chunk) != size:
+                raise StorageError(
+                    f"batch range size {len(chunk)} != {size}"
+                )
+        return chunks
+
     def size(self, uri: str) -> int:
         response = self._request("HEAD", self._url(uri))
         try:
@@ -150,7 +215,7 @@ class HttpStorage:
             raise StorageError(f"HTTP URI is not absolute: {uri}")
         return self.base_url + "/" + uri.lstrip("/")
 
-    def _open(self, method: str, url: str):
+    def _open(self, method: str, url: str, body: bytes | None = None):
         headers = {}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
@@ -158,8 +223,8 @@ class HttpStorage:
             headers[RANGE_ACCEPT_HEADER] = RANGE_ENCODING
         parsed = urlsplit(url)
         if not self.use_proxy and parsed.scheme in {"http", "https"}:
-            return self._open_pooled(method, url, parsed, headers)
-        request = Request(url, method=method, headers=headers)
+            return self._open_pooled(method, url, parsed, headers, body)
+        request = Request(url, method=method, headers=headers, data=body)
         try:
             if self._direct_opener is not None:
                 return self._direct_opener.open(request, timeout=self.timeout)
@@ -184,6 +249,7 @@ class HttpStorage:
         url: str,
         parsed,
         headers: dict[str, str],
+        body: bytes | None = None,
     ):
         host = parsed.hostname
         if host is None:
@@ -211,7 +277,7 @@ class HttpStorage:
         if parsed.query:
             path += "?" + parsed.query
         try:
-            connection.request(method, path, headers=headers)
+            connection.request(method, path, body=body, headers=headers)
             response = connection.getresponse()
         except (OSError, http.client.HTTPException) as exc:
             self._connections.pop(key, None)
@@ -240,7 +306,7 @@ class HttpStorage:
             raise StorageError(f"HTTP {status}: {url}")
         return response
 
-    def _request(self, method: str, url: str):
+    def _request(self, method: str, url: str, body: bytes | None = None):
         last_error: StorageError | None = None
         retry_delay = 0.0
         limiter = self._rate_limiter(url)
@@ -248,7 +314,11 @@ class HttpStorage:
             try:
                 if limiter is not None:
                     limiter.acquire(1.0, timeout=self.timeout)
-                response = self._open(method, url)
+                response = (
+                    self._open(method, url, body)
+                    if body is not None
+                    else self._open(method, url)
+                )
                 if limiter is not None:
                     limiter.on_success()
                 return response

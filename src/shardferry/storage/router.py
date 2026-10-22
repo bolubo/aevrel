@@ -46,6 +46,25 @@ class StorageRouter:
     def read_range(self, uri: str, offset: int, size: int) -> bytes:
         return self._storage(uri).read_range(uri, offset, size)
 
+    @property
+    def batch_enabled(self) -> bool:
+        return bool(self.range_codec and self.http.batch_enabled)
+
+    def read_batch(
+        self,
+        requests: list[tuple[str, int, int]],
+    ) -> list[bytes]:
+        if not self.batch_enabled:
+            raise StorageError("batch reads are not configured")
+        if not requests:
+            return []
+        if any(
+            urlsplit(uri).scheme not in {"http", "https"}
+            for uri, _, _ in requests
+        ):
+            raise StorageError("batch reads require HTTP source URIs")
+        return self.http.read_batch(requests)
+
     def exists(self, uri: str) -> bool:
         return self._storage(uri).exists(uri)
 
