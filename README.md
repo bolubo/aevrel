@@ -194,10 +194,16 @@ python -m pip install -e ".[dev]"
 pytest -q
 go test ./...
 go vet ./...
-go build ./cmd/controller ./cmd/ctl ./cmd/gateway
+go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
 helm lint deploy/helm/shardferry
 python scripts/check_release.py --json
 ```
+
+The 0.2 checkpoint-aware preemption guard is being built as an independent
+binary. See
+[`docs/KUEUE-PREEMPTION-GUARD.zh-CN.md`](docs/KUEUE-PREEMPTION-GUARD.zh-CN.md)
+and [`examples/kueue-adapter`](examples/kueue-adapter) for its exact,
+deliberately narrow boundary.
 
 Release instructions are in [`docs/RELEASE.zh-CN.md`](docs/RELEASE.zh-CN.md).
 Contributions follow [`CONTRIBUTING.md`](CONTRIBUTING.md). Security reports
