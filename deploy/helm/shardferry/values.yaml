@@ -67,6 +67,9 @@ artifacts:
 
 source:
   enabled: true
+  gpuCodec: ""
+  gpuCodecNetworkGbps: ""
+  runBatchBytes: 4194304
   # Optional. Use a gateway proxy URL for cross-cluster range access, e.g.
   # http://source-gateway:9445/v1/agents/{pod}
   publicURL: ""
@@ -88,6 +91,9 @@ source:
 
 target:
   enabled: false
+  gpuCodec: ""
+  gpuCodecNetworkGbps: ""
+  runBatchBytes: 4194304
   nodeSelector: {}
   tolerations: []
   affinity: {}

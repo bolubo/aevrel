@@ -36,6 +36,9 @@ dev = [
 dcp = [
   "torch>=2.9",
 ]
+gpu = [
+  "nvidia-nvcomp-cu12>=6.0.0.12",
+]
 
 [project.scripts]
 shardferry = "shardferry.cli:main"

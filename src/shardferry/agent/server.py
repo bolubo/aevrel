@@ -32,6 +32,15 @@ from ..layout import DTYPE_BYTES
 from ..manifest import ManifestError, load_spec
 from ..planner import plan as build_plan
 from ..proof import ProofError, combine_proofs
+from ..gpu_transport import (
+    RANGE_ACCEPT_HEADER,
+    RANGE_ENCODING_HEADER,
+    RANGE_RAW_LENGTH_HEADER,
+    RangeCodec,
+    encode_response,
+    make_range_codec_from_env,
+)
+from ..gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
 
 
 MAX_METADATA_BYTES = 32 * 1024 * 1024
@@ -89,6 +98,7 @@ class AgentApp:
         target_root: str | Path | None = None,
         public_url: str | None = None,
         max_cache_bytes: int = 512 * 1024 * 1024,
+        range_codec: RangeCodec | None = None,
     ) -> None:
         if not controller_token:
             raise AgentError("controller token must not be empty")
@@ -113,6 +123,16 @@ class AgentApp:
             Path(target_root).resolve() if target_root else None
         )
         self.public_url = (public_url or "http://127.0.0.1:9443").rstrip("/")
+        self.range_codec = (
+            range_codec
+            if range_codec is not None
+            else make_range_codec_from_env()
+        )
+        self.batch_codec = (
+            AdaptiveBatchCodec(self.range_codec.adaptive)
+            if self.range_codec is not None
+            else None
+        )
         self._shards: dict[str, DcpChunkRef] = {}
         self._cache = _ShardCache(max_cache_bytes)
         self._metadata_hash = (
@@ -135,6 +155,8 @@ class AgentApp:
             features.append("metadata-transfer")
         if self.target_root is not None:
             features.append("target-preflight")
+        if self.range_codec is not None:
+            features.append("range-codec")
         payload = {
             "version": contract_version(),
             "apiVersion": "shardferry.io/v1",
@@ -398,6 +420,23 @@ class AgentApp:
             raise AgentError(f"source shard not found: {chunk_hash}")
         return ref.size, ref.checksum
 
+    def encode_shard_batch(self, ranges: list[dict[str, Any]]) -> bytes:
+        if self.batch_codec is None:
+            raise AgentError("batch codec is not configured")
+        if not isinstance(ranges, list) or not ranges:
+            raise AgentError("batch ranges must be a non-empty list")
+        chunks = []
+        for item in ranges:
+            try:
+                chunk_hash = str(item["chunk"])
+                offset = int(item["offset"])
+                length = int(item["length"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise AgentError("invalid batch range") from exc
+            data, _ = self.read_shard(chunk_hash, offset, length)
+            chunks.append(data)
+        return self.batch_codec.encode(chunks).frame
+
     def plan(self, spec: dict[str, Any]) -> dict[str, Any]:
         return {
             "version": contract_version(),
@@ -481,6 +520,7 @@ def build_agent_server(
         target_root: str | Path | None = None,
     public_url: str | None = None,
     max_cache_bytes: int = 512 * 1024 * 1024,
+    range_codec: RangeCodec | None = None,
     tls_cert: str | Path | None = None,
     tls_key: str | Path | None = None,
     tls_ca: str | Path | None = None,
@@ -496,6 +536,7 @@ def build_agent_server(
         target_root=target_root,
         public_url=public_url,
         max_cache_bytes=max_cache_bytes,
+        range_codec=range_codec,
     )
     app.recover_tasks()
     host, port = _parse_listen(listen)
@@ -664,18 +705,32 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
             except AgentError:
                 self.send_error(404)
                 return
+            raw_data = data
+            response = encode_response(
+                raw_data,
+                app.range_codec,
+                self.headers.get(RANGE_ACCEPT_HEADER, ""),
+                head=head,
+                raw_checksum=full_checksum if head else None,
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(length))
+            self.send_header(
+                "Content-Length",
+                str(length if head else len(response.data)),
+            )
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("X-Shard-SHA256", checksum)
-            self.send_header(
-                "X-Range-SHA256",
-                _sha256(data) if not head and data else full_checksum,
-            )
+            self.send_header("X-Range-SHA256", response.raw_checksum)
+            if response.encoding is not None:
+                self.send_header(RANGE_ENCODING_HEADER, response.encoding)
+                self.send_header(
+                    RANGE_RAW_LENGTH_HEADER,
+                    str(response.raw_length),
+                )
             self.end_headers()
             if not head:
-                self.wfile.write(data)
+                self.wfile.write(response.data)
 
         def _handle_post(self) -> None:
             if not self._authorized():
@@ -696,6 +751,34 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                         0,
                         str(exc),
                     )
+                return
+            if path == "/v1/shards/batch":
+                try:
+                    body = self._body()
+                    frame = app.encode_shard_batch(body["ranges"])
+                except (KeyError, AgentError, TypeError, ValueError) as exc:
+                    self._error(
+                        400,
+                        "INVALID_SPEC",
+                        "input",
+                        False,
+                        "batch",
+                        0,
+                        str(exc),
+                    )
+                    return
+                self.send_response(200)
+                self.send_header(
+                    "Content-Type",
+                    "application/octet-stream",
+                )
+                self.send_header("Content-Length", str(len(frame)))
+                self.send_header(
+                    RANGE_ENCODING_HEADER,
+                    BATCH_ENCODING,
+                )
+                self.end_headers()
+                self.wfile.write(frame)
                 return
             if path == "/v1/plan":
                 try:

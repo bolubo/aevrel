@@ -4,6 +4,7 @@ import os
 from urllib.parse import urlsplit
 
 from ..adaptive import AdaptiveRateRegistry
+from ..gpu_transport import make_range_codec_from_env
 from .file import FileStorage, StorageError
 from .http import HttpStorage
 from .dcpzip import DcpZipStorage
@@ -18,6 +19,7 @@ class StorageRouter:
         token: str | None = None,
         rate_controller=None,
         rate_registry: AdaptiveRateRegistry | None = None,
+        range_codec=None,
     ) -> None:
         if rate_controller is None and rate_registry is None:
             configured = os.environ.get("SHARDFERRY_RATE_LIMIT_RPS", "")
@@ -28,15 +30,40 @@ class StorageRouter:
                     rate_registry = None
         self.file = FileStorage()
         self.dcpzip = DcpZipStorage()
+        self.range_codec = (
+            range_codec
+            if range_codec is not None
+            else make_range_codec_from_env()
+        )
         self.http = HttpStorage(
             base_url=source_base,
             token=token,
             rate_controller=rate_controller,
             rate_registry=rate_registry,
+            range_codec=self.range_codec,
         )
 
     def read_range(self, uri: str, offset: int, size: int) -> bytes:
         return self._storage(uri).read_range(uri, offset, size)
+
+    @property
+    def batch_enabled(self) -> bool:
+        return bool(self.range_codec and self.http.batch_enabled)
+
+    def read_batch(
+        self,
+        requests: list[tuple[str, int, int]],
+    ) -> list[bytes]:
+        if not self.batch_enabled:
+            raise StorageError("batch reads are not configured")
+        if not requests:
+            return []
+        if any(
+            urlsplit(uri).scheme not in {"http", "https"}
+            for uri, _, _ in requests
+        ):
+            raise StorageError("batch reads require HTTP source URIs")
+        return self.http.read_batch(requests)
 
     def exists(self, uri: str) -> bool:
         return self._storage(uri).exists(uri)

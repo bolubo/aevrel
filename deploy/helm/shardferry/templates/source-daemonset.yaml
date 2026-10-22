@@ -59,6 +59,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.agentToken.existingSecret }}
                   key: {{ .Values.agentToken.key }}
+            - name: SHARDFERRY_GPU_CODEC
+              value: {{ .Values.source.gpuCodec | quote }}
+            - name: SHARDFERRY_GPU_CODEC_NETWORK_GBPS
+              value: {{ .Values.source.gpuCodecNetworkGbps | quote }}
+            - name: SHARDFERRY_RUN_BATCH_BYTES
+              value: {{ .Values.source.runBatchBytes | quote }}
             - name: NODE_IP
               valueFrom:
                 fieldRef:
