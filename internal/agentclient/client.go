@@ -3,6 +3,8 @@ package agentclient
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -163,6 +165,59 @@ func (c *Client) Inventory(
 		return Inventory{}, err
 	}
 	return inventory, nil
+}
+
+func (c *Client) Metadata(
+	ctx context.Context,
+	endpoint string,
+) ([]byte, string, error) {
+	data, headers, err := c.doBytes(
+		ctx,
+		http.MethodGet,
+		endpoint+"/v1/metadata",
+		nil,
+		"",
+	)
+	if err != nil {
+		return nil, "", err
+	}
+	sum := sha256.Sum256(data)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	if header := headers.Get("X-Metadata-SHA256"); header != "" && header != digest {
+		return nil, "", fmt.Errorf(
+			"metadata digest mismatch: header %s, body %s",
+			header,
+			digest,
+		)
+	}
+	return data, digest, nil
+}
+
+func (c *Client) PutMetadata(
+	ctx context.Context,
+	endpoint string,
+	data []byte,
+) (string, error) {
+	response, _, err := c.doBytes(
+		ctx,
+		http.MethodPost,
+		endpoint+"/v1/metadata",
+		data,
+		"application/octet-stream",
+	)
+	if err != nil {
+		return "", err
+	}
+	var payload struct {
+		MetadataHash string `json:"metadata_hash"`
+	}
+	if err := json.Unmarshal(response, &payload); err != nil {
+		return "", fmt.Errorf("decode metadata response: %w", err)
+	}
+	if payload.MetadataHash == "" {
+		return "", fmt.Errorf("metadata response has no hash")
+	}
+	return payload.MetadataHash, nil
 }
 
 func (c *Client) Ranks(
@@ -350,30 +405,7 @@ func (c *Client) do(
 		return err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		var envelope struct {
-			Code      string `json:"code"`
-			Category  string `json:"category"`
-			Phase     string `json:"phase"`
-			Rank      int32  `json:"rank"`
-			Details   string `json:"details"`
-			Retryable *bool  `json:"retryable"`
-		}
-		if json.Unmarshal(data, &envelope) == nil && envelope.Code != "" {
-			return &AgentError{
-				StatusCode: response.StatusCode,
-				Code:       envelope.Code,
-				Category:   envelope.Category,
-				Phase:      envelope.Phase,
-				Rank:       envelope.Rank,
-				Details:    envelope.Details,
-				Retryable:  envelope.Retryable,
-			}
-		}
-		return &AgentError{
-			StatusCode: response.StatusCode,
-			Code:       fmt.Sprintf("HTTP_%d", response.StatusCode),
-			Details:    strings.TrimSpace(string(data)),
-		}
+		return agentErrorFromResponse(response.StatusCode, data)
 	}
 	if out != nil {
 		if err := json.Unmarshal(data, out); err != nil {
@@ -381,4 +413,65 @@ func (c *Client) do(
 		}
 	}
 	return nil
+}
+
+func (c *Client) doBytes(
+	ctx context.Context,
+	method string,
+	endpoint string,
+	body []byte,
+	contentType string,
+) ([]byte, http.Header, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.tokenFor(endpoint))
+	if contentType != "" {
+		request.Header.Set("Content-Type", contentType)
+	}
+	response, err := c.HTTP.Do(request)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, nil, agentErrorFromResponse(response.StatusCode, data)
+	}
+	return data, response.Header, nil
+}
+
+func agentErrorFromResponse(status int, data []byte) error {
+	var envelope struct {
+		Code      string `json:"code"`
+		Category  string `json:"category"`
+		Phase     string `json:"phase"`
+		Rank      int32  `json:"rank"`
+		Details   string `json:"details"`
+		Retryable *bool  `json:"retryable"`
+	}
+	if json.Unmarshal(data, &envelope) == nil && envelope.Code != "" {
+		return &AgentError{
+			StatusCode: status,
+			Code:       envelope.Code,
+			Category:   envelope.Category,
+			Phase:      envelope.Phase,
+			Rank:       envelope.Rank,
+			Details:    envelope.Details,
+			Retryable:  envelope.Retryable,
+		}
+	}
+	return &AgentError{
+		StatusCode: status,
+		Code:       fmt.Sprintf("HTTP_%d", status),
+		Details:    strings.TrimSpace(string(data)),
+	}
 }

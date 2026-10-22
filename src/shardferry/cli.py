@@ -922,6 +922,7 @@ def main(argv: list[str] | None = None) -> int:
                     "bitwise-verify",
                     "merkle-proof",
                     "rank-discovery",
+                    "metadata-transfer",
                     "adaptive-rate-limit",
                 ],
             }

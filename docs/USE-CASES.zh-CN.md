@@ -37,7 +37,8 @@ shardferry migrate \
 - 部署 controller、source/target agents；
 - 准备 token 和可选 mTLS；
 - source 节点挂载本地 checkpoint；
-- source `.metadata` 在所有 source 节点可见；
+- `metadataOwnerRank` 对应的 source 节点能看到 `.metadata`；其他 source
+  agents 由 controller 分发这份小文件；
 - target 节点挂载 `/targets`。
 
 **用户操作**

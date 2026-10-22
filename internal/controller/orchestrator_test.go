@@ -10,9 +10,14 @@ import (
 )
 
 type fakeAgentAPI struct {
-	inventories map[int32]agentclient.Inventory
-	plan        map[string]any
-	planned     bool
+	inventories  map[int32]agentclient.Inventory
+	plan         map[string]any
+	planned      bool
+	metadata     []byte
+	metaHash     string
+	metaFetches  []string
+	metaInstalls []string
+	metaMissing  bool
 }
 
 type fakeTaskAPI struct {
@@ -78,6 +83,38 @@ func (f *fakeAgentAPI) Inventory(
 	return f.inventories[rank], nil
 }
 
+func (f *fakeAgentAPI) Metadata(
+	_ context.Context,
+	endpoint string,
+) ([]byte, string, error) {
+	f.metaFetches = append(f.metaFetches, endpoint)
+	if f.metaMissing {
+		return nil, "", &agentclient.AgentError{
+			StatusCode: 404,
+			Code:       "SOURCE_NOT_FOUND",
+		}
+	}
+	if f.metaHash == "" {
+		f.metaHash = "sha256:" + strings.Repeat("a", 64)
+	}
+	if f.metadata == nil {
+		f.metadata = []byte("metadata")
+	}
+	return append([]byte(nil), f.metadata...), f.metaHash, nil
+}
+
+func (f *fakeAgentAPI) PutMetadata(
+	_ context.Context,
+	endpoint string,
+	data []byte,
+) (string, error) {
+	f.metaInstalls = append(f.metaInstalls, endpoint)
+	if f.metaHash == "" {
+		f.metaHash = "sha256:" + strings.Repeat("a", 64)
+	}
+	return f.metaHash, nil
+}
+
 func (f *fakeAgentAPI) Plan(
 	_ context.Context,
 	_ string,
@@ -89,6 +126,7 @@ func (f *fakeAgentAPI) Plan(
 
 func TestPrepareCollectsInventoryAndBuildsPlanSpec(t *testing.T) {
 	migration := validMigration("orchestrate")
+	migration.Spec.Source.RankMap[1].Endpoint = "https://source-1:9443"
 	agents := &fakeAgentAPI{
 		inventories: map[int32]agentclient.Inventory{
 			0: fakeInventory(0),
@@ -116,6 +154,12 @@ func TestPrepareCollectsInventoryAndBuildsPlanSpec(t *testing.T) {
 	tensors := prepared.Spec["checkpoint"].(map[string]any)["tensors"].([]any)
 	if len(tensors) != 1 {
 		t.Fatalf("tensors = %d, want 1", len(tensors))
+	}
+	if len(agents.metaFetches) != 1 {
+		t.Fatalf("metadata fetches = %d, want 1", len(agents.metaFetches))
+	}
+	if len(agents.metaInstalls) != 2 {
+		t.Fatalf("metadata installs = %d, want 2", len(agents.metaInstalls))
 	}
 }
 
@@ -195,6 +239,31 @@ func TestPreparePublishesSpecAndPlanArtifacts(t *testing.T) {
 	}
 	if _, err := store.Get(context.Background(), prepared.PlanRef); err != nil {
 		t.Fatalf("read plan artifact: %v", err)
+	}
+}
+
+func TestPrepareFallsBackWhenLegacySourceHasSharedMetadata(t *testing.T) {
+	migration := validMigration("legacy-metadata")
+	agents := &fakeAgentAPI{
+		inventories: map[int32]agentclient.Inventory{
+			0: fakeInventory(0),
+			1: fakeInventory(1),
+		},
+		plan:        map[string]any{"version": "1", "nodes": []any{}},
+		metaMissing: true,
+	}
+	prepared, err := (&Orchestrator{Agents: agents}).Prepare(
+		context.Background(),
+		migration,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Spec == nil {
+		t.Fatal("legacy metadata fallback did not build a spec")
+	}
+	if len(agents.metaInstalls) != 0 {
+		t.Fatalf("metadata installs = %d, want 0", len(agents.metaInstalls))
 	}
 }
 

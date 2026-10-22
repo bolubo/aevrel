@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"sort"
 	"strconv"
@@ -17,6 +19,8 @@ import (
 )
 
 type AgentAPI interface {
+	Metadata(context.Context, string) ([]byte, string, error)
+	PutMetadata(context.Context, string, []byte) (string, error)
 	Inventory(context.Context, string, int32) (agentclient.Inventory, error)
 	Plan(context.Context, string, map[string]any) (agentclient.PlanResponse, error)
 }
@@ -77,6 +81,10 @@ func (o *Orchestrator) Prepare(
 	if len(endpoints) == 0 {
 		return Prepared{}, fmt.Errorf("source rankMap is empty")
 	}
+	metadataHash, err := o.InstallSourceMetadata(ctx, migration)
+	if err != nil {
+		return Prepared{}, err
+	}
 	inventories := make([]agentclient.Inventory, 0, len(endpoints))
 	for _, endpoint := range endpoints {
 		inventory, err := o.Agents.Inventory(ctx, endpoint.Endpoint, endpoint.Rank)
@@ -92,6 +100,14 @@ func (o *Orchestrator) Prepare(
 				"inventory rank mismatch: requested %d, got %d",
 				endpoint.Rank,
 				inventory.Rank,
+			)
+		}
+		if metadataHash != "" && inventory.MetadataHash != metadataHash {
+			return Prepared{}, fmt.Errorf(
+				"inventory rank %d metadata hash %s != owner %s",
+				endpoint.Rank,
+				inventory.MetadataHash,
+				metadataHash,
 			)
 		}
 		inventories = append(inventories, inventory)
@@ -141,6 +157,78 @@ func (o *Orchestrator) Prepare(
 		prepared.PlanRef = planRef.URL
 	}
 	return prepared, nil
+}
+
+// InstallSourceMetadata fetches the small DCP metadata file from the declared
+// owner rank and installs it on every unique source agent endpoint.
+func (o *Orchestrator) InstallSourceMetadata(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) (string, error) {
+	if o.Agents == nil {
+		return "", fmt.Errorf("agent client is not configured")
+	}
+	ownerRank := migration.Spec.Source.MetadataOwnerRank
+	ownerEndpoint := ""
+	for _, endpoint := range migration.Spec.Source.RankMap {
+		if endpoint.Rank == ownerRank {
+			ownerEndpoint = endpoint.Endpoint
+			break
+		}
+	}
+	if ownerEndpoint == "" {
+		return "", fmt.Errorf(
+			"source metadata owner rank %d is not in rankMap",
+			ownerRank,
+		)
+	}
+	data, digest, err := o.Agents.Metadata(ctx, ownerEndpoint)
+	if err != nil {
+		if metadataUnsupported(err) {
+			// 0.1 agents do not expose metadata transfer. They may still
+			// share .metadata directly; inventory validates that path.
+			return "", nil
+		}
+		return "", fmt.Errorf(
+			"fetch source metadata from rank %d: %w",
+			ownerRank,
+			err,
+		)
+	}
+	seen := make(map[string]struct{})
+	for _, endpoint := range migration.Spec.Source.RankMap {
+		if _, exists := seen[endpoint.Endpoint]; exists {
+			continue
+		}
+		seen[endpoint.Endpoint] = struct{}{}
+		installed, err := o.Agents.PutMetadata(
+			ctx,
+			endpoint.Endpoint,
+			data,
+		)
+		if err != nil {
+			return "", fmt.Errorf(
+				"install source metadata on %s: %w",
+				endpoint.Endpoint,
+				err,
+			)
+		}
+		if installed != digest {
+			return "", fmt.Errorf(
+				"source agent %s installed metadata %s, want %s",
+				endpoint.Endpoint,
+				installed,
+				digest,
+			)
+		}
+	}
+	return digest, nil
+}
+
+func metadataUnsupported(err error) bool {
+	var agentErr *agentclient.AgentError
+	return errors.As(err, &agentErr) &&
+		agentErr.StatusCode == http.StatusNotFound
 }
 
 func (o *Orchestrator) Dispatch(
