@@ -37,6 +37,53 @@ Feature 1 分两层：
 > 现有 API 可以阻止 Kueue 抢占“没有 checkpoint 的任务”，  
 > 但不能自动让它选择“checkpoint 代价最低的任务”。
 
+## 中间层：shardferry-kueue-adapter
+
+不修改 Kueue 源码，单独部署一个 Go controller：
+
+```text
+training Job / checkpoint sidecar
+        -> CheckpointState / labels
+        -> shardferry-kueue-adapter
+        -> Workload labels
+        -> Kueue PreemptionConfig (existing API)
+        -> Kueue selects eligible victims
+        -> adapter observes Preempted/Evicted condition
+        -> CheckpointMigration -> target Job
+```
+
+### 组件职责
+
+1. **checkpoint publisher**：训练 sidecar/source agent 写 checkpoint
+   complete、version、step、freshness、cost。
+2. **kueue adapter**：watch Workload/Job/Pod，维护 Workload 的
+   `shardferry.io/checkpoint-*` labels；只 patch 公开对象，不改 Kueue。
+3. **policy materializer**：生成/校验 `PreemptionConfig` 和 Kueue
+   `integrations.labelKeysToCopy`，也可以只输出待平台审批的 YAML。
+4. **preemption observer**：watch `Workload.status` 的
+   `Preempted`/`Evicted`，创建迁移任务。
+5. **target launcher**：target Job/TrainJob 加载并运行 N step；只有成功
+   才写 target-ready。
+
+### 不能把 PreemptionGate 当成 victim 保护
+
+Kueue 的 `spec.preemptionGates` 是控制**preemptor 能不能触发抢占**，
+不是“保护某个 victim 不被抢占”。它能做的是：
+
+- 给高优先级 preemptor 加一个 closed gate；
+- adapter 在 target 准备好后 open；
+- 但如果没有改变候选标签，Kueue 仍会按自己的 candidate ordering 选 victim。
+
+只有在 `ConcurrentAdmission`/`MultiKueueOrchestratedPreemption` 等 feature
+gate 启用时，gate 才生效。它是可选的协调手段，不是核心保证。
+
+### 中间层的核心保证
+
+- Kueue 继续负责调度、配额、抢占；
+- adapter 不替换 Kueue，不伪造 priority；
+- Kueue 不可用时 adapter 退出，原有调度不受影响；
+- shardferry 的迁移是 preemption 之后的可选动作，不是抢占的前置条件。
+
 ## PoC：不 fork Kueue
 
 ### 1. 训练侧发布 checkpoint 信息
