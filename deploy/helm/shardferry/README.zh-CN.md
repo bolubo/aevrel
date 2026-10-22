@@ -9,17 +9,17 @@
 docker build -f deploy/docker/Dockerfile.controller \
   --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.24-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
-  -t ghcr.io/bolubo/shardferry-controller:0.1.0 .
+  -t ghcr.io/bolubo/shardferry-controller:0.1.1 .
 
 docker build -f deploy/docker/Dockerfile.agent \
   --build-arg PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.11-slim \
   --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-  -t ghcr.io/bolubo/shardferry-agent:0.1.0 .
+  -t ghcr.io/bolubo/shardferry-agent:0.1.1 .
 
 docker build -f deploy/docker/Dockerfile.gateway \
   --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.24-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
-  -t ghcr.io/bolubo/shardferry-gateway:0.1.0 .
+  -t ghcr.io/bolubo/shardferry-gateway:0.1.1 .
 ```
 
 发布 tag 会通过 `.github/workflows/release.yml` 自动构建并推送

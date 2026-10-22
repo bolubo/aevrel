@@ -31,8 +31,8 @@ A 04ade142bcfd7b88cc04cbf41d782b3664f633255323f83b162c210a6c66112d
 B 3a30c25af30232b6d0594b304a9806cb82a5a2d6aabcfb807c19130f4cff7a8f
 C 0fbcbc66f9075a9ab41a1203513727a0946fe91e10cf26f2856b39fcb93e0436
 D 5c4813212641dbfab9c9e52c74b3760c5b95a4a9966c4d8c2d6e4f6a394fc787
-E (see case directory)
-F (see case directory)
+E 7b6f3ff47434ef0c46bd1fcccd1ed1e1198b52c333919be97b743cff849f648d
+F 320a42110bad1e95945f5da0e9f22beae36481fdc5daab4b74522ba22b7fa7ad
 G 67ea32f8d343bcb13f590d4260279eed86f290732c2e491614c79d5c8b6bc4ba
 ```
 
@@ -75,14 +75,16 @@ non-scalar tensor chunks are resharded normally.
 
 ## Test evidence
 
-- Full Python suite passed `273 passed, 5 skipped` after the DCP fixes.
-- Distributed DCP and DCP HTTP integration tests: `2 passed`.
+- The GPU validation branch passed `273 passed, 5 skipped` after the DCP
+  fixes (before the final release merge).
+- The release-candidate venv without torch passed `257 passed, 29 skipped`;
+  torch-dependent coverage is backed by the GPU runs above and the CI CPU-torch
+  job.
+- Distributed DCP and DCP HTTP integration tests on the GPU branch: `2 passed`.
 - After the optional `--bulk-dim` script extension, affected DCP/script/CLI
   tests passed `20 passed`.
-- A final full-suite rerun hit an existing timing assertion in
-  `test_cutover_service_auto_follows_in_background`
-  (`follow_synced_versions == 1`, expected `2`); it is reproducible in
-  isolation and does not touch the DCP code changed here.
+- The background follower status is now snapshotted under the same lock as
+  its sync, so `follow_synced_versions` cannot be observed one version behind.
 - CPU-only skips remained for Helm and the optional native release binary.
 
 ## Still not proven

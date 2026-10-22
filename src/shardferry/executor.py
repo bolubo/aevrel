@@ -14,6 +14,7 @@ from .identity import resolve_source, source_maps
 from .layout import DTYPE_BYTES, Region, local_region
 from .mesh import parse_mesh
 from .planner import validate_plan
+from .resources import resource_path
 from .storage.file import FileStorage
 from .storage.router import StorageRouter
 from .targets import journal_path, staged_file_path, target_file_path
@@ -26,9 +27,7 @@ from .tensor_io import (
 from .verify import verify
 
 
-REPORT_SCHEMA_PATH = (
-    Path(__file__).resolve().parents[2] / "spec" / "report.schema.json"
-)
+REPORT_SCHEMA_PATH = resource_path("report.schema.json")
 
 
 class ExecutionError(RuntimeError):

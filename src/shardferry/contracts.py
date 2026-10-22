@@ -6,8 +6,9 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from .resources import resource_dir
 
-SCHEMA_DIR = Path(__file__).resolve().parents[2] / "spec" / "v1"
+SCHEMA_DIR = resource_dir("v1")
 CONTRACT_VERSION = "1"
 ERROR_CODES = frozenset(
     {

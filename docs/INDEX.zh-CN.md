@@ -14,6 +14,7 @@
 - [路线图](ROADMAP.zh-CN.md)
 - [0.2 目标与验收](0.2-ACCEPTANCE.zh-CN.md)
 - [发布检查清单](RELEASE.zh-CN.md)
+- [0.1.1 Release Notes](RELEASE-NOTES-0.1.1.md)
 
 ## 使用
 

@@ -1,22 +1,13 @@
 # shardferry
 
-Move and reshard local checkpoint shards across DeviceMeshes and clusters.
+[![CI](https://github.com/bolubo/shardferry/actions/workflows/ci.yml/badge.svg)](https://github.com/bolubo/shardferry/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bolubo/shardferry?include_prereleases)](https://github.com/bolubo/shardferry/releases)
 
-Status: **Alpha / preview, not production-ready**. The local `demo`, `doctor`,
-and `migrate` path is usable for supported DCP directories. The
-selector-based `shardferryctl migrate -f FILE --wait` path for Kubernetes
-local-disk agents is experimental: physical multi-node and GPU acceptance are
-still environment work. Python capability tests, the Go execution/controller
-path, and Helm packaging are green.
+**Move and reshard local checkpoint shards across clusters and DeviceMeshes.**
 
-## What it is
-
-shardferry is a **DCP-native checkpoint migration layer for local-disk training
-clusters**. It moves and reshapes checkpoint bytes across world sizes and
-DeviceMeshes without requiring a global gather into S3 or a shared checkpoint
-directory.
-
-The core contract is:
+shardferry is a DCP-native checkpoint mobility layer for training clusters. It
+moves checkpoint bytes from per-rank local disks to a target topology without
+requiring a global checkpoint directory, an S3 copy, or a source restart.
 
 ```text
 source shards stay read-only
@@ -27,326 +18,182 @@ source shards stay read-only
         -> loadable target DCP
 ```
 
-It is for AI platform engineers and training-cluster operators who already have
-PyTorch DCP shards on local disks and need recovery, cluster replacement, or a
-smaller/larger target topology.
+Status: **0.1.1 Alpha**. The local DCP path and the Kubernetes control-plane path
+are usable within the boundaries below. This is not a production SLA and does
+not promise online/live training cutover.
 
-## What it is not
+## Why
 
-- not a training framework or model-serving runtime;
-- not a general object store or checkpoint format converter;
-- not a Kubernetes scheduler;
-- not a promise that online cutover is production-ready;
-- not a replacement for the source checkpoint's retention policy.
+A 128-rank training job can leave DCP shards on local NVMe, with no shared
+checkpoint filesystem. A recovery or cluster-replacement job may need to resume
+on 64 ranks. shardferry:
 
-The recommended path is intentionally narrow: **PyTorch DCP, local disk,
-explicit topology, bitwise verification**.
+- discovers source and target ranks instead of requiring 128 hand-written
+  mappings;
+- reads tensor ranges directly from `.distcp` files;
+- reshards across target world sizes and DeviceMeshes;
+- resumes after interrupted transfers;
+- verifies target bytes and requires all ranks to commit together;
+- returns a target DCP that the target training job can load.
 
-See [`docs/POSITIONING.zh-CN.md`](docs/POSITIONING.zh-CN.md) and
-[`docs/ROADMAP.zh-CN.md`](docs/ROADMAP.zh-CN.md) for the product boundary and
-development sequence.
-See [`docs/WHY-SHARDFERRY.zh-CN.md`](docs/WHY-SHARDFERRY.zh-CN.md) for the
-DCP comparison, [`docs/USE-CASES.zh-CN.md`](docs/USE-CASES.zh-CN.md) for
-concrete workflows, and [`docs/INDEX.zh-CN.md`](docs/INDEX.zh-CN.md) for the
-full documentation index.
+The project does **not** try to win same-host raw-copy benchmarks. Native DCP
+load-time resharding is faster when source and target already share a
+filesystem. shardferry's value is cross-domain movement, resumability, proof,
+and failure-safe commit.
 
-## Product path
+## Install
+
+### Python wheel
+
+Download the `shardferry-0.1.1-py3-none-any.whl` asset from the GitHub release:
+
+```bash
+python -m pip install shardferry-0.1.1-py3-none-any.whl
+```
+
+For DCP commands, install a compatible CUDA or CPU PyTorch build in the same
+environment. Python 3.11+ is required.
+
+### Containers
+
+```bash
+docker pull ghcr.io/bolubo/shardferry-controller:0.1.1
+docker pull ghcr.io/bolubo/shardferry-gateway:0.1.1
+docker pull ghcr.io/bolubo/shardferry-agent:0.1.1
+```
+
+### Helm chart
+
+The release chart is published as an OCI artifact:
+
+```bash
+helm upgrade --install shardferry \
+  oci://ghcr.io/bolubo/charts/shardferry \
+  --version 0.1.1 \
+  -n shardferry --create-namespace
+```
+
+The default chart enables TLS secrets and expects an agent token Secret. See
+[`deploy/helm/shardferry/README.zh-CN.md`](deploy/helm/shardferry/README.zh-CN.md)
+for the complete token, hostPath, gateway and mTLS setup. To install the chart
+from a source checkout instead, replace the OCI reference with
+`deploy/helm/shardferry`.
+
+## Quick start
+
+Local, no external checkpoint required:
 
 ```bash
 shardferry demo
-shardferry doctor --checkpoint /path/to/source.dcp
-shardferry migrate --checkpoint /path/to/source.dcp --target-world 3
+shardferry doctor --checkpoint /data/job/source.dcp
+shardferry migrate \
+  --checkpoint /data/job/source.dcp \
+  --target-world 3 \
+  --output /data/job/target-3rank.dcp
+shardferry-target-load \
+  --checkpoint /data/job/target-3rank.dcp \
+  --rank 0 \
+  --json
+
+# Redacted operator diagnostics for an issue report.
+shardferry-support-bundle --namespace shardferry-control
 ```
 
-The product migration path reads tensor byte ranges directly from source
-`.distcp` files; it does not extract a second raw copy into the work directory.
+`demo` exercises plan, transfer, bitwise verification and commit. `doctor` is
+read-only. Migration never modifies the source checkpoint.
 
-For distributed local disks, see `docs/USAGE.zh-CN.md` and use
-`examples/k8s/migration.yaml` with `shardferryctl migrate -f ... --dry-run` or
-`--wait`. Before creating the CR, run `shardferryctl preflight -f ...` to
-discover the actual source/target agents and ranks.
+Kubernetes local-disk flow:
 
-## What it will do
+```bash
+shardferryctl cluster add source \
+  --endpoint https://source-gateway.example:9445 \
+  --role source \
+  --secret source-auth \
+  --file clusters-source.yaml
 
-`shardferry` takes local per-rank checkpoint shards from a source
-cluster/DeviceMesh and rebuilds them for a target cluster/DeviceMesh, including
-different world sizes, placements, and partial mesh overlap, without requiring a
-global remote checkpoint.
+shardferryctl preflight -f examples/k8s/migration.yaml --json
+shardferryctl plan -f examples/k8s/migration.yaml --dry-run
+shardferryctl migrate -f examples/k8s/migration.yaml --wait
+shardferryctl describe migration job42-128-to-64 --ranks
+```
+
+Cross-cluster installation, gateway discovery and per-cluster credentials are
+documented in
+[`examples/cross-cluster/README.zh-CN.md`](examples/cross-cluster/README.zh-CN.md).
+
+## What 0.1.1 has actually been tested for
+
+| Area | Evidence |
+|---|---|
+| Local DCP | demo, doctor, migrate, verify, target load |
+| GPU FSDP/DCP | 4x NVIDIA L20; `4->2`, `4->3`, `4->1`, `1->4` fp32 and `4->2` bf16 |
+| Larger GPU case | 769 MiB `4->3` checkpoint; bitwise target and source checksum stable |
+| Kubernetes control plane | two kind clusters; 16->8 and synthetic 128->64 |
+| Data path | 1 GiB synthetic local-disk flow; no full global gather |
+| Recovery | target failure, controller restart, commit repair, resume journal |
+| Security | per-cluster gateway tokens and end-to-end mTLS |
+| Packaging | Python wheel, controller/agent/gateway images, Helm chart |
+
+The 128->64 result is a control-plane and data-plane simulation, not a physical
+128-GPU benchmark. GPU validation covers one 4-GPU node; cross-host GPU transfer
+is still pending.
+
+Detailed evidence:
+
+- [`docs/GPU-VALIDATION-2026-10-22.md`](docs/GPU-VALIDATION-2026-10-22.md)
+- [`docs/GPU-RUNBOOK.zh-CN.md`](docs/GPU-RUNBOOK.zh-CN.md)
+- [`docs/BENCHMARK.zh-CN.md`](docs/BENCHMARK.zh-CN.md)
+- [`docs/LIVE-ACCEPTANCE.zh-CN.md`](docs/LIVE-ACCEPTANCE.zh-CN.md)
+
+## Safety contract
+
+1. Source checkpoint trees are read-only.
+2. No target rank is committed before its target bytes pass verification.
+3. A failed rank cannot produce a successful overall status.
+4. Target commits happen behind a rank-wide barrier.
+5. Retry and resume never re-transfer already committed ranks.
+6. Target cleanup is explicit; source deletion is out of scope.
+
+## Compatibility and limits
+
+- Supported checkpoint format: PyTorch DCP directory.
+- Supported state: tensor shards plus DCP scalar/bytes metadata.
+- Tested topology changes: 1D world-size resharding and the documented
+  DeviceMesh placements.
+- GPU test scope: model + AdamW state + forward smoke test, not a full training
+  loop with dataloader/RNG/scheduler continuation.
+- No production promise for online cutover, arbitrary tensor/pipeline
+  parallelism, non-DCP formats, or every storage backend.
+- Same-host performance is measured honestly; see
+  [`docs/BENCHMARK.zh-CN.md`](docs/BENCHMARK.zh-CN.md).
+
+## Repository layout
+
+- `src/shardferry/`: Python CLI, planner, DCP adapter, executor, verifier,
+  agents and proof.
+- `cmd/` and `internal/`: Go controller, CLI and cross-cluster gateway.
+- `api/` and `config/crd/`: `CheckpointMigration` and `ShardferryCluster` APIs.
+- `deploy/`: Dockerfiles and Helm chart.
+- `spec/` and `spec/v1/`: migration, plan, report, proof and V1 contracts.
+- `examples/`: local and cross-cluster migration examples.
+- `docs/`: operator, GPU, release, upgrade and troubleshooting guides.
+
+## Development
+
+```bash
+python -m pip install -e ".[dev]"
+pytest -q
+go test ./...
+go vet ./...
+go build ./cmd/controller ./cmd/ctl ./cmd/gateway
+helm lint deploy/helm/shardferry
+python scripts/check_release.py --json
+```
+
+Release instructions are in [`docs/RELEASE.zh-CN.md`](docs/RELEASE.zh-CN.md).
+Contributions follow [`CONTRIBUTING.md`](CONTRIBUTING.md). Security reports
+should use GitHub private vulnerability reporting; see [`SECURITY.md`](SECURITY.md).
 
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE).
-
-Contributions use the workflow in [`CONTRIBUTING.md`](CONTRIBUTING.md).
-Report security-sensitive issues through GitHub's private vulnerability
-reporting; see [`SECURITY.md`](SECURITY.md).
-
-## Physical A/B quick path
-
-The local demo and the cross-machine test are intentionally separate:
-
-```text
-A (source):  dcp-inspect -> serve --public
-B (target):  fetch-spec -> plan -> apply -> verify
-```
-
-A/B normally coordinate only on the A machine's reachable IP/port and when its
-server is running. No shared filesystem or manual source-URI editing is needed.
-The target Agent task card is
-[`docs/AGENT-TARGET-PROMPT.zh-CN.md`](docs/AGENT-TARGET-PROMPT.zh-CN.md).
-
-For many-node local-disk checkpoints, start `serve --rank N` on each source
-rank, put the offsets in `source.mesh.rank_map`, and run `apply --target-rank N
---target-root /local/path` on each target rank. The 4/3 commands are the smoke
-path; the rank-scoped path is the scale path.
-
-## Cross-cluster alpha
-
-The cross-cluster control-plane path is under active development. It uses a
-small `ShardferryCluster` gateway in each source/target cluster so the
-controller never depends on remote Pod IPs:
-
-```text
-management cluster -> ShardferryCluster(source/target) -> gateway -> local agents
-```
-
-See [`examples/cross-cluster/README.zh-CN.md`](examples/cross-cluster/README.zh-CN.md)
-for the two-cluster install and migration example. The current alpha assumes one
-data-plane agent token, while gateway control traffic uses the per-cluster token
-from each `ShardferryCluster`. mTLS is supported for controller↔gateway,
-gateway↔agent, agent→source shard, and artifact transport; certificates must be
-provided by the deployment.
-
-The two-kind control-plane path has been exercised for 16→8 and 128→64 DCP
-migrations, including a 1GiB data path, target DCP load and source checksum
-preservation. This is a control-plane proof, not a GPU/performance claim.
-
-## After migration
-
-The installed package includes two user-facing checks:
-
-```bash
-# Model-independent DCP readability smoke; use --rank for a local rank root.
-shardferry-target-load --checkpoint /targets/job42/rank0 --rank 0 --json
-
-# Redacted cluster diagnostics for issues and support.
-shardferry-support-bundle --namespace shardferry-control
-```
-
-For the training-job load pattern, see
-[`docs/TARGET-LOAD.zh-CN.md`](docs/TARGET-LOAD.zh-CN.md). For the failure map
-and support workflow, see [`docs/ERROR-CATALOG.zh-CN.md`](docs/ERROR-CATALOG.zh-CN.md)
-and [`docs/SUPPORT.zh-CN.md`](docs/SUPPORT.zh-CN.md).
-
-CPU-only rank simulation:
-
-```bash
-python scripts/rank_smoke.py \
-  --source-world 128 --target-world 64 \
-  --work-dir /tmp/shardferry-rank-smoke
-```
-
-This starts 128 local source agents, applies 64 target ranks through HTTP, and
-bitwise-verifies the result. It is a data-plane simulation, not a real
-multi-node test.
-
-Kubernetes local-disk templates and rank-map rendering are under `deploy/k8s/`
-and `scripts/render_rank_map.py`. Per-rank reports can be combined with
-`shardferry summarize --reports-dir DIR --out summary.json`. For a coordinator
-gate, also pass `--spec client.yaml --plan plan.json`; the command then fails
-unless every target rank is present and its status, verification, chunk count,
-and planned bytes match the plan.
-
-## Current contents
-
-- `spec/`: frozen charter, verification plan, and JSON schemas.
-- `spec/v1/`: V1 error, capabilities, inventory, and task contracts.
-- `src/shardferry/`: CLI and implementation.
-- `src/shardferry/{contracts,doctor}.py`: contract validation and read-only
-  preflight checks.
-- `src/shardferry/adaptive.py`: opt-in token bucket / 429 backpressure model.
-- `src/shardferry/{agent,agent_state}.py`: V1 agent HTTP surface, durable task
-  state, and idempotent task transitions.
-- `src/shardferry/agent_executor.py`: local artifact resolution plus target
-  stage/commit wiring for one rank.
-- `internal/agentclient/`: Go HTTP client for inventory, planning, and tasks.
-- `internal/artifactstore/`: content-addressed spec/plan artifact store and HTTP handler.
-- `internal/controller/orchestrator.go`: Go inventory collection, MigrationSpec
-  assembly, and Python planner invocation.
-- `api/v1/`, `internal/controller/`, `cmd/controller/`: Go controller-runtime
-  API, generated CRD/deepcopy, commit coordinator, and manager.
-- `cmd/ctl/`: `shardferryctl migrate -f ... --wait`, get/describe, cancel, retry.
-- `internal/controller/resolver.go`: selector-based and gateway-based agent/rank discovery.
-- `internal/gateway/`, `cmd/gateway/`: cross-cluster agent discovery and reverse proxy.
-- `examples/k8s/migration.yaml`: minimal selector-based 128 -> 64 migration.
-- `deploy/docker/`: controller and CPU-DCP agent image builds.
-- `config/crd/bases/`: controller-gen generated `CheckpointMigration` CRD.
-- `src/shardferry/{mesh,manifest,inspect}.py`: Phase 1 manifest and toy
-  inspection path.
-- `src/shardferry/{layout,planner}.py`: mesh geometry, deterministic transfer
-  plan, and strict plan validation.
-- `src/shardferry/{executor,verify,tensor_io,targets}.py`: local staging,
-  journal/resume, byte-range transfers, and bitwise verification.
-- `src/shardferry/storage/file.py`: `file://` range storage.
-- `src/shardferry/{serve,storage/http,storage/router}.py`: source HTTP agent,
-  HTTP range client, and transport routing.
-- `src/shardferry/dcp.py`: real PyTorch DCP metadata/chunk adapter and DCP
-  export.
-- `src/shardferry/coordinator.py`: expected per-target-rank work derived from
-  a validated spec and plan.
-- `src/shardferry/demo.py`: self-contained 4->3 demo with no external files.
-- `tests/oracle/`: independent gather-to-global/re-shard oracle.
-- `tests/mutation/`: mutation harness that proves the checker catches bugs.
-- `tests/fixtures/`: toy tensors and mesh fixtures.
-- `examples/toy-4to3/`: example MigrationSpec.
-- `scripts/snapshot.sh`: phase snapshot helper.
-
-## Local workflow
-
-Git is present for recovery/rollback. Keep virtualenvs, build outputs, and
-benchmark data out of commits; use an explicit branch/worktree for parallel
-development. Phase evidence is kept outside the public checkout.
-
-V1 contract and preflight checks:
-
-```bash
-python -m shardferry.cli capabilities --json
-python -m shardferry.cli doctor --spec SPEC.yaml --json
-```
-
-`capabilities` declares the stable machine-readable surface. `doctor` is
-read-only: it validates the spec, V1 schemas, source URI reachability, the
-target parent/root, and a conservative source/work/output disk estimate without
-creating a target directory.
-
-Agent API foundation (HTTPS/WSS deployment is not wired yet):
-
-```text
-GET  /v1/healthz
-GET  /v1/readyz
-GET  /v1/capabilities
-GET  /v1/inventory?rank=N
-POST /v1/plan
-POST /v1/tasks
-POST /v1/tasks/{id}/prepare
-POST /v1/tasks/{id}/execute
-POST /v1/tasks/{id}/commit
-POST /v1/tasks/{id}/cancel
-GET  /v1/tasks/{id}
-```
-
-The target task state is persisted under the agent state directory with atomic
-file replacement. Task creation is idempotent by migration/rank/task hash.
-The target executor resolves `specRef`/`planRef` artifacts and calls the
-existing `apply(..., commit=False)`; the separate commit endpoint calls
-`commit_staged`, so staging cannot become a final target before the controller
-commit barrier.
-Persistent artifact storage, mTLS, and DCP chunk-cache inventory are next slices.
-
-## V1 controller (Go)
-
-The production controller is Go, not Python. The Python `agent` and
-`agent_executor` remain the PyTorch/DCP data plane.
-
-```bash
-go test ./...
-go vet ./...
-go build ./cmd/controller
-```
-
-The controller requires `SHARDFERRY_AGENT_TOKEN` in its environment. It now
-collects source inventories, builds a MigrationSpec, calls the Python
-`/v1/plan` endpoint, and records `PlanReady` plus the plan hash in status.
-It publishes spec/plan artifacts, creates target tasks, stages/commits them, and
-only reports success after every target rank is committed. The current artifact
-store is an in-memory HTTP store; PVC/S3 persistence and mTLS are next.
-
-The Go module contains:
-
-- `api/v1`: `CheckpointMigration` API types and generated deepcopy;
-- `internal/controller`: 128-rank commit coordinator and reconciler validation;
-- `internal/execution`: workqueue-driven per-rank execution and CommitIntent barrier;
-- `internal/agentclient`: inventory/plan/task API client;
-- `cmd/controller`: controller-runtime manager with leader election and probes;
-- `config/crd/bases`: controller-gen CRD.
-
-The Python side exposes the target worker with:
-
-```bash
-SHARDFERRY_AGENT_TOKEN=secret python -m shardferry.cli agent \
-  --listen 0.0.0.0:9443 \
-  --state-dir /var/lib/shardferry \
-  --artifact-base-url http://shardferry-controller:8082
-```
-
-## Advanced CLI reference
-
-The installed console script and `python -m shardferry` are equivalent:
-
-```bash
-shardferry migrate -c /path/to/source.dcp -n 3 -o /path/to/target.dcp
-```
-
-The common 1D FSDP case needs no topology flags:
-
-- source world size: inferred from the DCP metadata
-- source/target placement: `Shard(0)`
-- target world size: source world unless `--target-world` is given
-- work directory: `<checkpoint>.shardferry`
-- migrated DCP output: `<checkpoint>-migrated`
-
-For a 2D mesh, provide the topology explicitly:
-
-```bash
-shardferry migrate \
-  --checkpoint /path/to/source.dcp \
-  --source-mesh-shape 2,2 --source-placements "Shard(0),Shard(1)" \
-  --target-mesh-shape 3,1 --target-placements "Shard(0),Replicate()" \
-  --output /path/to/target.dcp
-```
-
-`--target-mesh-shape` is enough to infer the target world size. If both
-`--target-world` and `--target-mesh-shape` are supplied, their product must
-match.
-
-### Lower-level workflow
-
-```bash
-python -m shardferry.cli inspect \
-  --input examples/toy-4to3/checkpoint.yaml \
-  --out /tmp/shardferry-migration.yaml
-```
-
-After materializing the source shard files referenced by a spec:
-
-```bash
-python -m shardferry.cli plan --spec spec.yaml --out plan.json
-python -m shardferry.cli apply --spec spec.yaml --plan plan.json \
-  --report report.json
-python -m shardferry.cli verify --spec spec.yaml --plan plan.json
-```
-
-Target files are written under `<target>/<tensor>/rankN.bin`. `serve` remains a
-source-side command:
-
-```bash
-python -m shardferry.cli serve --manifest spec.yaml --public
-```
-
-Source shard URIs must be reachable HTTP URLs on the target side. A physical
-two-machine run is still required for the full MVP gate.
-
-On the target side, `fetch-spec --server http://SOURCE:9000 --target-storage
-./target --out client.yaml` pulls a portable spec from the source agent. If the
-spec was copied manually, `spec-http --base-url http://SOURCE:9000
---target-storage ./target` performs the same rewrite offline.
-
-See [`docs/QUICKSTART.zh-CN.md`](docs/QUICKSTART.zh-CN.md) for a novice-oriented
-Windows/Linux walkthrough and [`docs/HANDOFF.zh-CN.md`](docs/HANDOFF.zh-CN.md)
-for the classmate acceptance handoff.
-For the physical A/B protocol, see
-[`docs/AB-EXPERIMENT.zh-CN.md`](docs/AB-EXPERIMENT.zh-CN.md).
-For the GPU/FSDP matrix and CPU gate, see
-[`docs/GPU-EXPERIMENT.zh-CN.md`](docs/GPU-EXPERIMENT.zh-CN.md).
-For the transfer-volume baseline, see
-[`docs/BENCHMARK.zh-CN.md`](docs/BENCHMARK.zh-CN.md).

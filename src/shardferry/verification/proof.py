@@ -13,6 +13,7 @@ from ..identity import resolve_source, source_maps
 from ..layout import DTYPE_BYTES, local_region
 from ..mesh import parse_mesh
 from ..planner import validate_plan
+from ..resources import resource_path
 from ..storage.file import FileStorage
 from ..storage.router import StorageRouter
 from ..targets import target_file_path
@@ -24,9 +25,7 @@ from ..tensor_io import (
 
 PROOF_VERSION = "1"
 DEFAULT_LEAF_BYTES = 4 * 1024 * 1024
-PROOF_SCHEMA_PATH = (
-    Path(__file__).resolve().parents[3] / "spec" / "proof.schema.json"
-)
+PROOF_SCHEMA_PATH = resource_path("proof.schema.json")
 
 
 class ProofError(ValueError):

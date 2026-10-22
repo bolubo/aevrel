@@ -17,10 +17,11 @@ from ..identity import resolve_source, source_id_for_shard, source_maps
 from .layout import DTYPE_BYTES, Region, contains, local_region, rank_coord
 from ..manifest import validate_spec
 from .mesh import Mesh, parse_mesh
+from ..resources import resource_path
 from .tensor_io import byte_runs, coalesce_runs
 
 
-PLAN_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "spec" / "plan.schema.json"
+PLAN_SCHEMA_PATH = resource_path("plan.schema.json")
 PLAN_POLICY = "shardferry-plan-v2"
 LEGACY_PLAN_POLICIES = ("shardferry-plan-v2", "shardferry-plan-v1")
 

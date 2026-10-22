@@ -1,5 +1,7 @@
 # 发布检查清单
 
+当前发布：`v0.1.1`。`v0.1.0` 保留为历史预览，不移动、不覆盖。
+
 ## 本地发布候选
 
 ```bash
@@ -10,6 +12,7 @@ go build ./cmd/controller ./cmd/ctl
 helm lint deploy/helm/shardferry
 helm template shardferry deploy/helm/shardferry >/tmp/shardferry.yaml
 uv build --wheel --out-dir dist
+python scripts/check_release.py --json
 ```
 
 真实 DCP 验证至少应覆盖：
@@ -26,7 +29,9 @@ uv build --wheel --out-dir dist
 3. 推送发布候选提交。
 4. 等 CI 的 Python、Go、Helm 三个 job 全绿。
 5. 在仓库设置中启用 Secret scanning 和 private vulnerability reporting。
-6. 创建 `v0.1.0` tag 和 release notes。
+6. 创建 `v0.1.1` tag 和 release notes。
+7. 挂载 Python wheel、验证附件和 release notes。
+8. 确认 GHCR 的 controller/gateway/agent 镜像与 Helm chart 可拉取。
 
 发布前额外运行：
 
@@ -44,7 +49,18 @@ python scripts/check_release.py --json
 `shardferry-agent`。Helm values 必须指向本次 tag 对应的真实镜像；GHCR 包
 需要设置为 public，否则用户安装会失败。
 
+Python wheel 作为 GitHub Release asset 上传，不依赖 PyPI：
+
+```bash
+uv build --wheel --out-dir dist
+gh release upload v0.1.1 dist/shardferry-0.1.1-py3-none-any.whl
+gh release upload v0.1.1 dist/shardferry-0.1.1.tgz
+gh release upload v0.1.1 dist/shardferry-0.1.1-evidence.tar.gz
+```
+
 ## 未验证项
 
 不要把 kind、物理多节点或 GPU 验证写成已完成；在得到证据前保留
-“environment-dependent / pending”标记。
+“environment-dependent / pending”标记。0.1.1 的已验证范围以
+[`GPU-VALIDATION-2026-10-22.md`](GPU-VALIDATION-2026-10-22.md) 和
+[`LIVE-ACCEPTANCE.zh-CN.md`](LIVE-ACCEPTANCE.zh-CN.md) 为准。

@@ -8,10 +8,9 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from .mesh import parse_mesh, validate_placement_dims
+from .resources import resource_path
 
-SCHEMA_PATH = (
-    Path(__file__).resolve().parents[2] / "spec" / "migration-spec.schema.json"
-)
+SCHEMA_PATH = resource_path("migration-spec.schema.json")
 
 
 class ManifestError(ValueError):

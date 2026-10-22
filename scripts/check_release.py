@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -45,12 +46,31 @@ def check(image_prefix: str) -> dict[str, Any]:
     chart = _load_yaml(REPO / "deploy/helm/shardferry/Chart.yaml")
     values = _load_yaml(REPO / "deploy/helm/shardferry/values.yaml")
     pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    project_version = str(
+        pyproject.get("project", {}).get("version", "")
+    )
     app_version = str(chart.get("appVersion", ""))
     chart_version = str(chart.get("version", ""))
     if not app_version:
         errors.append("Chart.yaml appVersion is empty")
     if not chart_version:
         errors.append("Chart.yaml version is empty")
+    if project_version != app_version:
+        errors.append(
+            "pyproject.toml version must equal Chart.yaml appVersion: "
+            f"{project_version} != {app_version}"
+        )
+    init_match = re.search(
+        r'^__version__\s*=\s*"([^"]+)"',
+        (REPO / "src/shardferry/__init__.py").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    init_version = init_match.group(1) if init_match else ""
+    if init_version != app_version:
+        errors.append(
+            "src/shardferry/__init__.py version must equal Chart.yaml "
+            f"appVersion: {init_version or '<missing>'} != {app_version}"
+        )
 
     images = values.get("image", {})
     for component in ("controller", "gateway", "agent"):
@@ -101,6 +121,11 @@ def check(image_prefix: str) -> dict[str, Any]:
     for relative in required:
         if not (REPO / relative).is_file():
             errors.append(f"missing required file: {relative}")
+    release_notes = REPO / f"docs/RELEASE-NOTES-{app_version}.md"
+    if not release_notes.is_file():
+        errors.append(
+            f"missing release notes: {release_notes.relative_to(REPO)}"
+        )
 
     _check(errors, REPO / "README.md", expected="shardferry-target-load")
     _check(errors, REPO / "README.md", expected="shardferry-support-bundle")

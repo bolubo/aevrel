@@ -96,6 +96,12 @@ class CutoverService:
         self._last_cutover = self._read_last_cutover()
 
     def status(self) -> dict[str, Any]:
+        # Keep the target snapshot and follower counters in the same
+        # consistency window as a background sync.
+        with self._sync_lock:
+            return self._status_snapshot()
+
+    def _status_snapshot(self) -> dict[str, Any]:
         descriptors = scan_versions(self.source_root)
         manifests = self.target.manifests.list()
         positions = {

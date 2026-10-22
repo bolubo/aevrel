@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shardferry"
-version = "0.1.0"
+version = "0.1.1"
 description = "Move and reshard local checkpoint shards across DeviceMeshes and clusters."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -57,3 +57,6 @@ markers = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/shardferry"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"spec" = "shardferry/spec"

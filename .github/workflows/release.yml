@@ -68,3 +68,18 @@ jobs:
         with:
           name: shardferry-chart
           path: dist/*.tgz
+
+  wheel:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build --wheel --outdir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shardferry-wheel
+          path: dist/*.whl
