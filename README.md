@@ -35,6 +35,8 @@ on 64 ranks. shardferry:
 
 - discovers source and target ranks instead of requiring 128 hand-written
   mappings;
+- transfers the small DCP metadata from one owner rank to peer source agents,
+  so source nodes do not need a shared checkpoint directory;
 - reads tensor ranges directly from `.distcp` files;
 - reshards across target world sizes and DeviceMeshes;
 - resumes after interrupted transfers;
@@ -194,10 +196,16 @@ python -m pip install -e ".[dev]"
 pytest -q
 go test ./...
 go vet ./...
-go build ./cmd/controller ./cmd/ctl ./cmd/gateway
+go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
 helm lint deploy/helm/shardferry
 python scripts/check_release.py --json
 ```
+
+The 0.2 checkpoint-aware preemption guard is being built as an independent
+binary. See
+[`docs/KUEUE-PREEMPTION-GUARD.zh-CN.md`](docs/KUEUE-PREEMPTION-GUARD.zh-CN.md)
+and [`examples/kueue-adapter`](examples/kueue-adapter) for its exact,
+deliberately narrow boundary.
 
 Release instructions are in [`docs/RELEASE.zh-CN.md`](docs/RELEASE.zh-CN.md).
 Contributions follow [`CONTRIBUTING.md`](CONTRIBUTING.md). Security reports

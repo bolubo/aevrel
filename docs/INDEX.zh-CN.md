@@ -18,6 +18,9 @@
 - [0.1 静态迁移验收](0.1-ACCEPTANCE.zh-CN.md)
 - [0.2 Checkpoint Mobility 验收](0.2-ACCEPTANCE.zh-CN.md)
 - [Feature 1: Kueue 集成设计](FEATURE-1-KUEUE-INTEGRATION.zh-CN.md)
+- [Feature 1: Kueue binary guard 实现](KUEUE-PREEMPTION-GUARD.zh-CN.md)
+- [Feature 2: Separate-Mesh local-shard migration](0.2-FEATURE-2-CROSS-MESH.zh-CN.md)
+- [Feature 3: Target-ready 契约](TARGET-READY.zh-CN.md)
 - [发布检查清单](RELEASE.zh-CN.md)
 - [0.1.1 Release Notes](RELEASE-NOTES-0.1.1.md)
 
@@ -28,6 +31,7 @@
 - [跨集群 live acceptance](LIVE-ACCEPTANCE.zh-CN.md)
 - [产品面契约](PRODUCT.zh-CN.md)
 - [目标 DCP 加载](TARGET-LOAD.zh-CN.md)
+- [Target-ready 示例](../examples/target-ready/migration.yaml)
 - [物理 A/B 实验](AB-EXPERIMENT.zh-CN.md)
 
 ## 架构与运维
@@ -41,4 +45,5 @@
 - [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)
 - [GPU 验证记录（2026-10-22）](GPU-VALIDATION-2026-10-22.md)
 - [控制器 GPU 实验卡](CONTROLLER-GPU-EXPERIMENT.zh-CN.md)
+- [GPU Codec 传输加速](GPU-CODEC.zh-CN.md)
 - [Benchmark](BENCHMARK.zh-CN.md)

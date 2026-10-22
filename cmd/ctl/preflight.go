@@ -75,6 +75,10 @@ func executePreflight(
 	}
 	var sourceBytes int64
 	if needsSourceProbe {
+		orchestrator := &controller.Orchestrator{Agents: agents}
+		if _, err := orchestrator.InstallSourceMetadata(ctx, resolved); err != nil {
+			return fmt.Errorf("preflight source metadata: %w", err)
+		}
 		for _, entry := range resolved.Spec.Source.RankMap {
 			inventory, err := agents.Inventory(ctx, entry.Endpoint, entry.Rank)
 			if err != nil {

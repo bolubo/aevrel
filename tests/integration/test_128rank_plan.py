@@ -19,3 +19,20 @@ def test_128_rank_source_can_plan_64_and_256_rank_targets() -> None:
         assert result["full_gather"] is False
         assert result["total_bytes"] == shape[0] * shape[1] * 4
         assert result["theoretical_min_bytes"] == result["total_bytes"]
+
+
+def test_128_rank_source_with_2d_mesh_resizes_to_64_rank_target() -> None:
+    shape = (128, 64)
+    spec, _, _ = generate_sharded_spec(
+        shape,
+        (16, 8),
+        ("Shard(0)", "Shard(1)"),
+        (8, 8),
+        ("Shard(0)", "Shard(1)"),
+    )
+    result = plan(spec)
+    validate_plan(result, spec)
+    assert result["full_gather"] is False
+    assert result["total_bytes"] == shape[0] * shape[1] * 4
+    assert result["theoretical_min_bytes"] == result["total_bytes"]
+    assert result["cost"]["max_fan_in"] <= 4

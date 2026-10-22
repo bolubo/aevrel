@@ -1,0 +1,15 @@
+apiVersion: kueue.x-k8s.io/v1alpha1
+kind: PreemptionConfig
+metadata:
+  name: checkpoint-guard
+spec:
+  rules:
+  - name: exclude-protected-workloads
+    activationPolicy:
+      trigger: Always
+    candidateSelectors:
+    - scope: AnyClusterQueue
+      numericLabels:
+      - key: shardferry.io/preemption-protected
+        maxValue: 0
+        fallbackValue: 1

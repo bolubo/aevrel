@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -267,6 +268,9 @@ func validateProductMigration(
 	if spec.Target.RootTemplate == "" {
 		return fmt.Errorf("target.rootTemplate is required")
 	}
+	if err := validateTargetValidation(spec); err != nil {
+		return err
+	}
 	if spec.Policy.Verify != "bitwise" {
 		return fmt.Errorf("policy.verify must be bitwise")
 	}
@@ -284,6 +288,40 @@ func validateProductMigration(
 	}
 	if spec.Artifacts.ClaimName == "" {
 		return fmt.Errorf("artifacts.claimName is required")
+	}
+	return nil
+}
+
+func validateTargetValidation(spec shardferryv1.CheckpointMigrationSpec) error {
+	validation := spec.Target.Validation
+	if validation == nil {
+		return nil
+	}
+	if spec.Target.ClusterRef != "" {
+		return fmt.Errorf(
+			"target.validation does not support target.clusterRef in 0.2; run the migration in the target cluster",
+		)
+	}
+	if strings.TrimSpace(validation.Version) == "" {
+		return fmt.Errorf("target.validation.version is required")
+	}
+	hasJob := strings.TrimSpace(validation.JobName) != ""
+	hasTemplate := validation.JobTemplate != nil
+	if hasJob == hasTemplate {
+		return fmt.Errorf(
+			"target.validation must set exactly one of jobName or jobTemplate",
+		)
+	}
+	if hasTemplate &&
+		len(validation.JobTemplate.Raw) == 0 &&
+		validation.JobTemplate.Object == nil {
+		return fmt.Errorf("target.validation.jobTemplate is empty")
+	}
+	if validation.Steps < 0 {
+		return fmt.Errorf("target.validation.steps must be positive")
+	}
+	if validation.TimeoutSeconds < 0 {
+		return fmt.Errorf("target.validation.timeoutSeconds must be positive")
 	}
 	return nil
 }
@@ -375,8 +413,13 @@ func waitForMigration(
 			)
 			return nil
 		case shardferryv1.MigrationPhaseFailed,
+			shardferryv1.MigrationPhaseTargetFailed,
 			shardferryv1.MigrationPhaseCancelled,
 			shardferryv1.MigrationPhaseCommitIncomplete:
+			conditionType := "Accepted"
+			if current.Status.Phase == shardferryv1.MigrationPhaseTargetFailed {
+				conditionType = "TargetReady"
+			}
 			if jsonOut {
 				if err := writeJSON(out, &current); err != nil {
 					return err
@@ -385,7 +428,7 @@ func waitForMigration(
 			return fmt.Errorf(
 				"migration ended in phase %s: %s",
 				current.Status.Phase,
-				conditionMessage(&current, "Accepted"),
+				conditionMessage(&current, conditionType),
 			)
 		}
 		select {

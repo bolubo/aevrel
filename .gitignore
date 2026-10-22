@@ -23,6 +23,7 @@ WORKLOG.md
 docs/superpowers/plans/
 e2e/
 /controller
+/kueue-adapter
 *.test
 *.out
 coverage.out

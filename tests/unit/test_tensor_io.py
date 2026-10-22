@@ -3,11 +3,21 @@ from __future__ import annotations
 import numpy as np
 
 from shardferry.tensor_io import (
+    _default_run_batch_bytes,
     byte_runs,
     coalesce_runs,
     paired_run_batches,
     reduce_bytes,
 )
+
+
+def test_gpu_codec_uses_larger_default_run_batch(monkeypatch) -> None:
+    monkeypatch.delenv("SHARDFERRY_RUN_BATCH_BYTES", raising=False)
+    monkeypatch.setenv("SHARDFERRY_GPU_CODEC", "nvcomp-gdeflate")
+    assert _default_run_batch_bytes() == 16 * 1024 * 1024
+
+    monkeypatch.setenv("SHARDFERRY_RUN_BATCH_BYTES", str(8 * 1024 * 1024))
+    assert _default_run_batch_bytes() == 8 * 1024 * 1024
 
 
 def test_byte_runs_cover_rectangular_region() -> None:

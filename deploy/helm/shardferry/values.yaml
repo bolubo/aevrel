@@ -67,6 +67,9 @@ artifacts:
 
 source:
   enabled: true
+  gpuCodec: ""
+  gpuCodecNetworkGbps: ""
+  runBatchBytes: 4194304
   # Optional. Use a gateway proxy URL for cross-cluster range access, e.g.
   # http://source-gateway:9445/v1/agents/{pod}
   publicURL: ""
@@ -74,6 +77,8 @@ source:
   tolerations: []
   affinity: {}
   checkpointHostPath: /var/lib/shardferry/source
+  # Required on metadataOwnerRank. Other peers can receive the small
+  # .metadata file through the agent metadata-transfer API.
   metadataHostPath: /var/lib/shardferry/metadata
   stateHostPath: /var/lib/shardferry/source-state
   port: 9443
@@ -86,6 +91,9 @@ source:
 
 target:
   enabled: false
+  gpuCodec: ""
+  gpuCodecNetworkGbps: ""
+  runBatchBytes: 4194304
   nodeSelector: {}
   tolerations: []
   affinity: {}

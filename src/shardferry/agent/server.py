@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import ssl
+import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import prod
 from pathlib import Path
@@ -31,6 +32,18 @@ from ..layout import DTYPE_BYTES
 from ..manifest import ManifestError, load_spec
 from ..planner import plan as build_plan
 from ..proof import ProofError, combine_proofs
+from ..gpu_transport import (
+    RANGE_ACCEPT_HEADER,
+    RANGE_ENCODING_HEADER,
+    RANGE_RAW_LENGTH_HEADER,
+    RangeCodec,
+    encode_response,
+    make_range_codec_from_env,
+)
+from ..gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
+
+
+MAX_METADATA_BYTES = 32 * 1024 * 1024
 
 
 class AgentError(RuntimeError):
@@ -85,6 +98,7 @@ class AgentApp:
         target_root: str | Path | None = None,
         public_url: str | None = None,
         max_cache_bytes: int = 512 * 1024 * 1024,
+        range_codec: RangeCodec | None = None,
     ) -> None:
         if not controller_token:
             raise AgentError("controller token must not be empty")
@@ -104,16 +118,21 @@ class AgentApp:
         self.dcp_metadata = (
             Path(dcp_metadata).resolve() if dcp_metadata else None
         )
+        self._installed_metadata: Path | None = None
         self.target_root = (
             Path(target_root).resolve() if target_root else None
         )
-        if self.dcp_checkpoint is not None:
-            metadata_root = self.dcp_metadata or self.dcp_checkpoint
-            if not (metadata_root / ".metadata").is_file():
-                raise AgentError(
-                    f"DCP metadata is not visible at {metadata_root}"
-                )
         self.public_url = (public_url or "http://127.0.0.1:9443").rstrip("/")
+        self.range_codec = (
+            range_codec
+            if range_codec is not None
+            else make_range_codec_from_env()
+        )
+        self.batch_codec = (
+            AdaptiveBatchCodec(self.range_codec.adaptive)
+            if self.range_codec is not None
+            else None
+        )
         self._shards: dict[str, DcpChunkRef] = {}
         self._cache = _ShardCache(max_cache_bytes)
         self._metadata_hash = (
@@ -132,8 +151,12 @@ class AgentApp:
         ]
         if self.spec_path is not None or self.dcp_checkpoint is not None:
             features.append("rank-discovery")
+        if self.dcp_checkpoint is not None:
+            features.append("metadata-transfer")
         if self.target_root is not None:
             features.append("target-preflight")
+        if self.range_codec is not None:
+            features.append("range-codec")
         payload = {
             "version": contract_version(),
             "apiVersion": "shardferry.io/v1",
@@ -223,7 +246,7 @@ class AgentApp:
             inventory, refs = inventory_dcp_descriptors(
                 self.dcp_checkpoint,
                 rank,
-                metadata_dir=self.dcp_metadata,
+                metadata_dir=self._metadata_dir(),
                 file_prefix=self.public_url + "/v1/shards",
             )
             self._shards.update(refs)
@@ -273,7 +296,8 @@ class AgentApp:
         if self.dcp_checkpoint is not None:
             ranks = local_dcp_ranks(
                 self.dcp_checkpoint,
-                metadata_dir=self.dcp_metadata,
+                metadata_dir=self._optional_metadata_dir(),
+                allow_missing_metadata=True,
             )
         elif self.spec is not None:
             ranks = sorted({
@@ -285,6 +309,79 @@ class AgentApp:
         payload = {"version": contract_version(), "ranks": ranks}
         validate_ranks(payload)
         return payload
+
+    def metadata(self) -> tuple[bytes, str]:
+        """Return the DCP metadata visible on this agent."""
+        if self.dcp_checkpoint is None:
+            raise AgentError("DCP metadata is not configured")
+        path = self._metadata_dir() / ".metadata"
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            raise AgentError(f"could not read DCP metadata: {exc}") from exc
+        return data, _sha256(data)
+
+    def install_metadata(self, data: bytes) -> dict[str, Any]:
+        """Install metadata fetched from the configured owner rank.
+
+        Only the small DCP metadata file travels to peer source agents. Shard
+        bytes continue to be read from each agent's local checkpoint root.
+        """
+        if self.dcp_checkpoint is None:
+            raise AgentError("DCP metadata is not configured")
+        if not data:
+            raise AgentError("DCP metadata must not be empty")
+        if len(data) > MAX_METADATA_BYTES:
+            raise AgentError(
+                f"DCP metadata exceeds {MAX_METADATA_BYTES} bytes"
+            )
+        digest = _sha256(data)
+        root = (
+            self.store.root
+            / "metadata"
+            / digest.removeprefix("sha256:")
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / ".metadata"
+        if not path.is_file() or _sha256(path.read_bytes()) != digest:
+            descriptor, temporary = tempfile.mkstemp(
+                prefix=".metadata-",
+                dir=root,
+            )
+            try:
+                with os.fdopen(descriptor, "wb") as stream:
+                    stream.write(data)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+        self._installed_metadata = root
+        return {
+            "ok": True,
+            "metadata_hash": digest,
+            "bytes": len(data),
+        }
+
+    def _optional_metadata_dir(self) -> Path | None:
+        for root in (
+            self.dcp_metadata,
+            self.dcp_checkpoint,
+            self._installed_metadata,
+        ):
+            if root is not None and (root / ".metadata").is_file():
+                return root
+        return None
+
+    def _metadata_dir(self) -> Path:
+        root = self._optional_metadata_dir()
+        if root is None:
+            raise AgentError(
+                "DCP metadata is not visible; fetch it from the "
+                "metadataOwnerRank agent and install it first"
+            )
+        return root
 
     def read_shard(
         self,
@@ -322,6 +419,23 @@ class AgentApp:
         if ref is None:
             raise AgentError(f"source shard not found: {chunk_hash}")
         return ref.size, ref.checksum
+
+    def encode_shard_batch(self, ranges: list[dict[str, Any]]) -> bytes:
+        if self.batch_codec is None:
+            raise AgentError("batch codec is not configured")
+        if not isinstance(ranges, list) or not ranges:
+            raise AgentError("batch ranges must be a non-empty list")
+        chunks = []
+        for item in ranges:
+            try:
+                chunk_hash = str(item["chunk"])
+                offset = int(item["offset"])
+                length = int(item["length"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise AgentError("invalid batch range") from exc
+            data, _ = self.read_shard(chunk_hash, offset, length)
+            chunks.append(data)
+        return self.batch_codec.encode(chunks).frame
 
     def plan(self, spec: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -406,6 +520,7 @@ def build_agent_server(
         target_root: str | Path | None = None,
     public_url: str | None = None,
     max_cache_bytes: int = 512 * 1024 * 1024,
+    range_codec: RangeCodec | None = None,
     tls_cert: str | Path | None = None,
     tls_key: str | Path | None = None,
     tls_ca: str | Path | None = None,
@@ -421,6 +536,7 @@ def build_agent_server(
         target_root=target_root,
         public_url=public_url,
         max_cache_bytes=max_cache_bytes,
+        range_codec=range_codec,
     )
     app.recover_tasks()
     host, port = _parse_listen(listen)
@@ -473,6 +589,27 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/v1/metrics":
                 self._json(app.metrics.snapshot())
+                return
+            if path == "/v1/metadata":
+                try:
+                    data, digest = app.metadata()
+                except AgentError as exc:
+                    self._error(
+                        404,
+                        "SOURCE_NOT_FOUND",
+                        "source",
+                        False,
+                        "metadata",
+                        0,
+                        str(exc),
+                    )
+                    return
+                self._bytes(
+                    data,
+                    content_type="application/octet-stream",
+                    headers={"X-Metadata-SHA256": digest},
+                    head=head,
+                )
                 return
             if path.startswith("/v1/shards/"):
                 self._shard(
@@ -568,24 +705,81 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
             except AgentError:
                 self.send_error(404)
                 return
+            raw_data = data
+            response = encode_response(
+                raw_data,
+                app.range_codec,
+                self.headers.get(RANGE_ACCEPT_HEADER, ""),
+                head=head,
+                raw_checksum=full_checksum if head else None,
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(length))
+            self.send_header(
+                "Content-Length",
+                str(length if head else len(response.data)),
+            )
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("X-Shard-SHA256", checksum)
-            self.send_header(
-                "X-Range-SHA256",
-                _sha256(data) if not head and data else full_checksum,
-            )
+            self.send_header("X-Range-SHA256", response.raw_checksum)
+            if response.encoding is not None:
+                self.send_header(RANGE_ENCODING_HEADER, response.encoding)
+                self.send_header(
+                    RANGE_RAW_LENGTH_HEADER,
+                    str(response.raw_length),
+                )
             self.end_headers()
             if not head:
-                self.wfile.write(data)
+                self.wfile.write(response.data)
 
         def _handle_post(self) -> None:
             if not self._authorized():
                 return
             parsed = urlsplit(self.path)
             path = parsed.path
+            if path == "/v1/metadata":
+                try:
+                    data = self._raw_body(max_bytes=MAX_METADATA_BYTES)
+                    self._json(app.install_metadata(data))
+                except (AgentError, AgentStateError) as exc:
+                    self._error(
+                        400,
+                        "INVALID_SPEC",
+                        "input",
+                        False,
+                        "metadata",
+                        0,
+                        str(exc),
+                    )
+                return
+            if path == "/v1/shards/batch":
+                try:
+                    body = self._body()
+                    frame = app.encode_shard_batch(body["ranges"])
+                except (KeyError, AgentError, TypeError, ValueError) as exc:
+                    self._error(
+                        400,
+                        "INVALID_SPEC",
+                        "input",
+                        False,
+                        "batch",
+                        0,
+                        str(exc),
+                    )
+                    return
+                self.send_response(200)
+                self.send_header(
+                    "Content-Type",
+                    "application/octet-stream",
+                )
+                self.send_header("Content-Length", str(len(frame)))
+                self.send_header(
+                    RANGE_ENCODING_HEADER,
+                    BATCH_ENCODING,
+                )
+                self.end_headers()
+                self.wfile.write(frame)
+                return
             if path == "/v1/plan":
                 try:
                     body = self._body()
@@ -852,14 +1046,7 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
             return False
 
         def _body(self) -> dict[str, Any]:
-            value = self.headers.get("Content-Length", "0")
-            try:
-                length = int(value)
-            except ValueError as exc:
-                raise AgentStateError("invalid Content-Length") from exc
-            if length > 1024 * 1024:
-                raise AgentStateError("request body is too large")
-            data = self.rfile.read(length)
+            data = self._raw_body(max_bytes=1024 * 1024)
             try:
                 payload = json.loads(data or b"{}")
             except ValueError as exc:
@@ -867,6 +1054,38 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
             if not isinstance(payload, dict):
                 raise AgentStateError("request body must be an object")
             return payload
+
+        def _raw_body(self, *, max_bytes: int) -> bytes:
+            value = self.headers.get("Content-Length", "0")
+            try:
+                length = int(value)
+            except ValueError as exc:
+                raise AgentStateError("invalid Content-Length") from exc
+            if length < 0:
+                raise AgentStateError("invalid Content-Length")
+            if length > max_bytes:
+                raise AgentStateError("request body is too large")
+            data = self.rfile.read(length)
+            if len(data) != length:
+                raise AgentStateError("short request body")
+            return data
+
+        def _bytes(
+            self,
+            payload: bytes,
+            *,
+            content_type: str,
+            headers: dict[str, str] | None = None,
+            head: bool = False,
+        ) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(payload)))
+            for key, value in (headers or {}).items():
+                self.send_header(key, value)
+            self.end_headers()
+            if not head:
+                self.wfile.write(payload)
 
         def _json(self, payload: dict[str, Any], status: int = 200) -> None:
             data = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")

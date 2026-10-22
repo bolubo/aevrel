@@ -7,6 +7,12 @@ from .verification.target_ready import (
     TargetReadyChain,
     TargetReadyError,
 )
+from .verification.target_report import (
+    TargetReadyReport,
+    TargetReportError,
+    load_target_ready_report,
+    write_target_ready_report,
+)
 
 __all__ = [
     "CommandTargetReady",
@@ -14,4 +20,8 @@ __all__ = [
     "HttpTargetReady",
     "TargetReadyChain",
     "TargetReadyError",
+    "TargetReadyReport",
+    "TargetReportError",
+    "load_target_ready_report",
+    "write_target_ready_report",
 ]

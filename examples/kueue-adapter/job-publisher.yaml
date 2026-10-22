@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: train-with-checkpoint-state
+  namespace: default
+  labels:
+    kueue.x-k8s.io/queue-name: user-queue
+  annotations:
+    shardferry.io/preemption-protection: "enabled"
+    shardferry.io/training-progress-percent: "85"
+    shardferry.io/checkpoint-complete: "1"
+    shardferry.io/checkpoint-version: "step-8500"
+    shardferry.io/checkpoint-age-seconds: "12"
+spec:
+  suspend: true
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: trainer
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - 'echo replace-this-with-the-real-training-command; sleep 3600'
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
