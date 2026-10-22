@@ -1,6 +1,6 @@
 # GitHub user discovery — 2026-10-22
 
-状态：第一轮线索收集，不是用户验证结论
+状态：第二轮代码/上游验证；仍不是访谈后的用户验证结论
 
 ## 方法
 
@@ -14,6 +14,71 @@
 
 第一轮覆盖 PyTorch、Kueue、Kubeflow Trainer、DeepSpeed、Ray、Volcano。
 GitHub 搜索 API 触发过 secondary rate limit，因此这是首轮而非穷举。
+
+## 第二轮：源码验证结论
+
+### 1. Kueue checkpoint-aware preemption
+
+**代码结论：成立为“控制面缺口”，但不是完整的现成产品接口。**
+
+- Kueue 当前已有 `PreemptionConfig`，支持按 Workload 的 numeric label
+  选择抢占候选；这意味着 checkpoint freshness/preemption cost 可以先通过
+  外部 controller 发布 label 的方式接入，不必等新 API。
+- 但 Kueue 的调度代码没有 checkpoint state、last checkpoint 或
+  restore-vs-restart 字段；`PreemptionConfig` 只解决“如何筛候选”，
+  不解决“最后 checkpoint 是否完整、应该怎么恢复”。
+- KEP-5710 的 non-goal 明确包含 rescheduling；它主要定义 PodGroup/workload
+  级抢占，不等于 checkpoint-aware restore。
+- Kueue #477 仍然 open；2026 的评论明确提到 WG Checkpoint/Restore、
+  KEP-5710 和“restore from checkpoint vs start fresh”的问题。
+
+**判断**
+
+这是一个值得做控制面实验的方向，尤其是“checkpoint freshness 标签 +
+PreemptionConfig”可以在不修改 Kueue 核心的情况下先做 PoC。但它还不能
+证明用户愿意安装 shardferry；需要真实 Kueue 用户访谈。
+
+### 2. PyTorch separate DeviceMesh local-shard migration
+
+**代码结论：强烈成立，是当前最明确的跨域空隙。**
+
+- PyTorch DCP 默认 planner 的 resharding 仍然通过 checkpoint storage
+  读取多个 shard；它假设 source/target 能访问同一个 checkpoint 位置。
+- 新出现的 `PGTransport` / `_ReplicationStager` 用 process group 在同一组
+  rank 间做 checkpoint 复制；它要求同一个 process group，且复制逻辑假设
+  world size 为偶数，不解决两个分离 DeviceMesh 或跨集群。
+- #154787 的用户原话是“frequently move and reshard local sharded
+  checkpoints from a set of machines to another set of machines”，并明确
+  说 DCP 依赖 NFS/S3，nvRX local checkpoint 不支持 reshard。
+- maintainer 也指出两个独立 DeviceMesh、特别是不同 world size 是困难场景。
+
+**判断**
+
+这是 shardferry 最硬的技术位置，但它可能是一个相对窄的用户群；必须找到
+至少 3 个真的在 production 里反复做这件事的团队，而不是只有一个 issue
+author。
+
+### 3. Kubeflow Trainer checkpoint exporter / target-ready
+
+**代码结论：成立为平台集成缺口，不是独立数据面护城河。**
+
+- Kubeflow Trainer 当前代码支持 TrainJob suspend/resume 和 TorchTune
+  checkpointer 配置，但没有通用的 checkpoint exporter/import API。
+- #2245 的讨论明确需要 sidecar/exporter、PVC/S3/Model Registry 和
+  checkpoint 生命周期；#2777 正在推进 CRIU/cuda-checkpoint 的透明恢复，
+  这是相邻但不同的路线。
+- 这类能力更像平台应该自己拥有；shardferry 更适合提供 target-ready、
+  checkpoint state、migration transaction 和 proof，而不是重写 exporter。
+
+**判断**
+
+可成立，但优先级低于前两项。它适合作为分发/集成入口，不适合作为 0.2 的
+唯一核心。
+
+### 暂不进入 top 3：DeepSpeed universal checkpoint
+
+#5405 证明“不同 GPU 数恢复”是真实痛点，但当前项目的 DCP vertical 不应
+为了一个 provider 扩成通用 checkpoint 平台。它进入后续 provider backlog。
 
 ## 线索优先级
 
@@ -127,14 +192,16 @@ DeepSpeed Universal Checkpoint 作为 provider，而不是现在扩成
 
 ## 当前综合判断
 
-第一轮最强、且互补的两个方向是：
+第二轮验证后的三个方向是：
 
 1. **Kueue/Kubernetes checkpoint-aware lifecycle**：控制面、抢占、restore
-   decision、checkpoint state contract；
+   decision、checkpoint state contract；成立，但需要用户/Kueue 集成验证。
 2. **PyTorch DCP separate-DeviceMesh local-shard mobility**：数据面、residency、
-   reshard、target-ready。
+   reshard、target-ready；技术空隙最明确。
+3. **Kubeflow Trainer target-ready/exporter integration**：平台入口，不是核心
+   数据面；适合作为分发和后续 provider。
 
-它们组合起来，比单独的 Live Handoff 更像真实平台需求：
+前两项组合起来，比单独的 Live Handoff 更像真实平台需求：
 
 > scheduler knows a workload needs to move;
 > platform needs to know whether the checkpoint is viable;
