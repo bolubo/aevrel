@@ -598,6 +598,13 @@ def _plan_region(
         raise PlannerError(
             f"{tensor_name}/rank{target_rank}: no source overlaps target region"
         )
+    if partial_axes:
+        ranks = [source.rank for source in relevant]
+        if len(ranks) != len(set(ranks)):
+            raise PlannerError(
+                f"{tensor_name}/rank{target_rank}: multiple source chunks "
+                "per Partial rank are not supported"
+            )
     full_cover = [
         source
         for source in relevant
@@ -839,6 +846,7 @@ def _migration_id(spec: dict[str, Any]) -> str:
     identity["checkpoint"]["tensors"].sort(key=lambda tensor: tensor["name"])
     for shard in identity["source"]["shards"]:
         shard["uri"] = ""
+        shard.pop("id", None)
         shard.pop("id", None)
     identity["source"]["shards"].sort(
         key=lambda shard: (

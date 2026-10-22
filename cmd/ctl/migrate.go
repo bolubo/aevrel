@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/controller"
 )
 
 const defaultArtifactClaim = "shardferry-artifacts"
@@ -45,7 +44,7 @@ func executeMigrate(
 	if options.artifactClaim != "" {
 		migration.Spec.Artifacts.ClaimName = options.artifactClaim
 	}
-	if err := controller.ValidateMigration(migration); err != nil {
+	if err := validateProductMigration(migration); err != nil {
 		return fmt.Errorf("invalid migration: %w", err)
 	}
 	if options.dryRun {
@@ -225,6 +224,80 @@ func applyMigrationDefaults(migration *shardferryv1.CheckpointMigration) {
 	if spec.Artifacts.ClaimName == "" && spec.Artifacts.Store == "pvc" {
 		spec.Artifacts.ClaimName = defaultArtifactClaim
 	}
+}
+
+func validateProductMigration(
+	migration *shardferryv1.CheckpointMigration,
+) error {
+	spec := migration.Spec
+	if spec.Checkpoint.Format != "dcp" {
+		return fmt.Errorf("checkpoint.format must be dcp")
+	}
+	if spec.Source.WorldSize < 1 || spec.Source.WorldSize > 256 {
+		return fmt.Errorf("source.worldSize is out of range")
+	}
+	if spec.Target.WorldSize < 1 || spec.Target.WorldSize > 256 {
+		return fmt.Errorf("target.worldSize is out of range")
+	}
+	if err := validateAgentConfig(
+		"source",
+		spec.Source.RankMap,
+		spec.Source.AgentSelector,
+	); err != nil {
+		return err
+	}
+	if err := validateAgentConfig(
+		"target",
+		spec.Target.RankMap,
+		spec.Target.AgentSelector,
+	); err != nil {
+		return err
+	}
+	if spec.Source.CheckpointRoot == "" {
+		return fmt.Errorf("source.checkpointRoot is required")
+	}
+	if spec.Target.RootTemplate == "" {
+		return fmt.Errorf("target.rootTemplate is required")
+	}
+	if spec.Policy.Verify != "bitwise" {
+		return fmt.Errorf("policy.verify must be bitwise")
+	}
+	if spec.Policy.Commit != "all-or-nothing" {
+		return fmt.Errorf("policy.commit must be all-or-nothing")
+	}
+	if spec.Policy.MaxConcurrentTransfers < 1 ||
+		spec.Policy.MaxAttemptsPerRank < 1 ||
+		spec.Policy.TimeoutSeconds < 1 ||
+		spec.Policy.SourceChunkCacheBytes < 1 {
+		return fmt.Errorf("policy limits must be positive")
+	}
+	if spec.Artifacts.Store != "pvc" {
+		return fmt.Errorf("only pvc artifact store is supported by this CLI")
+	}
+	if spec.Artifacts.ClaimName == "" {
+		return fmt.Errorf("artifacts.claimName is required")
+	}
+	return nil
+}
+
+func validateAgentConfig(
+	role string,
+	rankMap []shardferryv1.RankEndpoint,
+	selector *shardferryv1.AgentSelector,
+) error {
+	if len(rankMap) > 0 && selector != nil {
+		return fmt.Errorf(
+			"%s must set either rankMap or agentSelector, not both",
+			role,
+		)
+	}
+	if len(rankMap) == 0 && selector == nil {
+		return fmt.Errorf("%s.rankMap or agentSelector is required", role)
+	}
+	if selector != nil && len(selector.MatchLabels) == 0 {
+		return fmt.Errorf("%s.agentSelector.matchLabels is required", role)
+	}
+	return nil
 }
 
 func waitForMigration(

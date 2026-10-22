@@ -2,14 +2,23 @@
 
 Move and reshard local checkpoint shards across DeviceMeshes and clusters.
 
-Status: **MVP paths complete, V1 contracts, Python agents, and Go controller
-foundation in progress**. 141 Python tests pass
-(2 distributed tests are opt-in). `file://`, local `http://`, and PyTorch DCP
-migrations work with
-resumable execution and bitwise verification; 1GB/10GB synthetic runs pass.
-Physical two-machine validation and the classmate acceptance run are still
-pending. This directory is intentionally not a Git repository until the MVP is
-frozen.
+Status: **recovery checkpoint**. The product path is local `demo`, `doctor`, and
+`migrate`, plus selector-based `shardferryctl migrate -f FILE --wait` for
+Kubernetes local-disk agents. The recovery merge is still being validated;
+`cmd/ctl` and the Python product tests are green, while the full Go controller
+and a few cutover tests need reconciliation.
+
+## Product path
+
+```bash
+shardferry demo
+shardferry doctor --checkpoint /path/to/source.dcp
+shardferry migrate --checkpoint /path/to/source.dcp --target-world 3
+```
+
+For distributed local disks, see `docs/USAGE.zh-CN.md` and use
+`examples/k8s/migration.yaml` with `shardferryctl migrate -f ... --dry-run` or
+`--wait`.
 
 ## What it will do
 
@@ -63,6 +72,7 @@ and planned bytes match the plan.
 - `src/shardferry/`: CLI and implementation.
 - `src/shardferry/{contracts,doctor}.py`: contract validation and read-only
   preflight checks.
+- `src/shardferry/adaptive.py`: opt-in token bucket / 429 backpressure model.
 - `src/shardferry/adaptive.py`: opt-in token bucket / 429 backpressure model.
 - `src/shardferry/{agent,agent_state}.py`: V1 agent HTTP surface, durable task
   state, and idempotent task transitions.
@@ -166,6 +176,7 @@ The Go module contains:
 
 - `api/v1`: `CheckpointMigration` API types and generated deepcopy;
 - `internal/controller`: 128-rank commit coordinator and reconciler validation;
+- `internal/execution`: workqueue-driven per-rank execution and CommitIntent barrier;
 - `internal/agentclient`: inventory/plan/task API client;
 - `cmd/controller`: controller-runtime manager with leader election and probes;
 - `config/crd/bases`: controller-gen CRD.

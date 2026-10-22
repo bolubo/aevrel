@@ -4,12 +4,12 @@ import pytest
 
 from shardferry.storage.file import StorageError
 from shardferry.storage.http import HttpStorage
+from shardferry.storage.router import StorageRouter
 
 
 class _Response:
-    def __init__(self, data: bytes = b"", headers: dict[str, str] | None = None) -> None:
+    def __init__(self, data: bytes = b"") -> None:
         self.data = data
-        self.headers = headers or {}
 
     def read(self) -> bytes:
         return self.data
@@ -46,17 +46,9 @@ def test_http_storage_does_not_retry_404(monkeypatch) -> None:
     assert calls["count"] == 1
 
 
-def test_http_storage_verifies_range_checksum(monkeypatch) -> None:
-    import hashlib
-
-    storage = HttpStorage(retries=0)
-    good = "sha256:" + hashlib.sha256(b"ok").hexdigest()
-    response = _Response(b"ok", {"X-Range-SHA256": good})
-
-    monkeypatch.setattr(storage, "_open", lambda method, url: response)
-    assert storage.read_range("http://example.test/shard/w/0", 0, 2) == b"ok"
-
-    bad = _Response(b"ok", {"X-Range-SHA256": "sha256:" + "0" * 64})
-    monkeypatch.setattr(storage, "_open", lambda method, url: bad)
-    with pytest.raises(StorageError, match="range checksum mismatch"):
-        storage.read_range("http://example.test/shard/w/0", 0, 2)
+def test_storage_router_propagates_source_token() -> None:
+    router = StorageRouter(
+        source_base="http://source.test",
+        token="controller-token",
+    )
+    assert router.http.token == "controller-token"

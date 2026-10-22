@@ -85,6 +85,14 @@ def test_default_demo_cli(tmp_path, capsys) -> None:
     result = main(["demo", "--work-dir", str(tmp_path / "demo")])
     assert result == 0
     output = capsys.readouterr().out
+    assert '"verification"' in output
+    assert (tmp_path / "demo" / "target" / "w" / "rank0.bin").is_file()
+
+
+def test_default_demo_cli(tmp_path, capsys) -> None:
+    result = main(["demo", "--work-dir", str(tmp_path / "demo")])
+    assert result == 0
+    output = capsys.readouterr().out
     assert "Demo complete" in output
     assert "verification: bitwise passed" in output
     assert (tmp_path / "demo" / "target" / "w" / "rank0.bin").is_file()
@@ -199,6 +207,69 @@ def test_summarize_cli_requires_complete_rank_set(tmp_path, capsys) -> None:
         ]
     ) == 2
     assert "missing target ranks: 2" in capsys.readouterr().err
+
+
+def test_proof_rank_build_and_merge_cli(tmp_path) -> None:
+    spec, source_arrays, _ = generate_sharded_spec(
+        (8, 4),
+        (2, 2),
+        ("Shard(0)", "Shard(1)"),
+        (3, 1),
+        ("Shard(0)", "Replicate()"),
+    )
+    materialize_source_files(spec, source_arrays, tmp_path)
+    spec_path = tmp_path / "spec.yaml"
+    plan_path = tmp_path / "plan.json"
+    target_root = tmp_path / "target"
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+    assert main(["plan", "--spec", str(spec_path), "--out", str(plan_path)]) == 0
+    assert main(
+        [
+            "apply",
+            "--spec",
+            str(spec_path),
+            "--plan",
+            str(plan_path),
+            "--target-root",
+            str(target_root),
+        ]
+    ) == 0
+
+    proofs = []
+    for rank in range(3):
+        proof_path = tmp_path / f"rank{rank}.proof.json"
+        assert main(
+            [
+                "proof-build",
+                "--spec",
+                str(spec_path),
+                "--plan",
+                str(plan_path),
+                "--target-root",
+                str(target_root),
+                "--target-rank",
+                str(rank),
+                "--out",
+                str(proof_path),
+            ]
+        ) == 0
+        proofs.append(proof_path)
+    merged = tmp_path / "merged.proof.json"
+    assert main(
+        [
+            "proof-merge",
+            "--proof",
+            str(proofs[0]),
+            "--proof",
+            str(proofs[1]),
+            "--proof",
+            str(proofs[2]),
+            "--out",
+            str(merged),
+        ]
+    ) == 0
+    payload = json.loads(merged.read_text(encoding="utf-8"))
+    assert payload["target_files"]
 
 
 def test_proof_rank_build_and_merge_cli(tmp_path) -> None:

@@ -115,8 +115,11 @@ spec:
                       matchLabels:
                         additionalProperties:
                           type: string
+                        description: MatchLabels selects agent pods by their labels.
                         type: object
                       namespace:
+                        description: Namespace defaults to the CheckpointMigration
+                          namespace when empty.
                         type: string
                       port:
                         format: int32
@@ -190,8 +193,11 @@ spec:
                       matchLabels:
                         additionalProperties:
                           type: string
+                        description: MatchLabels selects agent pods by their labels.
                         type: object
                       namespace:
+                        description: Namespace defaults to the CheckpointMigration
+                          namespace when empty.
                         type: string
                       port:
                         format: int32
@@ -261,6 +267,8 @@ spec:
           status:
             description: CheckpointMigrationStatus is the observed migration state.
             properties:
+              commitToken:
+                type: string
               completedAt:
                 type: string
               conditions:
@@ -340,6 +348,19 @@ spec:
                 - prepared
                 - staged
                 type: object
+              cutoverPhase:
+                enum:
+                - following
+                - catching-up
+                - target-verified
+                - promoting
+                - promoted
+                - commit-incomplete
+                - failed
+                - cancelled
+                type: string
+              executionRef:
+                type: string
               failedRanks:
                 items:
                   format: int32
@@ -364,6 +385,8 @@ spec:
               proofHash:
                 type: string
               proofRef:
+                type: string
+              reportRef:
                 type: string
               startedAt:
                 type: string

@@ -488,3 +488,15 @@ Gate:
 - Go/K8s source recovery is not complete: several files created after the
   available snapshot are still missing or partial, so `go test ./...` is not
   a valid green gate yet. Do not overwrite the controller branch's state.
+
+## 2026-10-22 / Product recovery closure
+
+- Restored `cmd/ctl/main.go`, `shardferryctl migrate`, DCP source-agent
+  inventory/range serving, `/v1/ranks`, and DCP range reads lost in the mixed
+  recovery.
+- Rebuilt the missing Helm chart with source/target agents, selector-compatible
+  labels, controller RBAC for Pod discovery, and `/targets` persistence.
+- Removed duplicate Python subparsers that made `shardferry --help` crash.
+- Gate after CPU torch installation: Python `251 passed / 2 skipped`;
+  `go test ./...` passes; `go test ./cmd/ctl`, `go vet ./...`, and Helm
+  lint/template pass. The two skips are distributed/HTTP opt-in tests.

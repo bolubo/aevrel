@@ -556,3 +556,33 @@ def test_failed_shadow_publish_does_not_publish_current(tmp_path, monkeypatch) -
     with pytest.raises(CDPError, match="shadow write failure"):
         target.promote(manifest)
     assert target.current() is None
+
+
+def test_corrupt_cas_blocks_stage_and_keeps_current_unchanged(tmp_path) -> None:
+    make_version(tmp_path / "source", "step-100", {"a.bin": b"v1-data"})
+    descriptor = scan_versions(tmp_path / "source")[0]
+    store = ChunkStore(tmp_path / "target")
+    manifest = build_manifest(descriptor, store, chunk_bytes=4)
+    target = VersionTarget(tmp_path / "target")
+
+    chunk_path = store.path(manifest.chunks[0].digest)
+    chunk_path.write_bytes(b"corrupt")
+    with pytest.raises(CDPError, match="digest mismatch"):
+        target.stage(manifest)
+    assert target.current() is None
+
+
+def test_failed_shadow_publish_does_not_publish_current(tmp_path, monkeypatch) -> None:
+    make_version(tmp_path / "source", "step-100", {"a.bin": b"v1-data"})
+    descriptor = scan_versions(tmp_path / "source")[0]
+    target = VersionTarget(tmp_path / "target")
+    store = ChunkStore(target.root)
+    manifest = build_manifest(descriptor, store, chunk_bytes=4)
+
+    def fail_materialize(*args, **kwargs):
+        raise CDPError("injected shadow write failure")
+
+    monkeypatch.setattr("shardferry.cdp.materialize_manifest", fail_materialize)
+    with pytest.raises(CDPError, match="shadow write failure"):
+        target.promote(manifest)
+    assert target.current() is None

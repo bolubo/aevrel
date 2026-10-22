@@ -68,6 +68,7 @@ type Task struct {
 	SpecRef      string         `json:"spec_ref"`
 	PlanRef      string         `json:"plan_ref"`
 	PlanSlice    map[string]any `json:"plan_slice"`
+	Report       map[string]any `json:"report,omitempty"`
 	State        string         `json:"state"`
 }
 

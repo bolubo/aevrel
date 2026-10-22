@@ -1,0 +1,90 @@
+{{- if .Values.source.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "shardferry.fullname" . }}-source
+  labels:
+    {{- include "shardferry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: source
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "shardferry.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: source
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "shardferry.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: source
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        {{- toYaml .Values.source.securityContext | nindent 8 }}
+      containers:
+        - name: source-agent
+          image: "{{ .Values.image.agent }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - agent
+            - --listen=0.0.0.0:{{ .Values.source.port }}
+            - --state-dir=/var/lib/shardferry/state
+            - --checkpoint=/checkpoints
+            - --metadata=/metadata
+            - --public-url={{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://${NODE_IP}:{{ .Values.source.port }}
+            - --artifact-base-url={{ include "shardferry.artifactURL" . }}
+            - --cache-bytes={{ .Values.source.cacheBytes | int64 }}
+            {{- if .Values.tls.enabled }}
+            - --tls-cert=/tls/{{ .Values.tls.certKey }}
+            - --tls-key=/tls/{{ .Values.tls.keyKey }}
+            - --tls-ca=/tls/{{ .Values.tls.caKey }}
+            {{- end }}
+          env:
+            - name: SHARDFERRY_AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentToken.existingSecret }}
+                  key: {{ .Values.agentToken.key }}
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          ports:
+            - name: agent
+              containerPort: {{ .Values.source.port }}
+              hostPort: {{ .Values.source.port }}
+          volumeMounts:
+            - name: checkpoints
+              mountPath: /checkpoints
+              readOnly: true
+            - name: metadata
+              mountPath: /metadata
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/shardferry
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: checkpoints
+          hostPath:
+            path: {{ .Values.source.checkpointHostPath }}
+            type: Directory
+        - name: metadata
+          hostPath:
+            path: {{ .Values.source.metadataHostPath }}
+            type: Directory
+        - name: state
+          hostPath:
+            path: {{ .Values.source.stateHostPath }}
+            type: DirectoryOrCreate
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.agentSecretName }}
+        {{- end }}
+{{- end }}

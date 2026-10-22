@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shardferry.fullname" . }}-controller
+  labels:
+    {{- include "shardferry.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.controller.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "shardferry.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "shardferry.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: {{ include "shardferry.fullname" . }}-controller
+      securityContext:
+        {{- toYaml .Values.controller.securityContext | nindent 8 }}
+      containers:
+        - name: controller
+          image: "{{ .Values.image.controller }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --artifact-public-url={{ include "shardferry.artifactURL" . }}
+            - --artifact-bind-address=:{{ .Values.controller.servicePort }}
+            - --artifact-dir=/var/lib/shardferry/artifacts
+            - --leader-elect=true
+          env:
+            - name: SHARDFERRY_AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentToken.existingSecret }}
+                  key: {{ .Values.agentToken.key }}
+          ports:
+            - name: artifacts
+              containerPort: {{ .Values.controller.servicePort }}
+          volumeMounts:
+            - name: artifacts
+              mountPath: /var/lib/shardferry/artifacts
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-artifacts" (include "shardferry.fullname" .)) .Values.artifacts.existingClaim }}

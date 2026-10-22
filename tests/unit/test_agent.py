@@ -141,3 +141,35 @@ def test_agent_rejects_missing_token(tmp_path) -> None:
         server.shutdown()
         thread.join(timeout=5)
         server.server_close()
+
+
+def test_executor_failure_is_retryable(tmp_path) -> None:
+    def fail(_task) -> None:
+        raise RuntimeError("transient executor failure")
+
+    server = build_agent_server(
+        "0.0.0.0:0",
+        "secret",
+        tmp_path,
+        executor=fail,
+        committer=lambda _task: None,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://{_local_ip()}:{server.server_address[1]}"
+        task = _post(base, "/v1/tasks", _task(tmp_path))
+        task = _post(base, f"/v1/tasks/{task['task_id']}/prepare", {})
+        try:
+            _post(base, f"/v1/tasks/{task['task_id']}/execute", {})
+        except HTTPError as exc:
+            error = json.loads(exc.read())
+            assert exc.code == 409
+            assert error["code"] == "TARGET_CONFLICT"
+            assert error["retryable"] is True
+        else:
+            raise AssertionError("executor failure must be returned")
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()

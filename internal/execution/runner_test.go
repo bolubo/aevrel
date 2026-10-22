@@ -1,0 +1,305 @@
+package execution
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/shardferry/shardferry/internal/agentclient"
+	"github.com/shardferry/shardferry/internal/artifactstore"
+)
+
+type fakeTaskClient struct {
+	mu                      sync.Mutex
+	tasks                   map[string]agentclient.Task
+	run                     *Run
+	commitCount             int
+	failExecuteRank         int32
+	commitWithoutIntentSeen bool
+	blockCreate             bool
+}
+
+func newFakeTaskClient(run *Run) *fakeTaskClient {
+	return &fakeTaskClient{
+		tasks:           make(map[string]agentclient.Task),
+		run:             run,
+		failExecuteRank: -1,
+	}
+}
+
+func (f *fakeTaskClient) CreateTask(
+	ctx context.Context,
+	_ string,
+	task agentclient.Task,
+) (agentclient.Task, error) {
+	if f.blockCreate {
+		<-ctx.Done()
+		return agentclient.Task{}, ctx.Err()
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := fmt.Sprintf("task-%d", task.Rank)
+	task.TaskID = key
+	task.State = "created"
+	f.tasks[key] = task
+	return task, nil
+}
+
+func (f *fakeTaskClient) PrepareTask(
+	_ context.Context,
+	_ string,
+	taskID string,
+) (agentclient.Task, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	task := f.tasks[taskID]
+	task.State = "prepared"
+	f.tasks[taskID] = task
+	return task, nil
+}
+
+func (f *fakeTaskClient) ExecuteTask(
+	_ context.Context,
+	_ string,
+	taskID string,
+) (agentclient.Task, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	task := f.tasks[taskID]
+	if task.Rank == f.failExecuteRank {
+		task.State = "failed"
+	} else {
+		task.State = "staged"
+	}
+	f.tasks[taskID] = task
+	return task, nil
+}
+
+func (f *fakeTaskClient) CommitTask(
+	_ context.Context,
+	_ string,
+	taskID string,
+) (agentclient.Task, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.run.HasCommitIntent() {
+		f.commitWithoutIntentSeen = true
+	}
+	task := f.tasks[taskID]
+	task.State = "committed"
+	task.Report = map[string]any{"status": "success"}
+	f.tasks[taskID] = task
+	f.commitCount++
+	return task, nil
+}
+
+func newTestRun(world int32) *Run {
+	config := RunConfig{
+		ID:           "run-128",
+		PlanID:       "sha256:" + strings.Repeat("a", 64),
+		MigrationUID: "m-128",
+		TargetWorld:  world,
+		SpecRef:      "http://artifact/spec",
+		PlanRef:      "http://artifact/plan",
+		RootTemplate: "/target/rank{rank}",
+		Plan:         map[string]any{"nodes": []any{}},
+		Endpoints:    make(map[int32]string, world),
+		MaxAttempts:  1,
+	}
+	run := NewRun(config)
+	for rank := int32(0); rank < world; rank++ {
+		run.RegisterRank(rank)
+		config.Endpoints[rank] = fmt.Sprintf("http://agent-%d:9443", rank)
+	}
+	return run
+}
+
+func TestRunnerCommits128Ranks(t *testing.T) {
+	run := newTestRun(128)
+	client := newFakeTaskClient(run)
+	runner := NewRunner(client, 16)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := run.Summary().Phase; got != PhaseSucceeded {
+		t.Fatalf("phase = %s, want succeeded", got)
+	}
+	if client.commitCount != 128 {
+		t.Fatalf("commits = %d, want 128", client.commitCount)
+	}
+	if client.commitWithoutIntentSeen {
+		t.Fatal("commit happened before CommitIntent")
+	}
+}
+
+func TestRunnerNeverCommitsWhenOneRankFails(t *testing.T) {
+	run := newTestRun(3)
+	client := newFakeTaskClient(run)
+	client.failExecuteRank = 1
+	runner := NewRunner(client, 3)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	_ = run.Wait(ctx)
+	if client.commitCount != 0 {
+		t.Fatalf("commits = %d, want 0", client.commitCount)
+	}
+	if got := run.Summary().Phase; got != PhaseFailed {
+		t.Fatalf("phase = %s, want failed", got)
+	}
+}
+
+func TestRunnerSetsCommitIntentBeforeEveryCommit(t *testing.T) {
+	run := newTestRun(3)
+	client := newFakeTaskClient(run)
+	runner := NewRunner(client, 3)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if client.commitWithoutIntentSeen {
+		t.Fatal("a commit was sent before CommitIntent")
+	}
+}
+
+func TestRunnerPublishesAggregatedReportArtifact(t *testing.T) {
+	run := newTestRun(2)
+	client := newFakeTaskClient(run)
+	store := artifactstore.NewMemoryStore("http://controller:8082")
+	runner := NewRunner(client, 2)
+	runner.SetArtifacts(store)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for run.ReportRef() == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if run.ReportRef() == "" {
+		t.Fatal("report artifact ref is empty")
+	}
+	if _, err := store.Get(context.Background(), run.ReportRef()); err != nil {
+		t.Fatalf("read report artifact: %v", err)
+	}
+}
+
+func TestRunSnapshotRestoresCommittedState(t *testing.T) {
+	run := newTestRun(2)
+	client := newFakeTaskClient(run)
+	store := artifactstore.NewMemoryStore("http://controller:8082")
+	runner := NewRunner(client, 2)
+	runner.SetArtifacts(store)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	if err := run.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	runner.Stop()
+	if err := runner.Persist(context.Background(), run); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for run.ExecutionRef() == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if run.ExecutionRef() == "" {
+		t.Fatal("execution ref is empty")
+	}
+
+	restoredRunner := NewRunner(client, 1)
+	restoredRunner.SetArtifacts(store)
+	restored, err := restoredRunner.Load(context.Background(), run.ExecutionRef())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.Summary().Phase; got != PhaseSucceeded {
+		t.Fatalf("restored phase = %s, want succeeded", got)
+	}
+	if len(restored.Reports()) != 2 {
+		t.Fatalf("restored reports = %d, want 2", len(restored.Reports()))
+	}
+}
+
+func TestRunnerTaskTimeoutFailsRank(t *testing.T) {
+	run := newTestRun(1)
+	client := newFakeTaskClient(run)
+	client.blockCreate = true
+	runner := NewRunner(client, 1)
+	runner.SetTaskTimeout(20 * time.Millisecond)
+	runner.Submit(run)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	runner.Start(ctx)
+	defer runner.Stop()
+	err := run.Wait(ctx)
+	if err == nil {
+		t.Fatal("expected timeout failure")
+	}
+	if got := run.Summary().Phase; got != PhaseFailed {
+		t.Fatalf("phase = %s, want failed", got)
+	}
+}
+
+func TestSnapshotStoresPlanByReference(t *testing.T) {
+	run := newTestRun(1)
+	run.config.Plan = map[string]any{
+		"version": "1",
+		"nodes": []any{
+			map[string]any{"target_rank": float64(0), "id": "n0"},
+		},
+	}
+	store := artifactstore.NewMemoryStore("http://controller:8082")
+	planBytes, err := json.Marshal(run.config.Plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planRef, err := store.Put(context.Background(), planBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run.config.PlanRef = planRef.URL
+	if plan := run.Snapshot().Config.Plan; plan != nil {
+		t.Fatal("snapshot embedded the full plan")
+	}
+	snapshotBytes, err := json.Marshal(run.Snapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshotRef, err := store.Put(context.Background(), snapshotBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := NewRunner(newFakeTaskClient(run), 1)
+	runner.SetArtifacts(store)
+	restored, err := runner.Load(context.Background(), snapshotRef.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slice := restored.TaskForRank(0).PlanSlice
+	nodes := slice["nodes"].([]any)
+	if len(nodes) != 1 {
+		t.Fatalf("reloaded plan slice = %v", slice)
+	}
+}

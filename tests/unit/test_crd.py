@@ -40,6 +40,11 @@ def test_checkpointmigration_crd_contract() -> None:
     ]
     assert "proofRef" in status
     assert "proofHash" in status
+    status = version["schema"]["openAPIV3Schema"]["properties"]["status"][
+        "properties"
+    ]
+    assert "proofRef" in status
+    assert "proofHash" in status
     source = version["schema"]["openAPIV3Schema"]["properties"]["spec"][
         "properties"
     ]["source"]

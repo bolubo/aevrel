@@ -60,9 +60,9 @@ type SourceSpec struct {
 	MetadataOwnerRank int32 `json:"metadataOwnerRank"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=256
-	WorldSize int32          `json:"worldSize"`
-	Mesh      MeshSpec       `json:"mesh"`
-	RankMap   []RankEndpoint `json:"rankMap,omitempty"`
+	WorldSize     int32          `json:"worldSize"`
+	Mesh          MeshSpec       `json:"mesh"`
+	RankMap       []RankEndpoint `json:"rankMap,omitempty"`
 	AgentSelector *AgentSelector `json:"agentSelector,omitempty"`
 	// +kubebuilder:validation:MinLength=1
 	CheckpointRoot string `json:"checkpointRoot"`
@@ -72,9 +72,9 @@ type SourceSpec struct {
 type TargetSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=256
-	WorldSize int32          `json:"worldSize"`
-	Mesh      MeshSpec       `json:"mesh"`
-	RankMap   []RankEndpoint `json:"rankMap,omitempty"`
+	WorldSize     int32          `json:"worldSize"`
+	Mesh          MeshSpec       `json:"mesh"`
+	RankMap       []RankEndpoint `json:"rankMap,omitempty"`
 	AgentSelector *AgentSelector `json:"agentSelector,omitempty"`
 	// +kubebuilder:validation:MinLength=1
 	RootTemplate string `json:"rootTemplate"`
@@ -125,14 +125,21 @@ type RankCounts struct {
 // CheckpointMigrationStatus is the observed migration state.
 type CheckpointMigrationStatus struct {
 	// +kubebuilder:validation:Enum=pending;preparing;transferring;commit-pending;committing;succeeded;failed;cancelled;commit-incomplete
-	Phase       string             `json:"phase,omitempty"`
-	PlanRef     string             `json:"planRef,omitempty"`
-	PlanHash    string             `json:"planHash,omitempty"`
-	Counts      RankCounts         `json:"counts,omitempty"`
-	FailedRanks []int32            `json:"failedRanks,omitempty"`
-	StartedAt   string             `json:"startedAt,omitempty"`
-	CompletedAt string             `json:"completedAt,omitempty"`
-	Conditions  []metav1.Condition `json:"conditions,omitempty"`
+	Phase    string `json:"phase,omitempty"`
+	PlanRef  string `json:"planRef,omitempty"`
+	PlanHash string `json:"planHash,omitempty"`
+	// +kubebuilder:validation:Enum=following;catching-up;target-verified;promoting;promoted;commit-incomplete;failed;cancelled
+	CutoverPhase string             `json:"cutoverPhase,omitempty"`
+	ExecutionRef string             `json:"executionRef,omitempty"`
+	ReportRef    string             `json:"reportRef,omitempty"`
+	ProofRef     string             `json:"proofRef,omitempty"`
+	ProofHash    string             `json:"proofHash,omitempty"`
+	CommitToken  string             `json:"commitToken,omitempty"`
+	Counts       RankCounts         `json:"counts,omitempty"`
+	FailedRanks  []int32            `json:"failedRanks,omitempty"`
+	StartedAt    string             `json:"startedAt,omitempty"`
+	CompletedAt  string             `json:"completedAt,omitempty"`
+	Conditions   []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

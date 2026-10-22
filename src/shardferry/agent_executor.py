@@ -10,6 +10,7 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 from .agent_state import TaskRecord
 from .executor import apply, commit_staged
 from .manifest import load_payload
+from .proof import build_proof
 
 
 class ArtifactError(ValueError):
@@ -86,26 +87,48 @@ class HttpArtifactResolver:
 
 
 class TargetTaskExecutor:
-    def __init__(self, resolver: ArtifactResolver) -> None:
+    def __init__(
+        self,
+        resolver: ArtifactResolver,
+        source_token: str | None = None,
+        *,
+        proof_enabled: bool = False,
+    ) -> None:
         self.resolver = resolver
+        self.source_token = source_token
+        self.proof_enabled = proof_enabled
 
-    def __call__(self, task: TaskRecord) -> None:
+    def __call__(self, task: TaskRecord) -> dict[str, Any]:
         spec = self.resolver.resolve(task.spec_ref)
         plan = self.resolver.resolve(task.plan_ref)
-        apply(
+        return apply(
             plan,
             spec,
             target_rank=task.rank,
             target_root=task.target_root,
             commit=False,
+            token=self.source_token,
         )
 
-    def commit(self, task: TaskRecord) -> None:
+    def commit(self, task: TaskRecord) -> dict[str, Any]:
         spec = self.resolver.resolve(task.spec_ref)
         plan = self.resolver.resolve(task.plan_ref)
-        commit_staged(
+        report = commit_staged(
             plan,
             spec,
             target_rank=task.rank,
             target_root=task.target_root,
+            token=self.source_token,
         )
+        if self.proof_enabled:
+            proof = build_proof(
+                spec,
+                plan,
+                task.target_root,
+                token=self.source_token,
+                target_rank=task.rank,
+            )
+            result = dict(report)
+            result["proof"] = proof
+            return result
+        return report

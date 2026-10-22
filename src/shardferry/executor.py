@@ -206,6 +206,8 @@ def apply(
             plan,
             target_rank=target_rank,
             target_root=target_root,
+            source=source,
+            token=token,
         )
         result = _report(
             spec, plan, journal, verification, started, target_rank=target_rank
@@ -255,6 +257,8 @@ def apply(
         plan,
         target_rank=target_rank,
         target_paths=active_paths,
+        source=source,
+        token=token,
     )
     journal.mark_verified(verification)
     if not commit:
@@ -299,6 +303,8 @@ def commit_staged(
     *,
     target_rank: int | None = None,
     target_root: str | Path | None = None,
+    source: str | None = None,
+    token: str | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     validate_plan(plan, spec)
@@ -324,6 +330,8 @@ def commit_staged(
                 plan,
                 target_rank=target_rank,
                 target_root=target_root,
+                source=source,
+                token=token,
             )
         result = _report(
             spec, plan, journal, verification, started, target_rank=target_rank

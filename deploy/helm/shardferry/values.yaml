@@ -1,0 +1,57 @@
+image:
+  controller: ghcr.io/shardferry/shardferry-controller:0.1.0
+  agent: ghcr.io/shardferry/shardferry-agent:0.1.0
+  pullPolicy: IfNotPresent
+
+agentToken:
+  existingSecret: shardferry-agent-token
+  key: token
+
+tls:
+  enabled: true
+  controllerSecretName: shardferry-controller-tls
+  agentSecretName: shardferry-agent-tls
+  caKey: ca.crt
+  certKey: tls.crt
+  keyKey: tls.key
+
+controller:
+  replicas: 1
+  artifactPublicURL: ""
+  servicePort: 8082
+  resources: {}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+artifacts:
+  existingClaim: ""
+  size: 100Gi
+  storageClassName: ""
+
+source:
+  enabled: true
+  checkpointHostPath: /var/lib/shardferry/source
+  metadataHostPath: /var/lib/shardferry/metadata
+  stateHostPath: /var/lib/shardferry/source-state
+  port: 9443
+  cacheBytes: 536870912
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+target:
+  enabled: false
+  checkpointHostPath: /var/lib/shardferry/target
+  stateHostPath: /var/lib/shardferry/target-state
+  port: 9444
+  cacheBytes: 536870912
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001

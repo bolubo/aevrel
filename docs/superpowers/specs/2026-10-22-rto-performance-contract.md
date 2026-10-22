@@ -38,7 +38,9 @@ sync wall
 
 `CutoverSession` 已提供 `target_ready` 回调；回调在 promote 之后执行，失败
 会 rollback/clear current 并 resume source。benchmark 的 cutover 记录
-`target_ready_seconds`，后续可接真实 target job ready / DCP load。
+`target_ready_seconds`。`shardferry.target_probe` 可作为第一版 target-ready
+命令，校验 current、manifest root、CAS 和 shadow；GPU/DCP load hook 继续
+在其外层包装。`/v1/status.last_cutover` 保存最近一次 RTO 两项耗时。
 
 ## 3. 数据放大定义
 

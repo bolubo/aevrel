@@ -256,6 +256,151 @@ def test_adjacent_same_source_nodes_are_coalesced() -> None:
     assert result["cost"]["range_reads"] == 3
 
 
+def test_multiple_source_chunks_per_rank_have_stable_ids() -> None:
+    tensor = np.arange(8, dtype=np.float32)
+    left = tensor[:4].copy()
+    right = tensor[4:].copy()
+    shards = [
+        {
+            "tensor": "w",
+            "rank": 0,
+            "uri": "file:///source/rank0-left.bin",
+            "offset": [0],
+            "size": [4],
+            "checksum": checksum(left),
+        },
+        {
+            "tensor": "w",
+            "rank": 0,
+            "uri": "file:///source/rank0-right.bin",
+            "offset": [4],
+            "size": [4],
+            "checksum": checksum(right),
+        },
+    ]
+    spec = {
+        "version": "1",
+        "checkpoint": {
+            "format": "toy",
+            "tensors": [{"name": "w", "shape": [8], "dtype": "float32"}],
+        },
+        "source": {
+            "mesh": mesh_payload((2,), ("Shard(0)",)),
+            "storage": {"uri": "file:///source"},
+            "shards": shards,
+        },
+        "target": {
+            "mesh": mesh_payload((2,), ("Shard(0)",)),
+            "storage": {"uri": "file:///target"},
+        },
+    }
+    result = plan(spec)
+    validate_plan(result, spec)
+    assert len(result["nodes"]) == 2
+    source_ids = {
+        node["inputs"][0]["source_id"]
+        for node in result["nodes"]
+    }
+    assert len(source_ids) == 2
+    assert all(source_id.startswith("sha256:") for source_id in source_ids)
+
+
+def test_partial_source_allows_multiple_chunks_per_rank() -> None:
+    values = np.arange(8, dtype=np.float32)
+    shards = []
+    for rank in range(2):
+        for offset, part in ((0, values[:4]), (4, values[4:])):
+            shards.append(
+                {
+                    "tensor": "w",
+                    "rank": rank,
+                    "uri": f"file:///partial/rank{rank}-{offset}.bin",
+                    "offset": [offset],
+                    "size": [4],
+                    "checksum": checksum(part),
+                }
+            )
+    spec = {
+        "version": "1",
+        "checkpoint": {
+            "format": "toy",
+            "tensors": [{"name": "w", "shape": [8], "dtype": "float32"}],
+        },
+        "source": {
+            "mesh": mesh_payload((2,), ("Partial(sum)",)),
+            "storage": {"uri": "file:///partial"},
+            "shards": shards,
+        },
+        "target": {
+            "mesh": mesh_payload((2,), ("Shard(0)",)),
+            "storage": {"uri": "file:///target"},
+        },
+    }
+    result = plan(spec)
+    validate_plan(result, spec)
+    assert len(result["nodes"]) == 2
+    assert all(node["op"] == "sum" for node in result["nodes"])
+    assert {
+        tuple(sorted(source["source_rank"] for source in node["inputs"]))
+        for node in result["nodes"]
+    } == {(0, 1)}
+
+
+def test_adjacent_same_source_nodes_are_coalesced() -> None:
+    values = np.arange(16, dtype=np.float32).reshape(4, 4)
+    shards = [
+        {
+            "tensor": "w",
+            "rank": 0,
+            "uri": "file:///source/left.bin",
+            "offset": [0, 0],
+            "size": [4, 2],
+            "checksum": checksum(values[:, :2].copy()),
+        },
+        {
+            "tensor": "w",
+            "rank": 1,
+            "uri": "file:///source/right-bottom.bin",
+            "offset": [2, 2],
+            "size": [2, 2],
+            "checksum": checksum(values[2:, 2:].copy()),
+        },
+        {
+            "tensor": "w",
+            "rank": 2,
+            "uri": "file:///source/right-top.bin",
+            "offset": [0, 2],
+            "size": [2, 2],
+            "checksum": checksum(values[:2, 2:].copy()),
+        },
+    ]
+    spec = {
+        "version": "1",
+        "checkpoint": {
+            "format": "toy",
+            "tensors": [{"name": "w", "shape": [4, 4], "dtype": "float32"}],
+        },
+        "source": {
+            "mesh": mesh_payload((3,), ("Shard(0)",)),
+            "storage": {"uri": "file:///source"},
+            "shards": shards,
+        },
+        "target": {
+            "mesh": mesh_payload((1,), ("Shard(0)",)),
+            "storage": {"uri": "file:///target"},
+        },
+    }
+    result = plan(spec)
+    validate_plan(result, spec)
+    assert len(result["nodes"]) == 3
+    assert any(
+        node["size"] == [4, 2] and node["inputs"][0]["source_rank"] == 0
+        for node in result["nodes"]
+    )
+    assert result["cost"]["nodes"] == 3
+    assert result["cost"]["range_reads"] == 3
+
+
 def test_plan_is_deterministic() -> None:
     spec, _, _ = generate_sharded_spec(
         (8, 4),
