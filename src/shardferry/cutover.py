@@ -159,6 +159,7 @@ class CutoverSession:
         *,
         owner: str = "shardferry-controller",
         epoch: int = 1,
+        accept_new_version: bool = False,
     ) -> CutoverResult:
         requested, descriptors = self._requested(version_id)
         requested_index = descriptors.index(requested)
@@ -197,6 +198,22 @@ class CutoverSession:
             # is now cheap and still uses the normal delta path.
             self.follower.sync_once()
             after = self._descriptors()
+            if accept_new_version and after:
+                latest = after[-1]
+                if latest.version_id != version_id:
+                    requested = latest
+                    version_id = latest.version_id
+                    fence = self.fences.acquire(
+                        owner,
+                        epoch,
+                        version_id,
+                    )
+                    manifest = self.target.manifests.read(version_id)
+                    if manifest.metadata_hash != latest.marker.metadata_hash:
+                        raise CutoverError(
+                            f"final target manifest metadata hash mismatch "
+                            f"for {version_id}"
+                        )
             after_index = next(
                 (
                     index
@@ -205,7 +222,11 @@ class CutoverSession:
                 ),
                 -1,
             )
-            if self.policy.require_latest and after_index != len(after) - 1:
+            if (
+                self.policy.require_latest
+                and not accept_new_version
+                and after_index != len(after) - 1
+            ):
                 raise CutoverError(
                     f"a newer checkpoint appeared during cutover: {version_id}"
                 )

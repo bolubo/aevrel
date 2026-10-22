@@ -17,6 +17,7 @@
 - [路线图](ROADMAP.zh-CN.md)
 - [0.1 静态迁移验收](0.1-ACCEPTANCE.zh-CN.md)
 - [0.2 Checkpoint Mobility 验收](0.2-ACCEPTANCE.zh-CN.md)
+- [0.3 Online checkpoint handoff](HANDOFF.zh-CN.md)
 - [Feature 1: Kueue 集成设计](FEATURE-1-KUEUE-INTEGRATION.zh-CN.md)
 - [Feature 1: Kueue binary guard 实现](KUEUE-PREEMPTION-GUARD.zh-CN.md)
 - [Feature 2: Separate-Mesh local-shard migration](0.2-FEATURE-2-CROSS-MESH.zh-CN.md)
