@@ -503,6 +503,9 @@ Gate:
   2.68s, RSS 94.3MiB, target-ready 0.035s; 1GiB x3 128→64 passed with wall
   21.92s, RSS 73.9MiB, target-ready 0.062s. 1GiB 16→8 reached RSS 237.8MiB
   and correctly failed the P1 150MiB gate.
+- Last cutover RTO evidence is atomically persisted at
+  `<target>/.shardferry/last-cutover.json`, so a CutoverService restart keeps
+  `paused_seconds` / `target_ready_seconds` visible in `/v1/status`.
 - Gate: `234 passed / 19 skipped` (PyTorch/native optional skips), compileall
   and `cutover-serve --help` pass. This work is on branch `python-rto` in
   worktree `shardferry-rto`; do not merge into the shared checkout while the

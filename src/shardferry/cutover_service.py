@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -77,7 +78,10 @@ class CutoverService:
         )
         self._follow_thread: threading.Thread | None = None
         self._follow_stop: threading.Event | None = None
-        self._last_cutover: dict[str, Any] | None = None
+        self._last_cutover_path = (
+            self.target.root / ".shardferry" / "last-cutover.json"
+        )
+        self._last_cutover = self._read_last_cutover()
 
     def status(self) -> dict[str, Any]:
         descriptors = scan_versions(self.source_root)
@@ -216,6 +220,7 @@ class CutoverService:
             "fence": result.fence.to_dict(),
         }
         self._last_cutover = payload
+        self._write_last_cutover(payload)
         return payload
 
     def recover(self, *, owner: str | None = None) -> dict[str, Any]:
@@ -228,6 +233,33 @@ class CutoverService:
             "resumed": result.resumed,
             "fence": result.fence.to_dict() if result.fence else None,
         }
+
+    def _read_last_cutover(self) -> dict[str, Any] | None:
+        if not self._last_cutover_path.is_file():
+            return None
+        try:
+            payload = json.loads(
+                self._last_cutover_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def _write_last_cutover(self, payload: dict[str, Any]) -> None:
+        path = self._last_cutover_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        try:
+            with temporary.open("w", encoding="utf-8") as stream:
+                json.dump(payload, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        except OSError as exc:
+            raise CutoverServiceError(
+                f"could not persist cutover result: {exc}"
+            ) from exc
 
 
 def build_cutover_server(

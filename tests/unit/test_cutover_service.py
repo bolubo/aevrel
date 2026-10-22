@@ -127,6 +127,20 @@ def test_cutover_service_auto_follows_in_background(tmp_path: Path) -> None:
     service.stop_following()
 
 
+def test_cutover_service_persists_last_cutover(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    make_version(source, "step-100", b"v1-data")
+    target = tmp_path / "target"
+    service = CutoverService(source, target)
+    service.follow_once()
+    service.cutover("step-100")
+
+    reopened = CutoverService(source, target)
+    last = reopened.status()["last_cutover"]
+    assert last["version_id"] == "step-100"
+    assert last["target_ready_seconds"] >= 0
+
+
 def test_cutover_service_http_requires_token(tmp_path: Path) -> None:
     source = tmp_path / "source"
     make_version(source, "step-100", b"v1-data")
