@@ -115,8 +115,38 @@ def main() -> int:
                 "output": payload["output"],
                 "verification": payload["verification"],
             }
+            target_load = run(
+                [
+                    sys.executable,
+                    "-m",
+                    "shardferry.target_load",
+                    "--checkpoint",
+                    payload["output"],
+                    "--json",
+                ],
+                env=env,
+            )
+            load_payload = json.loads(target_load.stdout)
+            results["target_load"] = {
+                "ok": load_payload["status"] == "ok",
+                "tensors": load_payload["tensors"],
+                "duration_seconds": load_payload["duration_seconds"],
+            }
 
         if not args.skip_static:
+            release = run(
+                [sys.executable, str(ROOT / "scripts" / "check_release.py"), "--json"]
+            )
+            results["release"] = {
+                "ok": json.loads(release.stdout)["status"] == "ok",
+            }
+            support_help = run(
+                [sys.executable, "-m", "shardferry.support_bundle", "--help"],
+                env=env,
+            )
+            results["support_bundle"] = {
+                "ok": "support bundle" in support_help.stdout.lower(),
+            }
             run(["go", "test", "./cmd/ctl", "./internal/controller"])
             run(["helm", "lint", "deploy/helm/shardferry", "--set", "tls.enabled=false"])
             ctl = run(

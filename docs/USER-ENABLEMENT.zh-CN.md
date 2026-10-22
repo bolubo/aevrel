@@ -27,6 +27,15 @@
      -> 失败则 support_bundle + ERROR-CATALOG
 ```
 
+仓库内可以用下面的命令做一次本地/发布候选验收：
+
+```bash
+python scripts/product_acceptance.py --work-dir /tmp/shardferry-product
+```
+
+它覆盖 demo、真实 DCP 4→3、target load、release consistency 和 support
+命令入口；跨集群 E2E 仍以 `examples/cross-cluster/` 为准。
+
 ## 发布前必须确认
 
 - Helm 默认镜像可拉取；

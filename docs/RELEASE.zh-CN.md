@@ -28,6 +28,15 @@ uv build --wheel --out-dir dist
 5. 在仓库设置中启用 Secret scanning 和 private vulnerability reporting。
 6. 创建 `v0.1.0` tag 和 release notes。
 
+发布前额外运行：
+
+```bash
+python scripts/check_release.py --json
+```
+
+它会检查 chart/appVersion、Helm 默认镜像、console scripts、必需的用户文档
+和 release workflow，避免发布一个“代码能跑但用户装不上”的版本。
+
 ## 镜像
 
 发布 tag 会触发 `.github/workflows/release.yml`，构建并推送
