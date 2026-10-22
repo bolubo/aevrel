@@ -236,9 +236,20 @@ CAS chunk 和 shadow；报告新增 `target_probe=true`、`target_ready_seconds`
 这证明 target probe 已进入可重复 benchmark，而不是只存在于单测。
 
 `--target-dcp-rank N` 会启动一个 warm target-job 子进程，触发该 rank 的
-local DCP load，再通过 `/readyz` 等待完成。4MB 本地试跑的 target-ready
-约 `0.514s`，其中包含 WSL 本机 HTTP/进程调度开销；当前它是诊断路径，
-不能直接把 128MiB/1GiB 的 P1 阈值套上去。更大规模需要物理 target job。
+local DCP load，再通过 `/readyz` 等待完成。预热 DCP runtime 后，4MB
+本地试跑的 target-ready 约 `0.13s`；预热前约 `0.514s`，差异主要来自
+首次 import/进程调度。当前仍是本机诊断，物理 target job 需要单独补测。
+
+warm target job 预热完成后的正式本地结果：
+
+| 场景 | active wall | target-ready | max RSS | P1 |
+|---|---:|---:|---:|---|
+| 128MiB x3、8→4、rank0 DCP | 1.91s | 0.132s | 93.2MiB | pass |
+| 1GiB x3、128→64、rank0 DCP | 21.83s | 0.114s | 69.5MiB | pass |
+
+1GiB 的 target prepare（生成/启动 warm target job）为 3.57s，单独记录在
+`target_prepare_seconds`；`active_wall_seconds` 从预热完成后开始计，避免
+把 setup 混进故障恢复时间。
 
 1GiB x 3、128→64、file-level 的同口径验收：
 

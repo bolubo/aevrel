@@ -54,7 +54,12 @@ def check_report(
             )
 
     if mode == "cdp":
-        wall = float(report.get("wall_seconds", 0.0))
+        wall = float(
+            report.get(
+                "active_wall_seconds",
+                report.get("wall_seconds", 0.0),
+            )
+        )
         if wall > thresholds.max_wall_seconds:
             failures.append(
                 f"wall_seconds {wall:.3f} > {thresholds.max_wall_seconds:.3f}"

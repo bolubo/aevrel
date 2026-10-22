@@ -105,6 +105,11 @@ def main() -> None:
     torch.save(torch.empty(1), warmup)
     warmup.seek(0)
     torch.load(warmup, weights_only=False)
+    from torch.distributed.checkpoint import FileSystemReader
+
+    import shardferry.dcp  # noqa: F401
+
+    del FileSystemReader
     host, port_text = args.listen.rsplit(":", 1)
     state = JobState()
     server = ThreadingHTTPServer(

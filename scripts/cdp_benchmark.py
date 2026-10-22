@@ -312,6 +312,7 @@ def main(argv: list[str] | None = None) -> dict:
         previous_id = version_id
 
     cutover = None
+    target_prepare_seconds = 0.0
     if args.mode == "cdp" and not args.skip_cutover:
         target_job = None
         checks = []
@@ -332,6 +333,7 @@ def main(argv: list[str] | None = None) -> dict:
                 )
             )
         if args.target_dcp_rank is not None:
+            prepare_started = time.perf_counter()
             rank = args.target_dcp_rank
             spec, _plan = registry[previous_id or "step-1000"]
             local_dcp = root / f"target-dcp-rank{rank}"
@@ -406,6 +408,7 @@ def main(argv: list[str] | None = None) -> dict:
                     ),
                 )
             )
+            target_prepare_seconds = time.perf_counter() - prepare_started
         if len(checks) == 1:
             target_ready = checks[0]
         elif checks:
@@ -440,6 +443,7 @@ def main(argv: list[str] | None = None) -> dict:
                     target_job.wait(timeout=5)
 
     rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    total_wall_seconds = time.perf_counter() - started_all
     report = {
         "size_mb": args.size_mb,
         "mode": args.mode,
@@ -449,9 +453,11 @@ def main(argv: list[str] | None = None) -> dict:
         "target_world": args.target_world,
         "target_probe": not args.no_target_probe,
         "target_dcp_rank": args.target_dcp_rank,
+        "target_prepare_seconds": target_prepare_seconds,
         "versions": rows,
         "cutover": cutover,
-        "wall_seconds": time.perf_counter() - started_all,
+        "wall_seconds": total_wall_seconds,
+        "active_wall_seconds": total_wall_seconds - target_prepare_seconds,
         "max_rss_mb": rss_kb / 1024,
     }
     (root / "cdp-benchmark.json").write_text(

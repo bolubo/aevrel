@@ -584,6 +584,7 @@ Gate:
   - 64MiB: zero-materialized `0.31s / 67MB`; legacy `0.45s / 134MB`
   - 256MiB: zero-materialized `1.64s / 268MB`; legacy `2.42s / 537MB`
   - 512MiB: zero-materialized `2.89s / 537MB`; legacy `4.88s / 1074MB`
+  - 1GiB: zero-materialized `6.10s / 1074MB`; legacy `9.54s / 2148MB`
 - Source raw extraction is absent in the new path; dcpzip uses cached range
   descriptors and file descriptors on Linux.
 
@@ -596,3 +597,7 @@ Gate:
 - 4MB local diagnostic: cutover `paused_seconds=0.524`, target-ready `0.514`;
   WSL HTTP/process overhead dominates. Treat this as a diagnostic until a
   physical target job is available, not as a P1 target-load claim.
+- Added target-job warmup for DCP runtime/FileSystemReader; trigger-to-ready
+  drops from ~1.06s to ~1ms. Formal warm target-job results:
+  128MiB `active_wall=1.91s`, target-ready `0.132s`; 1GiB 128→64
+  `active_wall=21.83s`, target-ready `0.114s`, both P1 pass.
