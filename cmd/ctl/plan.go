@@ -10,6 +10,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	shardferryv1 "github.com/shardferry/shardferry/api/v1"
 	"github.com/shardferry/shardferry/internal/agentclient"
 	"github.com/shardferry/shardferry/internal/clusterclient"
 	"github.com/shardferry/shardferry/internal/controller"
@@ -40,6 +41,9 @@ func executePlan(
 	}
 	if err := validateProductMigration(migration); err != nil {
 		return fmt.Errorf("invalid migration: %w", err)
+	}
+	if migration.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit {
+		return writeLivePlan(out, jsonOut, migration)
 	}
 	token := os.Getenv("SHARDFERRY_AGENT_TOKEN")
 	if token == "" {
@@ -150,6 +154,70 @@ type planSummary struct {
 	RangeReads  int64    `json:"rangeReads"`
 	MaxFanIn    int64    `json:"maxFanIn"`
 	TargetRoots []string `json:"targetRoots"`
+}
+
+type livePlanSummary struct {
+	Name           string   `json:"name"`
+	Namespace      string   `json:"namespace"`
+	Mode           string   `json:"mode"`
+	HandoffURL     string   `json:"handoffEndpoint"`
+	MaxInFlight    int32    `json:"maxInFlight"`
+	StateMode      string   `json:"stateMode"`
+	StateRoot      string   `json:"stateRoot"`
+	Quorum         int32    `json:"quorum"`
+	RankPlan       string   `json:"rankPlan,omitempty"`
+	StateProviders []string `json:"stateProviders,omitempty"`
+}
+
+func writeLivePlan(
+	out io.Writer,
+	jsonOut bool,
+	migration *shardferryv1.CheckpointMigration,
+) error {
+	live := migration.Spec.Live
+	if live == nil {
+		return fmt.Errorf("live-rank-split spec is missing")
+	}
+	rankPlan := ""
+	if live.RankPlan != nil {
+		rankPlan = fmt.Sprintf(
+			"tp=%d pp=%d ranks=%v",
+			live.RankPlan.TP,
+			live.RankPlan.PP,
+			live.RankPlan.Ranks,
+		)
+	}
+	summary := livePlanSummary{
+		Name:           migration.Name,
+		Namespace:      migration.Namespace,
+		Mode:           shardferryv1.MigrationModeLiveRankSplit,
+		HandoffURL:     live.HandoffEndpoint,
+		MaxInFlight:    live.MaxInFlight,
+		StateMode:      live.StateMode,
+		StateRoot:      live.StateRoot,
+		Quorum:         live.Cutover.Quorum,
+		RankPlan:       rankPlan,
+		StateProviders: live.StateProviders,
+	}
+	if jsonOut {
+		return writeJSON(out, summary)
+	}
+	fmt.Fprintf(out, "Name:           %s\n", summary.Name)
+	fmt.Fprintf(out, "Namespace:      %s\n", summary.Namespace)
+	fmt.Fprintf(out, "Mode:           %s\n", summary.Mode)
+	fmt.Fprintf(out, "Handoff:        %s\n", emptyDash(summary.HandoffURL))
+	fmt.Fprintf(out, "Max in flight:  %d\n", summary.MaxInFlight)
+	fmt.Fprintf(out, "State mode:     %s\n", summary.StateMode)
+	fmt.Fprintf(out, "State root:     %s\n", summary.StateRoot)
+	fmt.Fprintf(out, "Quorum:         %d\n", summary.Quorum)
+	if summary.RankPlan != "" {
+		fmt.Fprintf(out, "Rank plan:      %s\n", summary.RankPlan)
+	}
+	if len(summary.StateProviders) > 0 {
+		fmt.Fprintf(out, "State providers: %s\n", strings.Join(summary.StateProviders, ","))
+	}
+	fmt.Fprintln(out, "Plan:           delegated to live executor (POST /v1/live/reconcile)")
+	return nil
 }
 
 func writePlanSummary(out io.Writer, summary planSummary) error {

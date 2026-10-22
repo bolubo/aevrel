@@ -241,6 +241,42 @@ func TestLiveRankSplitExampleIsValid(t *testing.T) {
 	}
 }
 
+func TestLiveRankSplitPlanIsProductSummary(t *testing.T) {
+	path := filepath.Join(
+		"..",
+		"..",
+		"examples",
+		"live-rank-split",
+		"migration.yaml",
+	)
+	scheme := runtime.NewScheme()
+	if err := shardferryv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	var output bytes.Buffer
+	if err := execute(
+		context.Background(),
+		kubeClient,
+		"default",
+		false,
+		[]string{"plan", "-f", path},
+		&output,
+	); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Mode:           live-rank-split",
+		"Handoff:        http://lrs-handoff.live.svc:9460",
+		"Max in flight:  1",
+		"Plan:           delegated to live executor",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("plan missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
 func TestParseGlobalAcceptsFlagsAfterCommand(t *testing.T) {
 	namespace, jsonOut, args, err := parseGlobal(
 		[]string{"migrate", "-f", "migration.yaml", "--json", "-n", "team-a"},

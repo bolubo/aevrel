@@ -40,6 +40,7 @@ func executePreflight(
 	if err := validateProductMigration(migration); err != nil {
 		return fmt.Errorf("invalid migration: %w", err)
 	}
+	liveMode := migration.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit
 	token := os.Getenv("SHARDFERRY_AGENT_TOKEN")
 	needsSourceProbe := migration.Spec.Source.AgentSelector != nil ||
 		migration.Spec.Source.ClusterRef != ""
@@ -75,9 +76,11 @@ func executePreflight(
 	}
 	var sourceBytes int64
 	if needsSourceProbe {
-		orchestrator := &controller.Orchestrator{Agents: agents}
-		if _, err := orchestrator.InstallSourceMetadata(ctx, resolved); err != nil {
-			return fmt.Errorf("preflight source metadata: %w", err)
+		if !liveMode {
+			orchestrator := &controller.Orchestrator{Agents: agents}
+			if _, err := orchestrator.InstallSourceMetadata(ctx, resolved); err != nil {
+				return fmt.Errorf("preflight source metadata: %w", err)
+			}
 		}
 		for _, entry := range resolved.Spec.Source.RankMap {
 			inventory, err := agents.Inventory(ctx, entry.Endpoint, entry.Rank)
@@ -104,7 +107,7 @@ func executePreflight(
 			}
 		}
 	}
-	if needsTargetProbe {
+	if needsTargetProbe && !liveMode {
 		checked := make(map[string]struct{})
 		for _, entry := range resolved.Spec.Target.RankMap {
 			if _, ok := checked[entry.Endpoint]; ok {
@@ -153,10 +156,11 @@ func executePreflight(
 		migration.Spec.Target.ClusterRef,
 	)
 	if jsonOut {
-		return writeJSON(out, map[string]any{
+		result := map[string]any{
 			"status":       "ok",
 			"name":         resolved.Name,
 			"namespace":    resolved.Namespace,
+			"mode":         migration.Spec.Mode,
 			"source_ranks": sourceRanks,
 			"target_ranks": targetRanks,
 			"source":       resolved.Spec.Source.RankMap,
@@ -165,13 +169,23 @@ func executePreflight(
 				"source": sourceCluster,
 				"target": targetCluster,
 			},
-		})
+		}
+		if liveMode && migration.Spec.Live != nil {
+			result["live"] = map[string]any{
+				"handoffEndpoint": migration.Spec.Live.HandoffEndpoint,
+				"maxInFlight":     migration.Spec.Live.MaxInFlight,
+				"stateMode":       migration.Spec.Live.StateMode,
+				"quorum":          migration.Spec.Live.Cutover.Quorum,
+			}
+		}
+		return writeJSON(out, result)
 	}
 	fmt.Fprintf(
 		out,
-		"preflight ok: %s/%s\nsource ranks: %d\ntarget ranks: %d\n",
+		"preflight ok: %s/%s\nmode: %s\nsource ranks: %d\ntarget ranks: %d\n",
 		resolved.Namespace,
 		resolved.Name,
+		migration.Spec.Mode,
 		sourceRanks,
 		targetRanks,
 	)

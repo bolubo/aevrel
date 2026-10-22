@@ -565,13 +565,18 @@ func writeTable(
 ) error {
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	defer writer.Flush()
-	fmt.Fprintln(writer, "NAME\tPHASE\tTARGET\tSTAGED\tCOMMITTED\tFAILED\tAGE")
+	fmt.Fprintln(writer, "NAME\tMODE\tPHASE\tTARGET\tSTAGED\tCOMMITTED\tFAILED\tAGE")
 	for index := range migrations {
 		migration := &migrations[index]
+		mode := migration.Spec.Mode
+		if mode == "" {
+			mode = shardferryv1.MigrationModeStatic
+		}
 		fmt.Fprintf(
 			writer,
-			"%s\t%s\t%d\t%d\t%d\t%d\t%s\n",
+			"%s\t%s\t%s\t%d\t%d\t%d\t%d\t%s\n",
 			migration.Name,
+			mode,
 			migration.Status.Phase,
 			migration.Spec.Target.WorldSize,
 			migration.Status.Counts.Staged,

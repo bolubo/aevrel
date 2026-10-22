@@ -413,6 +413,17 @@ func waitForMigration(
 				current.Status.Counts.Committed,
 				current.Status.Counts.Failed,
 			)
+			if live := current.Status.Live; live != nil {
+				fmt.Fprintf(
+					out,
+					"live=%s inFlight=%v coverage=%v quorum=%d stateComplete=%t\n",
+					emptyDash(live.CutoverPhase),
+					live.InFlight,
+					live.Coverage,
+					live.Quorum,
+					live.StateComplete,
+				)
+			}
 			lastPhase = current.Status.Phase
 		}
 		switch current.Status.Phase {
