@@ -19,22 +19,22 @@ from urllib.parse import quote
 
 import yaml
 
-from . import __version__
-from .defaults import (
+from .. import __version__
+from ..defaults import (
     DEFAULT_MIGRATED_SUFFIX,
     DEFAULT_SOURCE_PLACEMENTS,
     DEFAULT_TARGET_PLACEMENTS,
     DEFAULT_WORK_SUFFIX,
 )
-from .dcp_range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
-from .executor import apply as execute_plan
-from .identity import source_id
-from .layout import DTYPE_BYTES, local_region
-from .manifest import validate_spec
-from .mesh import parse_mesh
-from .planner import plan as build_plan
-from .storage.file import FileStorage
-from .targets import target_file_path
+from .range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
+from ..executor import apply as execute_plan
+from ..identity import source_id
+from ..layout import DTYPE_BYTES, local_region
+from ..manifest import validate_spec
+from ..mesh import parse_mesh
+from ..planner import plan as build_plan
+from ..storage.file import FileStorage
+from ..targets import target_file_path
 
 
 class DcpError(RuntimeError):
@@ -913,7 +913,7 @@ def migrate_dcp(
     if output_path.exists() and any(output_path.iterdir()) and not force:
         raise DcpError(f"output DCP directory is not empty: {output_path}")
     notify("reading DCP metadata and indexing local shards")
-    from .dcp_local import build_local_range_spec
+    from .local import build_local_range_spec
 
     spec = build_local_range_spec(
         checkpoint_path,

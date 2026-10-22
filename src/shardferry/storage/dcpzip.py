@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-from ..dcp_range import DcpRangeError, ZipTensorRange
+from ..dcp.range import DcpRangeError, ZipTensorRange
 from .file import StorageError
 
 

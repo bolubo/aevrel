@@ -45,6 +45,9 @@ src/shardferry/
 已开始的第一小步：`target_load` 和 `support_bundle` 已放入
 `src/shardferry/commands/`。
 
+第二步已完成：`dcp.py`、`dcp_range.py`、`dcp_local.py`、`dcp_provider.py`
+已收进 `src/shardferry/dcp/`；旧导入路径保留兼容 shim。
+
 ## 迁移规则
 
 - 一次只搬一个包，行为不变；

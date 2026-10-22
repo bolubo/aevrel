@@ -100,7 +100,7 @@ def test_inventory_does_not_require_torch_chunk_deserialization(
         raise AssertionError("inventory must not deserialize a DCP chunk")
 
     monkeypatch.setattr(
-        "shardferry.dcp._read_storage_tensor",
+        "shardferry.dcp.checkpoint._read_storage_tensor",
         fail_deserialize,
     )
     inventory, refs = inventory_dcp(checkpoint, 0)
