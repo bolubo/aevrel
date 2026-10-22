@@ -172,6 +172,26 @@ spec:
 	}
 }
 
+func TestTargetReadyExampleIsValid(t *testing.T) {
+	path := filepath.Join(
+		"..",
+		"..",
+		"examples",
+		"target-ready",
+		"migration.yaml",
+	)
+	migration, err := loadMigration(path, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migration.Spec.Target.Validation == nil {
+		t.Fatal("example does not configure target validation")
+	}
+	if err := validateProductMigration(migration); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestParseGlobalAcceptsFlagsAfterCommand(t *testing.T) {
 	namespace, jsonOut, args, err := parseGlobal(
 		[]string{"migrate", "-f", "migration.yaml", "--json", "-n", "team-a"},

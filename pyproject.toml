@@ -40,6 +40,7 @@ dcp = [
 [project.scripts]
 shardferry = "shardferry.cli:main"
 shardferry-target-load = "shardferry.commands.target_load:main"
+shardferry-target-report = "shardferry.commands.target_report:main"
 shardferry-support-bundle = "shardferry.commands.support_bundle:main"
 
 [project.urls]

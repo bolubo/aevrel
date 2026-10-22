@@ -14,6 +14,12 @@ from .target_ready import (
     TargetReadyChain,
     TargetReadyError,
 )
+from .target_report import (
+    TargetReadyReport,
+    TargetReportError,
+    load_target_ready_report,
+    write_target_ready_report,
+)
 from .verify import VerificationError, verify
 
 __all__ = [
@@ -23,10 +29,14 @@ __all__ = [
     "ProofError",
     "TargetReadyChain",
     "TargetReadyError",
+    "TargetReadyReport",
+    "TargetReportError",
     "VerificationError",
     "build_proof",
     "combine_proofs",
+    "load_target_ready_report",
     "validate_proof",
     "verify",
     "verify_proof",
+    "write_target_ready_report",
 ]

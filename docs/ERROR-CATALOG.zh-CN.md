@@ -32,6 +32,18 @@
 | `VERIFY_FAILED` | target 校验不通过 | 保留 staging/report；不要 commit 或手工复制文件；收集 support bundle |
 | `COMMIT_INCOMPLETE` | commit 中途失败 | 只走 repair，不要重新做全量 transfer；先看 report 和 rank |
 
+## target-ready
+
+| code | 用户看到的含义 | 下一步 |
+|---|---|---|
+| `Incomplete` | target rank 报告缺失或重复 | 确认 Indexed Job 的 completions/parallelism 等于 worldSize；看 Pod 是否都 Succeeded |
+| `LoadFailed` | 某 rank 模型或优化器加载失败 | 检查 DCP world size、模型代码、优化器状态和 `state_dict` 名称 |
+| `StepFailed` | 某 rank 没跑够配置的 N step | 看训练日志；确认 validation.steps 与脚本实际步数一致 |
+| `VersionMismatch` | rank 报告的 checkpoint version 不一致 | 检查 `SHARDFERRY_VERSION`、旧 Pod 报告和迁移版本 |
+| `InvalidReport` | 报告 JSON 损坏、字段未知或 rank 冲突 | 用 `shardferry-target-report` 重新生成；不要手写不完整 JSON |
+| `JobFailed` / `Timeout` | target validation Job 失败或超时 | 查看 Job/Pod 日志；确认镜像、GPU、挂载和 timeoutSeconds |
+| `ProofPublishFailed` | target-ready proof 无法写 artifact store | 检查 controller PVC/目录和 artifact 服务；不要手工改 status 冒充成功 |
+
 ## network / control
 
 | code | 用户看到的含义 | 下一步 |

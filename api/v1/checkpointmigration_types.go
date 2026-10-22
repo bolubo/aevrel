@@ -11,6 +11,8 @@ const (
 	MigrationPhaseTransferring     = "transferring"
 	MigrationPhaseCommitPending    = "commit-pending"
 	MigrationPhaseCommitting       = "committing"
+	MigrationPhaseTargetValidating = "target-validating"
+	MigrationPhaseTargetFailed     = "target-failed"
 	MigrationPhaseSucceeded        = "succeeded"
 	MigrationPhaseFailed           = "failed"
 	MigrationPhaseCancelled        = "cancelled"
@@ -31,6 +33,29 @@ type MeshSpec struct {
 	Shape []int32 `json:"shape"`
 	// +kubebuilder:validation:MinItems=1
 	Placements []string `json:"placements"`
+}
+
+// TargetValidationSpec describes the target training workload used to prove
+// that the committed checkpoint can actually be loaded and resumed.
+type TargetValidationSpec struct {
+	// Version is the checkpoint version/step the target must load.
+	// +kubebuilder:validation:MinLength=1
+	Version string `json:"version"`
+	// Steps is the minimum number of training steps every target rank must run.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=10
+	Steps int32 `json:"steps,omitempty"`
+	// TimeoutSeconds bounds the validation Job lifetime.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=600
+	TimeoutSeconds int64 `json:"timeoutSeconds,omitempty"`
+	// JobName observes an existing Job instead of creating one from JobTemplate.
+	JobName string `json:"jobName,omitempty"`
+	// JobTemplate is a batch/v1 Job with one Indexed Pod per target rank.
+	// shardferry injects the checkpoint and report contract into every
+	// container before creating it.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	JobTemplate *runtime.RawExtension `json:"jobTemplate,omitempty"`
 }
 
 // RankEndpoint maps one rank to an agent endpoint.
@@ -106,7 +131,8 @@ type TargetSpec struct {
 	RankMap       []RankEndpoint `json:"rankMap,omitempty"`
 	AgentSelector *AgentSelector `json:"agentSelector,omitempty"`
 	// +kubebuilder:validation:MinLength=1
-	RootTemplate string `json:"rootTemplate"`
+	RootTemplate string                `json:"rootTemplate"`
+	Validation   *TargetValidationSpec `json:"validation,omitempty"`
 }
 
 // PolicySpec describes migration safety and concurrency policy.
@@ -160,9 +186,41 @@ type RankStatus struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// TargetReadyRankStatus is the observed target validation state of one rank.
+type TargetReadyRankStatus struct {
+	Rank            int32  `json:"rank"`
+	ModelLoaded     bool   `json:"modelLoaded"`
+	OptimizerLoaded bool   `json:"optimizerLoaded"`
+	StepsRan        int32  `json:"stepsRan"`
+	StateComplete   bool   `json:"stateComplete"`
+	OK              bool   `json:"ok"`
+	Error           string `json:"error,omitempty"`
+}
+
+// TargetReadyStatus proves whether the target workload loaded the committed
+// checkpoint and continued training for the required number of steps.
+type TargetReadyStatus struct {
+	// +kubebuilder:validation:Enum=Pending;Ready;LoadFailed;StepFailed;VersionMismatch;Timeout;JobFailed;Incomplete;InvalidJob;InvalidReport;Unsupported;ProofPublishFailed
+	Condition            string                  `json:"condition,omitempty"`
+	Ready                bool                    `json:"ready"`
+	Version              string                  `json:"version,omitempty"`
+	RanksReady           int32                   `json:"ranksReady"`
+	RanksTotal           int32                   `json:"ranksTotal"`
+	StepsRan             int32                   `json:"stepsRan"`
+	StateComplete        bool                    `json:"stateComplete"`
+	DurationMilliseconds int64                   `json:"durationMilliseconds,omitempty"`
+	JobName              string                  `json:"jobName,omitempty"`
+	ProofRef             string                  `json:"proofRef,omitempty"`
+	ProofHash            string                  `json:"proofHash,omitempty"`
+	Message              string                  `json:"message,omitempty"`
+	StartedAt            string                  `json:"startedAt,omitempty"`
+	CompletedAt          string                  `json:"completedAt,omitempty"`
+	Ranks                []TargetReadyRankStatus `json:"ranks,omitempty"`
+}
+
 // CheckpointMigrationStatus is the observed migration state.
 type CheckpointMigrationStatus struct {
-	// +kubebuilder:validation:Enum=pending;preparing;transferring;commit-pending;committing;succeeded;failed;cancelled;commit-incomplete
+	// +kubebuilder:validation:Enum=pending;preparing;transferring;commit-pending;committing;target-validating;target-failed;succeeded;failed;cancelled;commit-incomplete
 	Phase    string `json:"phase,omitempty"`
 	PlanRef  string `json:"planRef,omitempty"`
 	PlanHash string `json:"planHash,omitempty"`
@@ -178,6 +236,7 @@ type CheckpointMigrationStatus struct {
 	FailedRanks  []int32            `json:"failedRanks,omitempty"`
 	StartedAt    string             `json:"startedAt,omitempty"`
 	CompletedAt  string             `json:"completedAt,omitempty"`
+	TargetReady  *TargetReadyStatus `json:"targetReady,omitempty"`
 	Conditions   []metav1.Condition `json:"conditions,omitempty"`
 }
 

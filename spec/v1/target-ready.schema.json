@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/v1/target-ready.json",
+  "title": "TargetReady",
+  "oneOf": [
+    { "$ref": "#/$defs/rankReport" },
+    { "$ref": "#/$defs/aggregate" }
+  ],
+  "$defs": {
+    "rankReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "migrationUID",
+        "version",
+        "rank",
+        "role",
+        "modelLoaded",
+        "optimizerLoaded",
+        "stepsRan",
+        "stateComplete",
+        "ok",
+        "error"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "1" },
+        "migrationUID": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "rank": { "type": "integer", "minimum": 0 },
+        "role": { "type": "string", "minLength": 1 },
+        "modelLoaded": { "type": "boolean" },
+        "optimizerLoaded": { "type": "boolean" },
+        "stepsRan": { "type": "integer", "minimum": 0 },
+        "stateComplete": { "type": "boolean" },
+        "ok": { "type": "boolean" },
+        "error": { "type": "string" }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "migrationUID",
+        "version",
+        "ready",
+        "condition",
+        "message",
+        "ranksReady",
+        "ranksTotal",
+        "stepsRan",
+        "stateComplete",
+        "completedAt",
+        "reports"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "1" },
+        "migrationUID": { "type": "string", "minLength": 1 },
+        "version": { "type": "string" },
+        "ready": { "type": "boolean" },
+        "condition": {
+          "type": "string",
+          "enum": [
+            "Ready",
+            "LoadFailed",
+            "StepFailed",
+            "VersionMismatch",
+            "Timeout",
+            "JobFailed",
+            "Incomplete",
+            "InvalidJob",
+            "InvalidReport",
+            "Unsupported",
+            "ProofPublishFailed"
+          ]
+        },
+        "message": { "type": "string" },
+        "ranksReady": { "type": "integer", "minimum": 0 },
+        "ranksTotal": { "type": "integer", "minimum": 0 },
+        "stepsRan": { "type": "integer", "minimum": 0 },
+        "stateComplete": { "type": "boolean" },
+        "durationMilliseconds": { "type": "integer", "minimum": 0 },
+        "jobName": { "type": "string" },
+        "startedAt": { "type": "string" },
+        "completedAt": { "type": "string", "minLength": 1 },
+        "missingRanks": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "reports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/rankReport" }
+        }
+      }
+    }
+  }
+}

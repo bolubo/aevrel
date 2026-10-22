@@ -617,12 +617,41 @@ func writeDescribe(
 	fmt.Fprintf(out, "Report:     %s\n", emptyDash(migration.Status.ReportRef))
 	fmt.Fprintf(out, "Proof:      %s\n", emptyDash(migration.Status.ProofRef))
 	fmt.Fprintf(out, "Proof hash: %s\n", emptyDash(migration.Status.ProofHash))
+	if target := migration.Status.TargetReady; target != nil {
+		fmt.Fprintf(
+			out,
+			"TargetReady: ready=%t condition=%s version=%s ranks=%d/%d steps=%d stateComplete=%t durationMs=%d\n",
+			target.Ready,
+			emptyDash(target.Condition),
+			emptyDash(target.Version),
+			target.RanksReady,
+			target.RanksTotal,
+			target.StepsRan,
+			target.StateComplete,
+			target.DurationMilliseconds,
+		)
+		fmt.Fprintf(
+			out,
+			"Target proof: %s (%s)\n",
+			emptyDash(target.ProofRef),
+			emptyDash(target.ProofHash),
+		)
+	}
 	if len(migration.Status.FailedRanks) > 0 {
 		fmt.Fprintf(out, "FailedRanks: %v\n", migration.Status.FailedRanks)
 	}
 	if showRanks {
 		if err := writeRankTable(out, migration.Status.Ranks); err != nil {
 			return err
+		}
+		if migration.Status.TargetReady != nil &&
+			len(migration.Status.TargetReady.Ranks) > 0 {
+			if err := writeTargetRankTable(
+				out,
+				migration.Status.TargetReady.Ranks,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	for _, condition := range migration.Status.Conditions {
@@ -650,6 +679,32 @@ func writeRankTable(out io.Writer, ranks []shardferryv1.RankStatus) error {
 			rank.Phase,
 			emptyDash(rank.TaskID),
 			rank.Attempts,
+			emptyDash(rank.Error),
+		)
+	}
+	return nil
+}
+
+func writeTargetRankTable(
+	out io.Writer,
+	ranks []shardferryv1.TargetReadyRankStatus,
+) error {
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	defer writer.Flush()
+	fmt.Fprintln(
+		writer,
+		"TARGET_RANK\tMODEL\tOPTIMIZER\tSTEPS\tSTATE_COMPLETE\tOK\tERROR",
+	)
+	for _, rank := range ranks {
+		fmt.Fprintf(
+			writer,
+			"%d\t%t\t%t\t%d\t%t\t%t\t%s\n",
+			rank.Rank,
+			rank.ModelLoaded,
+			rank.OptimizerLoaded,
+			rank.StepsRan,
+			rank.StateComplete,
+			rank.OK,
 			emptyDash(rank.Error),
 		)
 	}
