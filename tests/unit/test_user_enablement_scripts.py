@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import gpu_acceptance  # noqa: E402
+import support_bundle  # noqa: E402
+import target_load_smoke  # noqa: E402
+
+
+def test_redact_text_removes_common_credentials() -> None:
+    sample = (
+        "token: abc123\n"
+        "password = hunter2\n"
+        "Authorization: Bearer secret\n"
+        '{"api_key":"json-secret"}\n'
+        "safe=ok\n"
+    )
+    redacted = support_bundle.redact_text(sample)
+    assert "abc123" not in redacted
+    assert "hunter2" not in redacted
+    assert "json-secret" not in redacted
+    assert "secret\n" not in redacted
+    assert "safe=ok" in redacted
+
+
+@pytest.mark.skipif(
+    not (ROOT / "scripts" / "gpu_acceptance.py").is_file(),
+    reason="GPU acceptance script is not packaged",
+)
+def test_gpu_acceptance_dry_run(tmp_path: Path) -> None:
+    work = tmp_path / "gpu"
+    assert (
+        gpu_acceptance.main(
+            [
+                "--dry-run",
+                "--work-dir",
+                str(work),
+                "--source-gpus",
+                "4",
+                "--target-gpus",
+                "2",
+            ]
+        )
+        == 0
+    )
+    report = json.loads((work / "gpu-acceptance.json").read_text())
+    assert report["status"] == "dry-run"
+    assert [step["name"] for step in report["steps"]] == [
+        "source_save",
+        "migrate",
+        "target_load",
+    ]
+
+
+def test_target_load_smoke_rejects_missing_metadata(tmp_path: Path) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert (
+        target_load_smoke.main(
+            [
+                "--checkpoint",
+                str(empty),
+                "--json",
+            ]
+        )
+        == 2
+    )
+
+
+def test_target_load_smoke_loads_generated_dcp(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pytest.importorskip("torch")
+    from shardferry.dcp import export_dcp
+    from shardferry.executor import apply
+    from shardferry.planner import plan
+    from tests.fixtures.generated import (
+        generate_sharded_spec,
+        materialize_source_files,
+    )
+
+    spec, arrays, _ = generate_sharded_spec(
+        (8, 4),
+        (2, 2),
+        ("Shard(0)", "Shard(1)"),
+        (2,),
+        ("Shard(0)",),
+    )
+    materialize_source_files(spec, arrays, tmp_path / "work")
+    apply(plan(spec), spec)
+    checkpoint = tmp_path / "target.dcp"
+    export_dcp(spec, checkpoint)
+
+    assert (
+        target_load_smoke.main(
+            [
+                "--checkpoint",
+                str(checkpoint),
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    assert payload["tensors"] == 1
+    assert payload["mode"] == "full"
+
+
+def test_target_load_smoke_loads_rank_local_dcp(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pytest.importorskip("torch")
+    from shardferry.dcp import export_dcp_local
+    from shardferry.executor import apply
+    from shardferry.planner import plan
+    from tests.fixtures.generated import (
+        generate_sharded_spec,
+        materialize_source_files,
+    )
+
+    spec, arrays, _ = generate_sharded_spec(
+        (8, 4),
+        (4,),
+        ("Shard(0)",),
+        (2,),
+        ("Shard(0)",),
+    )
+    materialize_source_files(spec, arrays, tmp_path)
+    apply(plan(spec), spec)
+    local = tmp_path / "rank0.dcp"
+    export_dcp_local(
+        spec,
+        local,
+        raw_root=tmp_path / "target",
+        ranks=(0,),
+    )
+
+    assert (
+        target_load_smoke.main(
+            [
+                "--checkpoint",
+                str(local),
+                "--metadata-dir",
+                str(local),
+                "--rank",
+                "0",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    assert payload["mode"] == "rank-local"

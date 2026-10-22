@@ -17,10 +17,26 @@ GPU 还没有接入前先准备好，GPU 会话只做验证，不做探索。
 - `scripts/gpu_source_save.py`：4-rank FSDP + AdamW 保存 DCP。
 - `scripts/gpu_target_load.py`：目标 rank 数加载 DCP，恢复 model/optimizer，
   对固定输入做 forward 对比。
+- `scripts/gpu_acceptance.py`：一次性编排 source save、迁移、target load，
+  输出 `gpu-acceptance.json`；默认 4→2，可改 rank 数。
 
 两个脚本在没有 CUDA 时会明确退出，不会误跑 CPU。
 
 ## 正常流程
+
+### 一次性验收（推荐）
+
+只在 owner 批准 GPU 费用后运行：
+
+```bash
+python scripts/gpu_acceptance.py \
+  --work-dir /data/sf-gpu-acceptance \
+  --source-gpus 4 \
+  --target-gpus 2
+```
+
+它会依次执行 source save、migrate、target load，并检查 source 目录摘要前后
+不变。失败会保留 `logs/` 和报告，不需要重复全部实验。
 
 ### GPU 机器 source
 
