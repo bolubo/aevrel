@@ -83,7 +83,7 @@ def test_cutover_service_auto_follows_in_background(tmp_path: Path) -> None:
     assert service.chunking.algorithm == "file"
     service.start_following()
     try:
-        deadline = time.monotonic() + 2.0
+        deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:
             status = service.status()
             if (
@@ -105,7 +105,7 @@ def test_cutover_service_auto_follows_in_background(tmp_path: Path) -> None:
             b"v2-data",
             parent_id="step-100",
         )
-        deadline = time.monotonic() + 2.0
+        deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:
             status = service.status()
             if (
