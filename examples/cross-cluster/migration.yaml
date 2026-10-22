@@ -21,7 +21,7 @@ spec:
         app.kubernetes.io/name: shardferry
         app.kubernetes.io/component: source
       port: 9443
-      scheme: http
+      scheme: https
   target:
     clusterRef: target
     worldSize: 8
@@ -35,7 +35,7 @@ spec:
         app.kubernetes.io/name: shardferry
         app.kubernetes.io/component: target
       port: 9444
-      scheme: http
+      scheme: https
   policy:
     verify: bitwise
     commit: all-or-nothing

@@ -19,8 +19,11 @@ helm upgrade --install shardferry-control deploy/helm/shardferry \
   -n shardferry-control --create-namespace \
   --set source.enabled=false \
   --set target.enabled=false \
+  --set tls.enabled=true \
+  --set tls.controllerSecretName=shardferry-tls \
+  --set tls.agentSecretName=shardferry-tls \
   --set controller.serviceType=LoadBalancer \
-  --set controller.artifactPublicURL=http://CONTROL_ARTIFACT_HOST:8082
+  --set controller.artifactPublicURL=https://CONTROL_ARTIFACT_HOST:8082
 ```
 
 source 集群：
@@ -30,12 +33,14 @@ helm upgrade --install shardferry deploy/helm/shardferry \
   -n shardferry --create-namespace \
   --set controller.enabled=false \
   --set gateway.enabled=true \
-  --set gateway.publicURL=http://SOURCE_GATEWAY_HOST:9445 \
+  --set gateway.publicURL=https://SOURCE_GATEWAY_HOST:9445 \
   --set gateway.serviceType=LoadBalancer \
-  --set tls.enabled=false \
+  --set tls.enabled=true \
+  --set tls.controllerSecretName=shardferry-tls \
+  --set tls.agentSecretName=shardferry-tls \
   --set source.enabled=true \
   --set target.enabled=false \
-  --set controller.artifactPublicURL=http://CONTROL_ARTIFACT_HOST:8082
+  --set controller.artifactPublicURL=https://CONTROL_ARTIFACT_HOST:8082
 ```
 
 target 集群把 `source.enabled` 和 `target.enabled` 对调，并设置 target 的
@@ -44,14 +49,16 @@ checkpoint hostPath。
 如果使用 chart 自带的 source agent，还要让它返回 gateway 可达的 shard URL：
 
 ```bash
-  --set source.publicURL='http://SOURCE_GATEWAY_HOST:9445/v1/agents/{pod}'
+  --set source.publicURL='https://SOURCE_GATEWAY_HOST:9445/v1/agents/{pod}'
 ```
 
 agent 会在运行时展开 `{pod}`；这是为了让 target agent 通过 gateway
 读取 source shard，而不是直接访问 source Pod IP。
 
-P0 alpha 先走 token + 可信网络，source/target agent 与 gateway 都关闭 TLS；
-mTLS 是下一轮硬化项。
+生产方向使用 mTLS：controller、gateway、source/target agent 使用同一 CA，
+gateway 校验客户端证书，agent 数据面也走 mTLS。示例需要提供包含
+`ca.crt`、`tls.crt`、`tls.key` 的 Secret，证书 SAN 覆盖 gateway endpoint、
+agent 节点 IP 和 artifact endpoint。
 
 ## 注册和迁移
 
@@ -59,6 +66,9 @@ mTLS 是下一轮硬化项。
 
 ```bash
 export SHARDFERRY_AGENT_TOKEN='replace-with-the-agent-token'
+export SHARDFERRY_TLS_CA=/path/to/ca.crt
+export SHARDFERRY_TLS_CERT=/path/to/tls.crt
+export SHARDFERRY_TLS_KEY=/path/to/tls.key
 kubectl --context management apply -f clusters.yaml
 kubectl --context management -n shardferry-control get shardferryclusters -o wide
 shardferryctl preflight -f migration.yaml --json
@@ -69,14 +79,25 @@ shardferryctl migrate -f migration.yaml --wait
 agent capabilities；不是只检查 YAML。JSON 输出里的 `clusters` 会显示
 gateway 的 `ready/version/lastSeen`。
 
-### P0 凭据简化
+### 凭据模型
 
-当前示例使用同一份 agent token 贯穿 gateway 和 agent，避免第一版引入
-per-cluster token 路由。`ShardferryCluster.secretRef` 的 token 必须与
-对应 gateway 的 `SHARDFERRY_GATEWAY_TOKEN` 一致；controller 的
-`SHARDFERRY_AGENT_TOKEN` 必须与 agent/gateway 的代理 token 一致。
+- `ShardferryCluster.secretRef` 的 token 是该集群 gateway token；
+- controller 按 gateway endpoint 绑定各自 token，不再依赖全局 gateway token；
+- `SHARDFERRY_AGENT_TOKEN` 只用于本地 agent 和 source shard 数据路径；
+- gateway 的 `/v1/shards/*` 允许 agent token，其他 proxy 路径要求本集群
+  gateway token。
 
-后续会把 gateway token、agent token 和每集群凭据拆开。
+当前 token 仍保留为应用层第二因子；mTLS 负责传输身份。
+
+### P0 live acceptance（2026-10-22）
+
+使用新的 cluster health/status controller 和 mTLS gateway 实际跑过：
+
+- `source` 和 `target` 的 `ShardferryCluster.status.ready=true`；
+- preflight：16/16 source ranks、8/8 target ranks；
+- `p0-live-16-to-8`：`phase=succeeded`，8/8 committed；
+- target 复制的 8 个 rank-local DCP 全部通过 `shardferry-target-load`；
+- 使用 per-cluster gateway token + mTLS，不依赖远程 Pod IP。
 
 ## 已验证（2026-10-22，两套 kind）
 
@@ -94,6 +115,10 @@ per-cluster token 路由。`ShardferryCluster.secretRef` 的 token 必须与
 - controller 重启后，已成功 migration 仍保持 `succeeded`，不会静默重跑。
 - 1GiB 迁移进行中重启 controller：从 execution snapshot 续跑，
   最终 `commit-pending → succeeded`，64/64 load，report/proof 完整。
+- per-cluster token：source/target 使用各自 gateway token，16→8 和 1GiB
+  controller 重启路径均通过；不再是单一全局 gateway token。
+- mTLS：controller/gateway/agent 使用同一 CA；16→8 全链路成功，target
+  8/8 load；无客户端证书访问受保护 resolve 返回 401，health 保持 200。
 
 这组 128→64 验证使用小 tensor/小 DCP 数据，只证明控制面和 rank 编排，
 不是 1GiB/10GiB 性能或真实 GPU 结论。

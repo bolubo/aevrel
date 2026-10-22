@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import prod
 from pathlib import Path
@@ -374,6 +375,9 @@ def build_agent_server(
         target_root: str | Path | None = None,
     public_url: str | None = None,
     max_cache_bytes: int = 512 * 1024 * 1024,
+    tls_cert: str | Path | None = None,
+    tls_key: str | Path | None = None,
+    tls_ca: str | Path | None = None,
 ) -> ThreadingHTTPServer:
     app = AgentApp(
         controller_token,
@@ -392,6 +396,18 @@ def build_agent_server(
     server = ThreadingHTTPServer((host, port), _make_handler(app))
     server.daemon_threads = True
     server.agent_app = app  # type: ignore[attr-defined]
+    if tls_cert or tls_key:
+        if not tls_cert or not tls_key:
+            raise AgentError("TLS cert and key are required together")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(str(tls_cert), str(tls_key))
+        if tls_ca:
+            context.load_verify_locations(str(tls_ca))
+            context.verify_mode = ssl.CERT_REQUIRED
+        server.socket = context.wrap_socket(
+            server.socket,
+            server_side=True,
+        )
     return server
 
 

@@ -72,4 +72,28 @@ gateway 只做本集群 agent 发现和反向代理。source/target agent 仍通
 `controller.artifactPublicURL` 获取 spec/plan；管理集群的 artifact Service
 需要让两个业务集群可达。
 
+## mTLS
+
+跨集群传输默认走 mTLS。准备一个 Secret：
+
+```bash
+kubectl -n shardferry create secret generic shardferry-tls \
+  --from-file=ca.crt=ca.crt \
+  --from-file=tls.crt=tls.crt \
+  --from-file=tls.key=tls.key
+```
+
+证书 SAN 必须覆盖 gateway 的 `publicURL`、agent 节点地址和 controller
+artifact endpoint。安装时设置：
+
+```bash
+--set tls.enabled=true \
+--set tls.controllerSecretName=shardferry-tls \
+--set tls.agentSecretName=shardferry-tls
+```
+
+gateway/controller 的 HTTPS probe、agent 出站 source shard TLS 和 artifact
+TLS 都使用同一套材料；CLI preflight 使用
+`SHARDFERRY_TLS_CA`、`SHARDFERRY_TLS_CERT`、`SHARDFERRY_TLS_KEY`。
+
 完整示例见 [`examples/cross-cluster/README.zh-CN.md`](../../../examples/cross-cluster/README.zh-CN.md)。

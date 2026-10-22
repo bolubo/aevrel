@@ -25,6 +25,7 @@ type ClusterInfoAPI interface {
 // preflight. It only probes the gateway; it does not discover ranks.
 type ClusterHealthReconciler struct {
 	client.Client
+	Reader       client.Reader
 	Clusters     ClusterInfoAPI
 	RequeueAfter time.Duration
 }
@@ -58,7 +59,11 @@ func (r *ClusterHealthReconciler) Reconcile(
 		Namespace: cluster.Namespace,
 		Name:      cluster.Spec.SecretRef.Name,
 	}
-	if err := r.Get(ctx, key, &secret); err != nil {
+	reader := r.Reader
+	if reader == nil {
+		reader = r.Client
+	}
+	if err := reader.Get(ctx, key, &secret); err != nil {
 		return ctrl.Result{RequeueAfter: requeue}, r.setStatus(
 			ctx,
 			&cluster,

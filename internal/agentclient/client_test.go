@@ -22,6 +22,17 @@ func newTestServer(handler http.Handler) *httptest.Server {
 	return server
 }
 
+func TestEndpointTokenOverridesGlobalToken(t *testing.T) {
+	client := New("global")
+	client.RegisterEndpointToken("https://gateway.example", "cluster")
+	if got := client.tokenFor("https://gateway.example/v1/agents/source"); got != "cluster" {
+		t.Fatalf("endpoint token = %q, want cluster", got)
+	}
+	if got := client.tokenFor("https://other.example/v1/ranks"); got != "global" {
+		t.Fatalf("fallback token = %q, want global", got)
+	}
+}
+
 func localIP() string {
 	connection, err := net.Dial("udp", "1.1.1.1:80")
 	if err != nil {

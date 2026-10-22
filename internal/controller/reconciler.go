@@ -25,6 +25,7 @@ type Reconciler struct {
 	Orchestrator       *Orchestrator
 	Runner             *execution.Runner
 	Preparer           *PreparationRunner
+	Resolver           *AgentResolver
 	Recorder           record.EventRecorder
 	Cutover            CutoverManager
 	CutoverAutoPromote bool
@@ -60,6 +61,18 @@ func (r *Reconciler) Reconcile(
 		migration.Status.ExecutionRef != "" &&
 		migration.Status.Phase != shardferryv1.MigrationPhaseSucceeded &&
 		migration.Status.Phase != shardferryv1.MigrationPhaseFailed {
+		if r.Resolver != nil {
+			if err := r.Resolver.EnsureTokens(ctx, &migration); err != nil {
+				return ctrl.Result{}, r.setStatus(
+					ctx,
+					&migration,
+					shardferryv1.MigrationPhaseFailed,
+					metav1.ConditionFalse,
+					"TokenRefreshFailed",
+					err.Error(),
+				)
+			}
+		}
 		run, err := r.Runner.Load(ctx, migration.Status.ExecutionRef)
 		if err != nil {
 			return ctrl.Result{}, r.setStatus(

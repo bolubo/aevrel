@@ -54,6 +54,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--migration", required=True)
     parser.add_argument("--shardferryctl", default="shardferryctl")
     parser.add_argument("--kubectl", default="kubectl")
+    parser.add_argument("--tls-ca", default="")
+    parser.add_argument("--tls-cert", default="")
+    parser.add_argument("--tls-key", default="")
     parser.add_argument("--wait", action="store_true")
     parser.add_argument("--output", default="live-acceptance.json")
     parser.add_argument("--dry-run", action="store_true")
@@ -77,6 +80,12 @@ def main(argv: list[str] | None = None) -> int:
     env = dict(os.environ)
     env["KUBECONFIG"] = str(Path(args.management_kubeconfig).expanduser())
     env.setdefault("SHARDFERRY_AGENT_TOKEN", os.environ.get("SHARDFERRY_AGENT_TOKEN", ""))
+    if args.tls_ca:
+        env["SHARDFERRY_TLS_CA"] = args.tls_ca
+    if args.tls_cert:
+        env["SHARDFERRY_TLS_CERT"] = args.tls_cert
+    if args.tls_key:
+        env["SHARDFERRY_TLS_KEY"] = args.tls_key
     report: dict[str, Any] = {
         "status": "running",
         "migration": str(migration),

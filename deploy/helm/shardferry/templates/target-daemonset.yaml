@@ -48,6 +48,14 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.agentToken.existingSecret }}
                   key: {{ .Values.agentToken.key }}
+            {{- if .Values.tls.enabled }}
+            - name: SHARDFERRY_TLS_CA
+              value: /tls/{{ .Values.tls.caKey }}
+            - name: SHARDFERRY_TLS_CERT
+              value: /tls/{{ .Values.tls.certKey }}
+            - name: SHARDFERRY_TLS_KEY
+              value: /tls/{{ .Values.tls.keyKey }}
+            {{- end }}
           ports:
             - name: agent
               containerPort: {{ .Values.target.port }}

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -108,15 +109,47 @@ func Retryable(err error) bool {
 }
 
 type Client struct {
-	HTTP  *http.Client
-	Token string
+	HTTP           *http.Client
+	Token          string
+	mu             sync.RWMutex
+	endpointTokens map[string]string
 }
 
 func New(token string) *Client {
 	return &Client{
-		HTTP:  &http.Client{Timeout: 30 * time.Second},
-		Token: token,
+		HTTP:           &http.Client{Timeout: 30 * time.Second},
+		Token:          token,
+		endpointTokens: make(map[string]string),
 	}
+}
+
+func (c *Client) RegisterEndpointToken(endpoint, token string) {
+	endpoint = strings.TrimRight(endpoint, "/")
+	if endpoint == "" || token == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.endpointTokens == nil {
+		c.endpointTokens = make(map[string]string)
+	}
+	c.endpointTokens[endpoint] = token
+}
+
+func (c *Client) tokenFor(endpoint string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	best := ""
+	token := c.Token
+	for base, candidate := range c.endpointTokens {
+		if endpoint == base || strings.HasPrefix(endpoint, base+"/") {
+			if len(base) > len(best) {
+				best = base
+				token = candidate
+			}
+		}
+	}
+	return token
 }
 
 func (c *Client) Inventory(
@@ -281,7 +314,7 @@ func (c *Client) do(
 	if err != nil {
 		return err
 	}
-	request.Header.Set("Authorization", "Bearer "+c.Token)
+	request.Header.Set("Authorization", "Bearer "+c.tokenFor(endpoint))
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}

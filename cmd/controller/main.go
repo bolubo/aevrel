@@ -182,12 +182,27 @@ func main() {
 		runner,
 		4,
 	)
-	preparer.SetResolver(&controller.AgentResolver{
+	clusterClient := clusterclient.New(agentToken)
+	if agentCA != "" || agentCert != "" || agentKey != "" {
+		clusterClient, err = clusterclient.NewWithTLS(
+			agentToken,
+			agentCA,
+			agentCert,
+			agentKey,
+		)
+		if err != nil {
+			ctrl.Log.Error(err, "configure cluster gateway TLS")
+			os.Exit(1)
+		}
+	}
+	resolver := &controller.AgentResolver{
 		Client:   mgr.GetClient(),
 		Reader:   mgr.GetAPIReader(),
 		Agents:   agents,
-		Clusters: clusterclient.New(agentToken),
-	})
+		Clusters: clusterClient,
+		Tokens:   agents,
+	}
+	preparer.SetResolver(resolver)
 	if err := mgr.Add(preparer); err != nil {
 		ctrl.Log.Error(err, "unable to add preparation runner")
 		os.Exit(1)
@@ -201,6 +216,7 @@ func main() {
 		Scheme:             mgr.GetScheme(),
 		Runner:             runner,
 		Preparer:           preparer,
+		Resolver:           resolver,
 		Orchestrator:       orchestrator,
 		Cutover:            cutover,
 		CutoverAutoPromote: cutoverAutoPromote,
@@ -211,7 +227,8 @@ func main() {
 	}
 	if err := (&controller.ClusterHealthReconciler{
 		Client:   mgr.GetClient(),
-		Clusters: clusterclient.New(agentToken),
+		Reader:   mgr.GetAPIReader(),
+		Clusters: clusterClient,
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create cluster health controller")
 		os.Exit(1)

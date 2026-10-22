@@ -22,7 +22,7 @@ metadata:
   namespace: shardferry-control
 spec:
   role: source
-  endpoint: http://SOURCE_GATEWAY_HOST:9445
+  endpoint: https://SOURCE_GATEWAY_HOST:9445
   secretRef:
     name: source-gateway-auth
     key: token
@@ -35,7 +35,7 @@ metadata:
   namespace: shardferry-control
 spec:
   role: target
-  endpoint: http://TARGET_GATEWAY_HOST:9445
+  endpoint: https://TARGET_GATEWAY_HOST:9445
   secretRef:
     name: target-gateway-auth
     key: token

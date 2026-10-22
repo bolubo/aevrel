@@ -31,6 +31,14 @@ spec:
             - --artifact-bind-address=:{{ .Values.controller.servicePort }}
             - --artifact-dir=/var/lib/shardferry/artifacts
             - --leader-elect=true
+            {{- if .Values.tls.enabled }}
+            - --agent-ca=/tls/{{ .Values.tls.caKey }}
+            - --agent-cert=/tls/{{ .Values.tls.certKey }}
+            - --agent-key=/tls/{{ .Values.tls.keyKey }}
+            - --artifact-tls-cert=/tls/{{ .Values.tls.certKey }}
+            - --artifact-tls-key=/tls/{{ .Values.tls.keyKey }}
+            - --artifact-tls-client-ca=/tls/{{ .Values.tls.caKey }}
+            {{- end }}
           env:
             - name: SHARDFERRY_AGENT_TOKEN
               valueFrom:
@@ -43,8 +51,18 @@ spec:
           volumeMounts:
             - name: artifacts
               mountPath: /var/lib/shardferry/artifacts
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
       volumes:
         - name: artifacts
           persistentVolumeClaim:
             claimName: {{ default (printf "%s-artifacts" (include "shardferry.fullname" .)) .Values.artifacts.existingClaim }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.controllerSecretName }}
+        {{- end }}
 {{- end }}

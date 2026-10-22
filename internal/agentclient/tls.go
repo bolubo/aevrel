@@ -26,7 +26,8 @@ func NewWithTLS(
 				TLSClientConfig: tlsConfig,
 			},
 		},
-		Token: token,
+		Token:          token,
+		endpointTokens: make(map[string]string),
 	}, nil
 }
 

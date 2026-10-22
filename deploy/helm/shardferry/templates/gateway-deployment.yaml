@@ -33,6 +33,14 @@ spec:
             - --cluster-name={{ default .Release.Name .Values.gateway.clusterName }}
             - --namespace={{ .Release.Namespace }}
             - --version={{ .Chart.AppVersion }}
+            {{- if .Values.tls.enabled }}
+            - --tls-cert=/tls/{{ .Values.tls.certKey }}
+            - --tls-key=/tls/{{ .Values.tls.keyKey }}
+            - --tls-client-ca=/tls/{{ .Values.tls.caKey }}
+            - --agent-ca=/tls/{{ .Values.tls.caKey }}
+            - --agent-cert=/tls/{{ .Values.tls.certKey }}
+            - --agent-key=/tls/{{ .Values.tls.keyKey }}
+            {{- end }}
           env:
             - name: SHARDFERRY_GATEWAY_TOKEN
               valueFrom:
@@ -51,10 +59,24 @@ spec:
             httpGet:
               path: /healthz
               port: gateway
+              scheme: {{ if .Values.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
           readinessProbe:
             httpGet:
               path: /readyz
               port: gateway
+              scheme: {{ if .Values.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          {{- if .Values.tls.enabled }}
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+          {{- end }}
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
+      {{- if .Values.tls.enabled }}
+      volumes:
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.agentSecretName }}
+      {{- end }}
 {{- end }}

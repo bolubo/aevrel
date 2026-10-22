@@ -22,12 +22,41 @@ type ClusterAPI interface {
 	Resolve(context.Context, string, string, clusterclient.ResolveRequest) (clusterclient.ResolveResponse, error)
 }
 
+type EndpointTokenRegistrar interface {
+	RegisterEndpointToken(string, string)
+}
+
 // AgentResolver expands label-selector based agent discovery into rank maps.
 type AgentResolver struct {
 	Client   client.Client
 	Reader   client.Reader
 	Agents   RankAPI
 	Clusters ClusterAPI
+	Tokens   EndpointTokenRegistrar
+}
+
+func (r *AgentResolver) EnsureTokens(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) error {
+	for _, ref := range []string{
+		migration.Spec.Source.ClusterRef,
+		migration.Spec.Target.ClusterRef,
+	} {
+		if ref == "" {
+			continue
+		}
+		cluster, token, err := r.clusterCredential(
+			ctx,
+			migration.Namespace,
+			ref,
+		)
+		if err != nil {
+			return err
+		}
+		r.registerToken(cluster.Spec.Endpoint, token)
+	}
+	return nil
 }
 
 func (r *AgentResolver) Resolve(
@@ -96,17 +125,9 @@ func (r *AgentResolver) remoteRanks(
 	if selector == nil || len(selector.MatchLabels) == 0 {
 		return nil, fmt.Errorf("%s.agentSelector.matchLabels is required", role)
 	}
-	reader := r.Reader
-	if reader == nil {
-		reader = r.Client
-	}
-	var cluster shardferryv1.ShardferryCluster
-	if err := reader.Get(
-		ctx,
-		client.ObjectKey{Namespace: migration.Namespace, Name: clusterRef},
-		&cluster,
-	); err != nil {
-		return nil, fmt.Errorf("%s cluster %s/%s: %w", role, migration.Namespace, clusterRef, err)
+	cluster, token, err := r.clusterCredential(ctx, migration.Namespace, clusterRef)
+	if err != nil {
+		return nil, fmt.Errorf("%s cluster %s: %w", role, clusterRef, err)
 	}
 	if cluster.Spec.Role != "" &&
 		cluster.Spec.Role != "both" &&
@@ -121,15 +142,7 @@ func (r *AgentResolver) remoteRanks(
 	if cluster.Spec.Endpoint == "" {
 		return nil, fmt.Errorf("cluster %s has no gateway endpoint", clusterRef)
 	}
-	token, err := r.clusterToken(
-		ctx,
-		reader,
-		migration.Namespace,
-		cluster.Spec.SecretRef,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("cluster %s auth: %w", clusterRef, err)
-	}
+	r.registerToken(cluster.Spec.Endpoint, token)
 	port := selector.Port
 	if port == 0 {
 		port = 9443
@@ -186,6 +199,36 @@ func (r *AgentResolver) remoteRanks(
 		return result[i].Rank < result[j].Rank
 	})
 	return result, nil
+}
+
+func (r *AgentResolver) clusterCredential(
+	ctx context.Context,
+	namespace string,
+	clusterRef string,
+) (shardferryv1.ShardferryCluster, string, error) {
+	reader := r.Reader
+	if reader == nil {
+		reader = r.Client
+	}
+	var cluster shardferryv1.ShardferryCluster
+	if err := reader.Get(
+		ctx,
+		client.ObjectKey{Namespace: namespace, Name: clusterRef},
+		&cluster,
+	); err != nil {
+		return shardferryv1.ShardferryCluster{}, "", err
+	}
+	token, err := r.clusterToken(ctx, reader, namespace, cluster.Spec.SecretRef)
+	if err != nil {
+		return shardferryv1.ShardferryCluster{}, "", err
+	}
+	return cluster, token, nil
+}
+
+func (r *AgentResolver) registerToken(endpoint, token string) {
+	if r.Tokens != nil {
+		r.Tokens.RegisterEndpointToken(endpoint, token)
+	}
 }
 
 func (r *AgentResolver) clusterToken(
