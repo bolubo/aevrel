@@ -19,7 +19,8 @@
 ## GPU 环境
 
 - [GPU/FSDP 实验卡](GPU-EXPERIMENT.zh-CN.md)
-- 一次性验收：`scripts/gpu_acceptance.py`
+- [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)
+- 预检：`scripts/gpu_preflight.py`
 
 ## 用户最短路径
 

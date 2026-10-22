@@ -11,7 +11,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import gpu_acceptance  # noqa: E402
 from shardferry.commands import support_bundle, target_load  # noqa: E402
 
 
@@ -73,35 +72,6 @@ def test_support_bundle_creates_redacted_archive(
         )
     assert "super-secret" not in contents
     assert "<redacted>" in contents
-
-
-@pytest.mark.skipif(
-    not (ROOT / "scripts" / "gpu_acceptance.py").is_file(),
-    reason="GPU acceptance script is not packaged",
-)
-def test_gpu_acceptance_dry_run(tmp_path: Path) -> None:
-    work = tmp_path / "gpu"
-    assert (
-        gpu_acceptance.main(
-            [
-                "--dry-run",
-                "--work-dir",
-                str(work),
-                "--source-gpus",
-                "4",
-                "--target-gpus",
-                "2",
-            ]
-        )
-        == 0
-    )
-    report = json.loads((work / "gpu-acceptance.json").read_text())
-    assert report["status"] == "dry-run"
-    assert [step["name"] for step in report["steps"]] == [
-        "source_save",
-        "migrate",
-        "target_load",
-    ]
 
 
 def test_target_load_smoke_rejects_missing_metadata(tmp_path: Path) -> None:

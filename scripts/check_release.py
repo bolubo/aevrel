@@ -89,11 +89,13 @@ def check(image_prefix: str) -> dict[str, Any]:
         "docs/TARGET-LOAD.zh-CN.md",
         "docs/SUPPORT.zh-CN.md",
         "docs/ERROR-CATALOG.zh-CN.md",
+        "docs/GPU-RUNBOOK.zh-CN.md",
         "docs/STRUCTURE.zh-CN.md",
         "docs/UPGRADE.zh-CN.md",
         "docs/USER-ENABLEMENT.zh-CN.md",
         "docs/RELEASE.zh-CN.md",
         "docs/LIVE-ACCEPTANCE.zh-CN.md",
+        "scripts/gpu_preflight.py",
         ".github/workflows/release.yml",
     ]
     for relative in required:

@@ -2,6 +2,8 @@
 
 GPU 还没有接入前先准备好，GPU 会话只做验证，不做探索。
 
+两小时逐步操作见 [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)。
+
 ## 最低机器条件
 
 - 单机至少 4 张 CUDA GPU，能同时运行 4 个训练进程；
@@ -17,8 +19,10 @@ GPU 还没有接入前先准备好，GPU 会话只做验证，不做探索。
 - `scripts/gpu_source_save.py`：4-rank FSDP + AdamW 保存 DCP。
 - `scripts/gpu_target_load.py`：目标 rank 数加载 DCP，恢复 model/optimizer，
   对固定输入做 forward 对比。
+- `scripts/gpu_preflight.py`：只读检查 GPU、CUDA、NCCL、torchrun、磁盘和版本。
 
-两个脚本在没有 CUDA 时会明确退出，不会误跑 CPU。
+这些短脚本在没有 CUDA 时会明确退出，不会误跑 CPU；实验按 Runbook 逐个命令执行，
+不再使用长编排脚本。
 
 ## 正常流程
 
