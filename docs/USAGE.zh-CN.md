@@ -231,6 +231,19 @@ controller 会：
 5. 执行 inventory、plan、stage、commit；
 6. `--wait` 打印 phase 和 rank counts，直到 succeeded/failed。
 
+每个 target rank 在 commit 后会 finalize 成本地可加载的 DCP 目录：
+
+```text
+/targets/job42/rank37/
+  .metadata
+  __0_0.distcp
+  w/rank37.bin        # 原始 staging 产物仍保留作证据
+```
+
+目标训练任务需要按 rank 使用本机 `targetRoot` 下的 DCP 目录；这避免在
+local-disk 场景把所有 rank 汇总到一台机器。完整目标任务的 `load` smoke
+仍应由目标训练应用执行，不能只相信文件存在。
+
 如果 source rank 缺失、重复，或 selector 没匹配到 ready Agent，迁移会在准备阶段
 失败，不会开始提交 target。
 

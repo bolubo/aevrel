@@ -6,7 +6,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shardferry.dcp import export_dcp, inspect_dcp, local_dcp_ranks
+from shardferry.dcp import (
+    export_dcp,
+    export_dcp_local,
+    inspect_dcp,
+    local_dcp_ranks,
+)
 from shardferry.executor import apply
 from shardferry.planner import plan
 from shardferry.storage.file import FileStorage
@@ -65,3 +70,15 @@ def test_dcp_roundtrip_4to3(tmp_path) -> None:
     export_dcp(migrated_spec, output_dcp)
     assert (output_dcp / ".metadata").is_file()
     assert len(list(output_dcp.glob("*.distcp"))) == 3
+    rank_dcp = tmp_path / "target-rank0.dcp"
+    migrated_raw = (
+        FileStorage().path(migrated_spec["target"]["storage"]["uri"])
+    )
+    export_dcp_local(
+        migrated_spec,
+        rank_dcp,
+        raw_root=migrated_raw,
+        ranks=(0,),
+    )
+    assert (rank_dcp / ".metadata").is_file()
+    assert len(list(rank_dcp.glob("*.distcp"))) == 1

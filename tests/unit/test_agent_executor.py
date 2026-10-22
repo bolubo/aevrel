@@ -101,3 +101,5 @@ def test_target_executor_stages_then_commits_one_rank(tmp_path) -> None:
         target_rank=1,
         target_root=target_root,
     )
+    assert (target_root / ".metadata").is_file()
+    assert list(target_root.glob("*.distcp"))

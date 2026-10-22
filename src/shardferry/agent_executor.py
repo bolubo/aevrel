@@ -8,6 +8,7 @@ from urllib.parse import quote
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 from .agent_state import TaskRecord
+from .dcp import export_dcp_local
 from .executor import apply, commit_staged
 from .manifest import load_payload
 from .proof import build_proof
@@ -120,6 +121,15 @@ class TargetTaskExecutor:
             target_root=task.target_root,
             token=self.source_token,
         )
+        dcp_root = export_dcp_local(
+            spec,
+            task.target_root,
+            raw_root=task.target_root,
+            ranks=(task.rank,),
+            force=True,
+        )
+        report = dict(report)
+        report["dcp_root"] = str(dcp_root)
         if self.proof_enabled:
             proof = build_proof(
                 spec,
