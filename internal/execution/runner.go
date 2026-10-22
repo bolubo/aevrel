@@ -292,11 +292,7 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 		}
 		run.AddReport(key.Rank, task.Report)
 		run.SetPhase(key.Rank, PhaseCommitted, task.TaskID, "")
-		if run.Summary().Phase == PhaseSucceeded && r.artifacts != nil &&
-			run.ReportRef() == "" {
-			return r.finalizeReport(ctx, run)
-		}
-		return nil
+		return r.maybeFinalize(ctx, run)
 
 	case PhaseFailed:
 		if state.Attempts >= run.MaxAttempts() {
@@ -315,12 +311,7 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 		return errors.New(state.Error)
 
 	case PhaseCommitted:
-		if run.Summary().Phase == PhaseSucceeded &&
-			r.artifacts != nil &&
-			run.ReportRef() == "" {
-			return r.finalizeReport(ctx, run)
-		}
-		return nil
+		return r.maybeFinalize(ctx, run)
 
 	default:
 		return nil
@@ -328,7 +319,11 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 }
 
 func (r *Runner) finalizeReport(ctx context.Context, run *Run) error {
-	if run == nil || r.artifacts == nil || run.ReportRef() != "" {
+	if run == nil || run.ReportRef() != "" {
+		return nil
+	}
+	if r.artifacts == nil {
+		run.SetReportRequired(false)
 		return nil
 	}
 	if err := r.publishProof(ctx, run); err != nil {
@@ -349,6 +344,15 @@ func (r *Runner) finalizeReport(ctx context.Context, run *Run) error {
 	}
 	run.SetReportRef(ref.URL)
 	return nil
+}
+
+func (r *Runner) maybeFinalize(ctx context.Context, run *Run) error {
+	if !run.TryBeginFinalize() {
+		return nil
+	}
+	err := r.finalizeReport(ctx, run)
+	run.FinishFinalize()
+	return err
 }
 
 func (r *Runner) publishProof(ctx context.Context, run *Run) error {

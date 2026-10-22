@@ -129,16 +129,17 @@ func (f *fakeTaskClient) report(withProof bool) map[string]any {
 
 func newTestRun(world int32) *Run {
 	config := RunConfig{
-		ID:           "run-128",
-		PlanID:       "sha256:" + strings.Repeat("a", 64),
-		MigrationUID: "m-128",
-		TargetWorld:  world,
-		SpecRef:      "http://artifact/spec",
-		PlanRef:      "http://artifact/plan",
-		RootTemplate: "/target/rank{rank}",
-		Plan:         map[string]any{"nodes": []any{}},
-		Endpoints:    make(map[int32]string, world),
-		MaxAttempts:  1,
+		ID:            "run-128",
+		PlanID:        "sha256:" + strings.Repeat("a", 64),
+		MigrationUID:  "m-128",
+		TargetWorld:   world,
+		SpecRef:       "http://artifact/spec",
+		PlanRef:       "http://artifact/plan",
+		RootTemplate:  "/target/rank{rank}",
+		Plan:          map[string]any{"nodes": []any{}},
+		Endpoints:     make(map[int32]string, world),
+		MaxAttempts:   1,
+		RequireReport: true,
 	}
 	run := NewRun(config)
 	for rank := int32(0); rank < world; rank++ {
@@ -225,6 +226,28 @@ func TestRunnerReadsBackReportWhenCommitResponseOmitsIt(t *testing.T) {
 	}
 	if got := len(run.Reports()); got != 1 {
 		t.Fatalf("reports = %d, want 1", got)
+	}
+}
+
+func TestRunDoesNotSucceedBeforeReportIsFinalized(t *testing.T) {
+	run := newTestRun(1)
+	run.SetPhase(0, PhaseCommitted, "task", "")
+	if got := run.Summary().Phase; got != PhaseFinalizing {
+		t.Fatalf("phase = %s, want finalizing", got)
+	}
+	select {
+	case <-run.done:
+		t.Fatal("run finished before report was finalized")
+	default:
+	}
+	run.SetReportRef("http://artifact/report")
+	if got := run.Summary().Phase; got != PhaseSucceeded {
+		t.Fatalf("phase = %s, want succeeded", got)
+	}
+	select {
+	case <-run.done:
+	default:
+		t.Fatal("run did not finish after report was finalized")
 	}
 }
 

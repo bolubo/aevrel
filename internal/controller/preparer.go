@@ -172,6 +172,7 @@ func buildExecutionRun(
 		Endpoints:      targetEndpoints(migration),
 		MaxAttempts:    int(migration.Spec.Policy.MaxAttemptsPerRank),
 		MaxConcurrency: int(migration.Spec.Policy.MaxConcurrentTransfers),
+		RequireReport:  true,
 	})
 	for rank := int32(0); rank < migration.Spec.Target.WorldSize; rank++ {
 		run.RegisterRank(rank)

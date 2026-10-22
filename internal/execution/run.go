@@ -22,6 +22,7 @@ const (
 	PhaseStaged           Phase = "staged"
 	PhaseCommitting       Phase = "committing"
 	PhaseCommitted        Phase = "committed"
+	PhaseFinalizing       Phase = "finalizing"
 	PhaseFailed           Phase = "failed"
 	PhaseCommitIncomplete Phase = "commit-incomplete"
 	PhaseCancelled        Phase = "cancelled"
@@ -49,6 +50,7 @@ type RunConfig struct {
 	MaxAttempts    int
 	MaxConcurrency int
 	CommitToken    string
+	RequireReport  bool
 }
 
 type Summary struct {
@@ -90,6 +92,7 @@ type Run struct {
 	done            chan struct{}
 	doneOnce        sync.Once
 	terminalErr     error
+	finalizing      bool
 }
 
 func NewRun(config RunConfig) *Run {
@@ -126,7 +129,8 @@ func (r *Run) SetPhase(rank int32, phase Phase, taskID, errorText string) {
 	if phase == PhaseFailed || phase == PhaseCommitIncomplete {
 		state.Attempts++
 	}
-	if r.allCommittedLocked() {
+	if r.allCommittedLocked() &&
+		(!r.config.RequireReport || r.reportRef != "") {
 		r.finishLocked(nil)
 	}
 	observeRankPhaseTransition(previous, phase)
@@ -180,12 +184,18 @@ func (r *Run) Summary() Summary {
 		}
 	}
 	switch {
+	case r.terminalErr != nil:
+		summary.Phase = PhaseFailed
 	case hasPhase(r.ranks, PhaseCommitIncomplete):
 		summary.Phase = PhaseCommitIncomplete
 	case summary.Failed > 0:
 		summary.Phase = PhaseFailed
 	case r.allCommittedLocked():
-		summary.Phase = PhaseSucceeded
+		if r.config.RequireReport && r.reportRef == "" {
+			summary.Phase = PhaseFinalizing
+		} else {
+			summary.Phase = PhaseSucceeded
+		}
 	case r.commitIntent:
 		summary.Phase = PhaseCommitting
 	case len(r.ranks) == int(r.config.TargetWorld) && summary.Staged == len(r.ranks):
@@ -310,6 +320,43 @@ func (r *Run) SetReportRef(ref string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.reportRef = ref
+	if r.allCommittedLocked() &&
+		(!r.config.RequireReport || r.reportRef != "") {
+		r.finishLocked(nil)
+	}
+}
+
+func (r *Run) TryBeginFinalize() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.allCommittedLocked() ||
+		!r.config.RequireReport ||
+		r.reportRef != "" ||
+		r.finalizing ||
+		r.terminalErr != nil {
+		return false
+	}
+	r.finalizing = true
+	return true
+}
+
+func (r *Run) FinishFinalize() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.finalizing = false
+	if r.allCommittedLocked() &&
+		(!r.config.RequireReport || r.reportRef != "") {
+		r.finishLocked(nil)
+	}
+}
+
+func (r *Run) SetReportRequired(required bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.config.RequireReport = required
+	if !required && r.allCommittedLocked() {
+		r.finishLocked(nil)
+	}
 }
 
 func (r *Run) PlanRef() string {
@@ -435,7 +482,8 @@ func FromSnapshot(snapshot RunSnapshot) *Run {
 	} else if snapshot.TerminalError != "" {
 		run.terminalErr = errors.New(snapshot.TerminalError)
 		run.doneOnce.Do(func() { close(run.done) })
-	} else if run.allCommittedLocked() {
+	} else if run.allCommittedLocked() &&
+		(!run.config.RequireReport || run.reportRef != "") {
 		run.doneOnce.Do(func() { close(run.done) })
 	}
 	return run

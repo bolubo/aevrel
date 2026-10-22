@@ -354,6 +354,8 @@ func executionPhase(phase execution.Phase) string {
 		return shardferryv1.MigrationPhaseCommitIncomplete
 	case execution.PhaseStaged:
 		return shardferryv1.MigrationPhaseTransferring
+	case execution.PhaseFinalizing:
+		return shardferryv1.MigrationPhaseCommitPending
 	case execution.PhasePrepared:
 		return shardferryv1.MigrationPhasePreparing
 	default:
@@ -367,6 +369,8 @@ func cutoverPhase(phase execution.Phase) string {
 		return "catching-up"
 	case execution.PhaseStaged:
 		return "target-verified"
+	case execution.PhaseFinalizing:
+		return "promoting"
 	case execution.PhaseCommitting:
 		return "promoting"
 	case execution.PhaseCommitted, execution.PhaseSucceeded:
