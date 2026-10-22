@@ -166,6 +166,7 @@ def _build_parser() -> argparse.ArgumentParser:
     agent.add_argument("--spec", required=False)
     agent.add_argument("--checkpoint", required=False)
     agent.add_argument("--metadata", required=False)
+    agent.add_argument("--target-root", required=False)
     agent.add_argument("--public-url", required=False)
     agent.add_argument("--cache-bytes", type=int, default=512 * 1024 * 1024)
     agent.add_argument("--artifact-base-url", required=True)
@@ -620,6 +621,7 @@ def main(argv: list[str] | None = None) -> int:
                 spec_path=args.spec,
                 dcp_checkpoint=args.checkpoint,
                 dcp_metadata=args.metadata,
+                target_root=args.target_root,
                 public_url=public_url,
                 max_cache_bytes=args.cache_bytes,
             )

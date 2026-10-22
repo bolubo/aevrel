@@ -160,6 +160,28 @@ func (c *Client) Capabilities(
 	return response, nil
 }
 
+func (c *Client) Preflight(
+	ctx context.Context,
+	endpoint string,
+	targetRoot string,
+	requiredBytes int64,
+) (map[string]any, error) {
+	var response map[string]any
+	if err := c.do(
+		ctx,
+		http.MethodPost,
+		endpoint+"/v1/preflight",
+		map[string]any{
+			"target_root":    targetRoot,
+			"required_bytes": requiredBytes,
+		},
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func (c *Client) Plan(
 	ctx context.Context,
 	endpoint string,

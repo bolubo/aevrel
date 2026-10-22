@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,6 +55,7 @@ func executePreflight(
 	if err != nil {
 		return fmt.Errorf("preflight: %w", err)
 	}
+	var sourceBytes int64
 	if needsSourceProbe {
 		for _, entry := range resolved.Spec.Source.RankMap {
 			inventory, err := agents.Inventory(ctx, entry.Endpoint, entry.Rank)
@@ -70,6 +73,13 @@ func executePreflight(
 					inventory.Rank,
 				)
 			}
+			for _, chunk := range inventory.Chunks {
+				for _, byteRange := range chunk.ByteRanges {
+					if len(byteRange) == 2 && byteRange[1] > 0 {
+						sourceBytes += byteRange[1]
+					}
+				}
+			}
 		}
 	}
 	if needsTargetProbe {
@@ -83,6 +93,24 @@ func executePreflight(
 				return fmt.Errorf(
 					"preflight target endpoint %s: %w",
 					entry.Endpoint,
+					err,
+				)
+			}
+			targetRoot := strings.ReplaceAll(
+				migration.Spec.Target.RootTemplate,
+				"{rank}",
+				strconv.Itoa(int(entry.Rank)),
+			)
+			if _, err := agents.Preflight(
+				ctx,
+				entry.Endpoint,
+				targetRoot,
+				sourceBytes,
+			); err != nil {
+				return fmt.Errorf(
+					"preflight target rank %d root %s: %w",
+					entry.Rank,
+					targetRoot,
 					err,
 				)
 			}

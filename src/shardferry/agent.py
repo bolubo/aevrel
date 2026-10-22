@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import prod
 from pathlib import Path
@@ -80,6 +81,7 @@ class AgentApp:
         spec_path: str | Path | None = None,
         dcp_checkpoint: str | Path | None = None,
         dcp_metadata: str | Path | None = None,
+        target_root: str | Path | None = None,
         public_url: str | None = None,
         max_cache_bytes: int = 512 * 1024 * 1024,
     ) -> None:
@@ -100,6 +102,9 @@ class AgentApp:
         )
         self.dcp_metadata = (
             Path(dcp_metadata).resolve() if dcp_metadata else None
+        )
+        self.target_root = (
+            Path(target_root).resolve() if target_root else None
         )
         if self.dcp_checkpoint is not None:
             metadata_root = self.dcp_metadata or self.dcp_checkpoint
@@ -126,6 +131,8 @@ class AgentApp:
         ]
         if self.spec_path is not None or self.dcp_checkpoint is not None:
             features.append("rank-discovery")
+        if self.target_root is not None:
+            features.append("target-preflight")
         payload = {
             "version": contract_version(),
             "apiVersion": "shardferry.io/v1",
@@ -135,6 +142,49 @@ class AgentApp:
         }
         validate_capabilities(payload)
         return payload
+
+    def preflight(
+        self,
+        target_root: str | Path,
+        *,
+        required_bytes: int = 0,
+    ) -> dict[str, Any]:
+        if self.target_root is None:
+            raise AgentError("target root is not configured")
+        if required_bytes < 0:
+            raise AgentError("required bytes must not be negative")
+        root = Path(target_root).resolve()
+        try:
+            root.relative_to(self.target_root)
+        except ValueError as exc:
+            raise AgentError(
+                f"target root {root} is outside {self.target_root}"
+            ) from exc
+        existing = root
+        while not existing.exists() and existing != existing.parent:
+            existing = existing.parent
+        if not existing.is_dir():
+            raise AgentError(f"target parent is not a directory: {existing}")
+        if not os.access(existing, os.W_OK):
+            raise AgentError(f"target parent is not writable: {existing}")
+        if root.exists():
+            if not root.is_dir():
+                raise AgentError(f"target root is not a directory: {root}")
+            if not os.access(root, os.W_OK):
+                raise AgentError(f"target root is not writable: {root}")
+        free_bytes = shutil.disk_usage(existing).free
+        if required_bytes > free_bytes:
+            raise AgentError(
+                f"target free space {free_bytes} < required {required_bytes}"
+            )
+        return {
+            "ok": True,
+            "target_root": str(root),
+            "existing_parent": str(existing),
+            "free_bytes": free_bytes,
+            "required_bytes": required_bytes,
+            "nonempty": bool(root.exists() and any(root.iterdir())),
+        }
 
     def inventory(self, rank: int) -> dict[str, Any]:
         if self.dcp_checkpoint is not None:
@@ -321,6 +371,7 @@ def build_agent_server(
     spec_path: str | Path | None = None,
     dcp_checkpoint: str | Path | None = None,
     dcp_metadata: str | Path | None = None,
+        target_root: str | Path | None = None,
     public_url: str | None = None,
     max_cache_bytes: int = 512 * 1024 * 1024,
 ) -> ThreadingHTTPServer:
@@ -332,6 +383,7 @@ def build_agent_server(
         spec_path=spec_path,
         dcp_checkpoint=dcp_checkpoint,
         dcp_metadata=dcp_metadata,
+        target_root=target_root,
         public_url=public_url,
         max_cache_bytes=max_cache_bytes,
     )
@@ -499,6 +551,28 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                         "input",
                         False,
                         "plan",
+                        0,
+                        str(exc),
+                    )
+                return
+            if path == "/v1/preflight":
+                try:
+                    body = self._body()
+                    target_root = body["target_root"]
+                    required_bytes = int(body.get("required_bytes", 0))
+                    self._json(
+                        app.preflight(
+                            target_root,
+                            required_bytes=required_bytes,
+                        )
+                    )
+                except (KeyError, AgentError, ValueError) as exc:
+                    self._error(
+                        400,
+                        "INVALID_SPEC",
+                        "input",
+                        False,
+                        "preflight",
                         0,
                         str(exc),
                     )

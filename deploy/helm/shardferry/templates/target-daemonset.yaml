@@ -31,6 +31,7 @@ spec:
             - agent
             - --listen=0.0.0.0:{{ .Values.target.port }}
             - --state-dir=/var/lib/shardferry/state
+            - --target-root=/targets
             - --artifact-base-url={{ include "shardferry.artifactURL" . }}
             - --cache-bytes={{ .Values.target.cacheBytes | int64 }}
             {{- if .Values.target.loadSmoke }}
