@@ -284,6 +284,7 @@ shadow 文件。GPU 训练侧的真实 load hook 应在下一步替换/包装这
 如果 target job 暴露 readiness endpoint，也可以直接使用
 `--target-ready-url https://target-job/readyz?version={version_id}`；
 2xx 视为 ready，404/409/425/429/5xx 会在 timeout 内重试，其他 4xx 立即失败。
+两个参数可以同时提供，执行顺序固定为 checkpoint probe -> target job URL。
 
 如果用户要的是训练不中断，验收必须额外包含：
 

@@ -10,6 +10,7 @@ import pytest
 from shardferry.target_ready import (
     CommandTargetReady,
     HttpTargetReady,
+    TargetReadyChain,
     TargetReadyError,
 )
 
@@ -104,3 +105,19 @@ def test_http_target_ready_fails_closed_on_timeout() -> None:
         server.shutdown()
         thread.join(timeout=5)
         server.server_close()
+
+
+def test_target_ready_chain_runs_in_order() -> None:
+    events: list[tuple[str, str]] = []
+
+    def first(version_id: str) -> None:
+        events.append((version_id, "probe"))
+
+    def second(version_id: str) -> None:
+        events.append((version_id, "job"))
+
+    TargetReadyChain(first, second)("step-100")
+    assert events == [
+        ("step-100", "probe"),
+        ("step-100", "job"),
+    ]

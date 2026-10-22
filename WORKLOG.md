@@ -513,6 +513,10 @@ Gate:
   `verify()` now propagates source bearer tokens. With local CPU PyTorch and
   native release built, the full Python gate is `255 passed / 2 skipped`
   (only distributed/HTTP DCP opt-in tests remain).
+- Added `TargetReadyChain`; `cutover-serve` can now run checkpoint probe and
+  target-job HTTP readiness in one ordered check. Real CLI smoke promoted
+  with both checks and one target readiness call.
+- Final gate after chain: `256 passed / 2 skipped`.
 - Gate: `238 passed / 19 skipped` (PyTorch/native optional skips), compileall
   and `cutover-serve --help` pass. This work is on branch `python-rto` in
   worktree `shardferry-rto`; do not merge into the shared checkout while the

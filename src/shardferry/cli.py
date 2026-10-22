@@ -24,7 +24,7 @@ from .cutover_service import (
 )
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
-from .target_ready import CommandTargetReady, HttpTargetReady
+from .target_ready import CommandTargetReady, HttpTargetReady, TargetReadyChain
 from .defaults import (
     DEFAULT_LISTEN,
     DEFAULT_PUBLIC_LISTEN,
@@ -597,24 +597,29 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         try:
-            target_ready = None
-            if args.target_ready_command and args.target_ready_url:
-                raise ValueError(
-                    "--target-ready-command and --target-ready-url "
-                    "are mutually exclusive"
-                )
+            checks = []
             if args.target_ready_command:
-                target_ready = CommandTargetReady(
-                    shlex.split(args.target_ready_command),
-                    timeout=args.target_ready_timeout,
+                checks.append(
+                    CommandTargetReady(
+                        shlex.split(args.target_ready_command),
+                        timeout=args.target_ready_timeout,
+                    )
                 )
-            elif args.target_ready_url:
-                target_ready = HttpTargetReady(
-                    args.target_ready_url,
-                    timeout=args.target_ready_timeout,
-                    interval=args.target_ready_interval,
-                    token=args.target_ready_token or None,
+            if args.target_ready_url:
+                checks.append(
+                    HttpTargetReady(
+                        args.target_ready_url,
+                        timeout=args.target_ready_timeout,
+                        interval=args.target_ready_interval,
+                        token=args.target_ready_token or None,
+                    )
                 )
+            if len(checks) == 1:
+                target_ready = checks[0]
+            elif checks:
+                target_ready = TargetReadyChain(*checks)
+            else:
+                target_ready = None
             service = CutoverService(
                 args.source,
                 args.target,

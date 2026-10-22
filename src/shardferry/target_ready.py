@@ -118,3 +118,16 @@ class HttpTargetReady:
             wait = min(self.interval, max(0.0, deadline - time.monotonic()))
             if wait:
                 time.sleep(wait)
+
+
+class TargetReadyChain:
+    """Run multiple readiness checks in order for one version."""
+
+    def __init__(self, *checks) -> None:
+        if not checks:
+            raise ValueError("target-ready chain must not be empty")
+        self.checks = tuple(checks)
+
+    def __call__(self, version_id: str) -> None:
+        for check in self.checks:
+            check(version_id)
