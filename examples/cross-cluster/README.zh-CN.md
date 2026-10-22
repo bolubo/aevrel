@@ -90,6 +90,8 @@ per-cluster token 路由。`ShardferryCluster.secretRef` 的 token 必须与
 - target root 在 agent 允许根之外时，`preflight` 明确失败；允许根内会检查
   父目录可写、剩余空间和路径非空状态。
 - controller 重启后，已成功 migration 仍保持 `succeeded`，不会静默重跑。
+- 1GiB 迁移进行中重启 controller：从 execution snapshot 续跑，
+  最终 `commit-pending → succeeded`，64/64 load，report/proof 完整。
 
 这组 128→64 验证使用小 tensor/小 DCP 数据，只证明控制面和 rank 编排，
 不是 1GiB/10GiB 性能或真实 GPU 结论。
