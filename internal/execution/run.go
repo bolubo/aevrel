@@ -139,6 +139,9 @@ func (r *Run) SetPhase(rank int32, phase Phase, taskID, errorText string) {
 func (r *Run) TryBeginCommit() ([]int32, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.cancelRequested {
+		return nil, false
+	}
 	if r.commitIntent {
 		return r.ranksToCommitLocked(), true
 	}
@@ -190,6 +193,8 @@ func (r *Run) Summary() Summary {
 		summary.Phase = PhaseCommitIncomplete
 	case summary.Failed > 0:
 		summary.Phase = PhaseFailed
+	case hasPhase(r.ranks, PhaseCancelled):
+		summary.Phase = PhaseCancelled
 	case r.allCommittedLocked():
 		if r.config.RequireReport && r.reportRef == "" {
 			summary.Phase = PhaseFinalizing

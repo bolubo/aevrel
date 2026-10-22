@@ -77,6 +77,16 @@ shardferryctl migrate -f migration.yaml --wait
 shardferryctl describe migration job42-16-to-8 -n shardferry-control --ranks
 ```
 
+生命周期命令：
+
+```bash
+shardferryctl cancel migration job42-16-to-8 -n shardferry-control
+shardferryctl retry migration job42-16-to-8 -n shardferry-control
+```
+
+`cancel` 只允许在 commit intent 前；`retry` 当前只修复
+`commit-incomplete`，不会把已提交的 rank 重新传一遍。
+
 `preflight` 会通过 gateway 实际读取 source inventory，并探测 target
 agent capabilities；不是只检查 YAML。
 

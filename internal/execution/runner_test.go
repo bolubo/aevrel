@@ -251,6 +251,33 @@ func TestRunDoesNotSucceedBeforeReportIsFinalized(t *testing.T) {
 	}
 }
 
+func TestRunRequestCancelBeforeCommit(t *testing.T) {
+	run := newTestRun(2)
+	if !run.RequestCancel() {
+		t.Fatal("cancel should be accepted before commit intent")
+	}
+	if got := run.Summary().Phase; got != PhaseCancelled {
+		t.Fatalf("phase = %s, want cancelled", got)
+	}
+	if !run.CancelRequested() {
+		t.Fatal("cancel flag was not recorded")
+	}
+	if run.RequestCancel() != true {
+		t.Fatal("repeated cancel should be idempotent")
+	}
+}
+
+func TestRunCancelPreventsCommitIntent(t *testing.T) {
+	run := newTestRun(1)
+	run.SetPhase(0, PhaseStaged, "task", "")
+	if !run.RequestCancel() {
+		t.Fatal("cancel should be accepted before commit intent")
+	}
+	if _, ok := run.TryBeginCommit(); ok {
+		t.Fatal("cancelled run must not enter commit intent")
+	}
+}
+
 func TestRunnerPublishesAggregatedReportArtifact(t *testing.T) {
 	run := newTestRun(2)
 	client := newFakeTaskClient(run)

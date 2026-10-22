@@ -29,6 +29,8 @@ type TaskCanceller interface {
 	CancelTask(context.Context, string, string) (agentclient.Task, error)
 }
 
+var ErrCannotCancel = errors.New("migration has passed commit intent")
+
 type ProofMerger interface {
 	MergeProof(context.Context, string, []map[string]any) (map[string]any, error)
 }
@@ -111,6 +113,43 @@ func (r *Runner) Get(runID string) *Run {
 	return r.runs[runID]
 }
 
+func (r *Runner) Cancel(ctx context.Context, run *Run) error {
+	states := run.Ranks()
+	if !run.RequestCancel() {
+		return ErrCannotCancel
+	}
+	var firstErr error
+	if canceller, ok := r.client.(TaskCanceller); ok {
+		for _, state := range states {
+			if state.TaskID == "" ||
+				state.Phase == PhaseCommitted ||
+				state.Phase == PhaseCommitting {
+				continue
+			}
+			callCtx, cancel := context.WithTimeout(ctx, r.taskTimeout)
+			_, err := canceller.CancelTask(
+				callCtx,
+				run.Endpoint(state.Rank),
+				state.TaskID,
+			)
+			cancel()
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	if err := r.persist(ctx, run); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
+}
+
+func (r *Runner) Requeue(run *Run, ranks []int32) {
+	for _, rank := range ranks {
+		r.queue.Add(Key{RunID: run.config.ID, Rank: rank})
+	}
+}
+
 func (r *Runner) Start(ctx context.Context) {
 	_ = ctx
 	r.mu.Lock()
@@ -168,6 +207,9 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 	if run == nil {
 		return nil
 	}
+	if run.CancelRequested() {
+		return nil
+	}
 	defer func(processErr *error) {
 		if persistErr := r.persist(ctx, run); persistErr != nil && *processErr == nil {
 			*processErr = persistErr
@@ -204,6 +246,9 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 				fmt.Errorf("rank %d did not prepare: %s", key.Rank, prepared.State),
 			)
 		}
+		if run.CancelRequested() {
+			return nil
+		}
 		run.SetPhase(key.Rank, PhasePrepared, prepared.TaskID, "")
 		r.queue.Add(key)
 		return nil
@@ -225,6 +270,9 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 				key,
 				fmt.Errorf("rank %d did not stage: %s", key.Rank, task.State),
 			)
+		}
+		if run.CancelRequested() {
+			return nil
 		}
 		run.SetPhase(key.Rank, PhaseStaged, task.TaskID, "")
 		if ranks, ok := run.TryBeginCommit(); ok {
@@ -262,6 +310,9 @@ func (r *Runner) process(ctx context.Context, key Key) (err error) {
 				return nil
 			}
 			return err
+		}
+		if run.CancelRequested() {
+			return nil
 		}
 		if task.Report == nil {
 			if reader, ok := r.client.(TaskReader); ok {

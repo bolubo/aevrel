@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -42,6 +43,13 @@ func (r *Reconciler) Reconcile(
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	if handled, err := r.handleControlAnnotations(ctx, &migration); handled {
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	if err := validateMigration(&migration); err != nil {
@@ -275,6 +283,139 @@ func (r *Reconciler) updateStatus(
 			return nil
 		}
 		return r.Status().Update(ctx, &latest)
+	})
+}
+
+const (
+	cancelAnnotation = "shardferry.io/cancel"
+	retryAnnotation  = "shardferry.io/retry"
+)
+
+func (r *Reconciler) handleControlAnnotations(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) (bool, error) {
+	if migration.Annotations[cancelAnnotation] == "true" {
+		return true, r.handleCancel(ctx, migration)
+	}
+	if migration.Annotations[retryAnnotation] == "true" {
+		return true, r.handleRetry(ctx, migration)
+	}
+	return false, nil
+}
+
+func (r *Reconciler) handleCancel(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) error {
+	switch migration.Status.Phase {
+	case shardferryv1.MigrationPhaseSucceeded,
+		shardferryv1.MigrationPhaseFailed,
+		shardferryv1.MigrationPhaseCancelled:
+		return r.clearAnnotation(ctx, migration, cancelAnnotation)
+	}
+	var run *execution.Run
+	var cancelWarning string
+	if r.Runner != nil && migration.Status.PlanHash != "" {
+		runID := migration.Namespace + "/" + migration.Name + ":" + migration.Status.PlanHash
+		run = r.Runner.Get(runID)
+	}
+	if run != nil {
+		if err := r.Runner.Cancel(ctx, run); err != nil {
+			if errors.Is(err, execution.ErrCannotCancel) {
+				_ = r.setStatus(
+					ctx,
+					migration,
+					migration.Status.Phase,
+					metav1.ConditionFalse,
+					"CancelRejected",
+					err.Error(),
+				)
+				return r.clearAnnotation(ctx, migration, cancelAnnotation)
+			}
+			cancelWarning = err.Error()
+		}
+	}
+	message := "migration cancelled before commit intent"
+	if cancelWarning != "" {
+		message += "; task cancellation warning: " + cancelWarning
+	}
+	if err := r.setStatus(
+		ctx,
+		migration,
+		shardferryv1.MigrationPhaseCancelled,
+		metav1.ConditionTrue,
+		"Cancelled",
+		message,
+	); err != nil {
+		return err
+	}
+	return r.clearAnnotation(ctx, migration, cancelAnnotation)
+}
+
+func (r *Reconciler) handleRetry(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) error {
+	if migration.Status.Phase != shardferryv1.MigrationPhaseCommitIncomplete {
+		_ = r.setStatus(
+			ctx,
+			migration,
+			migration.Status.Phase,
+			metav1.ConditionFalse,
+			"RetryUnsupported",
+			"retry is only supported for commit-incomplete migrations",
+		)
+		return r.clearAnnotation(ctx, migration, retryAnnotation)
+	}
+	if r.Runner == nil || migration.Status.PlanHash == "" {
+		return r.clearAnnotation(ctx, migration, retryAnnotation)
+	}
+	runID := migration.Namespace + "/" + migration.Name + ":" + migration.Status.PlanHash
+	run := r.Runner.Get(runID)
+	if run == nil {
+		return fmt.Errorf("execution run %s is not loaded", runID)
+	}
+	ranks, err := run.RepairCommitIncomplete()
+	if err != nil {
+		return err
+	}
+	r.Runner.Requeue(run, ranks)
+	if err := r.setStatus(
+		ctx,
+		migration,
+		shardferryv1.MigrationPhaseCommitting,
+		metav1.ConditionTrue,
+		"RetryRequested",
+		"commit-incomplete repair requested",
+	); err != nil {
+		return err
+	}
+	return r.clearAnnotation(ctx, migration, retryAnnotation)
+}
+
+func (r *Reconciler) clearAnnotation(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+	key string,
+) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest shardferryv1.CheckpointMigration
+		if err := r.Get(
+			ctx,
+			types.NamespacedName{
+				Namespace: migration.Namespace,
+				Name:      migration.Name,
+			},
+			&latest,
+		); err != nil {
+			return err
+		}
+		if latest.Annotations[key] != "true" {
+			return nil
+		}
+		delete(latest.Annotations, key)
+		return r.Update(ctx, &latest)
 	})
 }
 
