@@ -21,6 +21,7 @@ from shardferry.gpu_codec import (  # noqa: E402
     make_codec,
     nvcomp_status,
 )
+from shardferry.gpu_policy import decide_codec  # noqa: E402
 
 
 def _pattern_data(pattern: str, size: int, seed: int) -> bytes:
@@ -222,6 +223,13 @@ def _run(args) -> dict:
             "projected_seconds": projected_seconds,
             "net_gain_seconds": raw_transfer_seconds - projected_seconds,
         },
+        "recommendation": decide_codec(
+            raw_bytes=raw_bytes,
+            encoded_bytes=frame_bytes,
+            compress_seconds=compress_seconds,
+            decompress_seconds=decompress_seconds,
+            network_gbps=args.network_gbps,
+        ).to_dict(),
         "environment": _environment(),
     }
     return report

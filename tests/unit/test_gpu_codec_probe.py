@@ -40,6 +40,7 @@ def test_gpu_codec_probe_runs_with_cpu_fallback() -> None:
     assert report["roundtrip_ok"] is True
     assert report["compression_ratio"] < 0.5
     assert report["frame_bytes"] < report["raw_bytes"]
+    assert report["recommendation"]["enabled"] is False
 
 
 def test_gpu_codec_probe_reports_missing_nvcomp_cleanly() -> None:

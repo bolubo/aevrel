@@ -21,6 +21,8 @@
   误判成不可用。
 - `scripts/gpu_codec_probe.py`：测量压缩比、压缩/解压时间、网络投影；
   支持真实文件/目录或 zero/repeat/random/sparse 模式。
+- `src/shardferry/gpu_policy.py`：只有在网络带宽已知、压缩比和端到端
+  预计收益同时过线时才启用 codec；未知网络默认关闭。
 - `nvidia-nvcomp-cu12>=6.0.0.12` 作为 optional `gpu` 依赖；基础安装不变。
 
 ## 使用
@@ -50,6 +52,18 @@ python scripts/gpu_codec_probe.py \
 
 只有 probe 在真实 checkpoint 上同时满足“压缩比足够 + 端到端网络投影更快”
 才进入 HTTP 协商接入；不在 probe 通过前改主路径。
+
+## 本地实测结论
+
+RTX 5070 Ti Laptop 12GB，32 个 4MiB range：
+
+- 高可压 1GB DCP fixture（128MB 样本）：`gdeflate` ratio 约 `0.232`；
+  1Gbps 下策略收益 `+0.076s`，启用；10Gbps 下收益为负，禁用。
+- 随机高熵 4-rank DCP（128MB 样本）：`zstd` ratio 约 `0.925`，
+  `lz4` 约 `1.004`；1/10/25/100Gbps 下都没有正收益。
+
+因此 **GPU 压缩不能作为默认路径**。它只适合已知慢 WAN + 可压 checkpoint；
+随机权重 checkpoint 走 identity，避免为了“用了 GPU”制造负优化。
 
 ## 后续接入（未做）
 
