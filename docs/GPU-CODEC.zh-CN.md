@@ -1,0 +1,60 @@
+# GPU Codec：可选传输加速
+
+状态：G0，CPU 可验证；GPU 实测待环境
+边界：只做数据面 codec，不改 CRD、planner、checkpoint 格式和 controller。
+
+## 目标
+
+在 source/target 节点有 GPU 时，对大 range 做可选的 GPU 压缩，减少跨集群
+传输字节；没有 GPU、压缩比不够或协商失败时自动退回 identity。旧客户端和
+旧 agent 的行为不变。
+
+这不是 FSDP 验收，也不重复 `gpu_source_save.py` / `gpu_target_load.py`。
+
+## G0 已落盘
+
+- `src/shardferry/gpu_codec.py`：
+  - `identity`、`zlib`、`nvcomp-zstd/lz4/gdeflate`；
+  - `SFG1` 帧：原始长度、原始 SHA256、codec 名称和压缩 payload；
+  - `NvcompCodec` 延迟导入 CUDA/nvCOMP，无 GPU 不会在 import 时失败。
+- `scripts/gpu_codec_probe.py`：测量压缩比、压缩/解压时间、网络投影；
+  支持真实文件/目录或 zero/repeat/random/sparse 模式。
+- `nvidia-nvcomp-cu12>=6.0.0.12` 作为 optional `gpu` 依赖；基础安装不变。
+
+## 使用
+
+无 GPU 的 CPU fallback 冒烟：
+
+```bash
+python scripts/gpu_codec_probe.py \
+  --codec zlib \
+  --pattern zero \
+  --size 16777216 \
+  --range-bytes 4194304 \
+  --json
+```
+
+GPU 机器上复用真实 DCP：
+
+```bash
+python scripts/gpu_codec_probe.py \
+  --input /data/sf-gpu/b-4to3-fp32/source.dcp \
+  --codec nvcomp-zstd \
+  --range-bytes 4194304 \
+  --max-ranges 16 \
+  --network-gbps 10 \
+  --json
+```
+
+只有 probe 在真实 checkpoint 上同时满足“压缩比足够 + 端到端网络投影更快”
+才进入 HTTP 协商接入；不在 probe 通过前改主路径。
+
+## 后续接入（未做）
+
+- source agent 按 `Accept-Encoding` 返回 `X-Shard-Encoding`；
+- target `HttpStorage` 解码并校验原始 SHA256；
+- `SHARDFERRY_GPU_CODEC=off|auto|nvcomp-*`，默认 `off`；
+- codec 能力、ratio、吞吐和 fallback 进入 metrics。
+
+GPUDirect Storage 不在 G0/G1 范围；它是硬件相关后端，等压缩路径和真实数据
+证明有收益后再评估。
