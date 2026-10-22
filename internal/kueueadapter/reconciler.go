@@ -74,10 +74,13 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, r.projector().Clear(ctx, workload)
 	}
 
-	observation, _ := ParseObservation(
-		source.Object.GetAnnotations(),
-		source.Object.GetLabels(),
-	)
+	observation := source.Observation
+	if !source.HasObservation {
+		observation, _ = ParseObservation(
+			source.Object.GetAnnotations(),
+			source.Object.GetLabels(),
+		)
+	}
 	decision := r.Policy.Decide(observation)
 	_, err = r.projector().Project(
 		ctx,

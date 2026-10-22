@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.2.0-rc.1 - 2026-10-22
+
+Checkpoint mobility control-plane release candidate.
+
+- Added the `CheckpointMigration` control-plane path for local-disk,
+  cross-mesh migration with target-ready validation.
+- Added target-ready Indexed Job handling, per-rank reports, state closure
+  checks and fail-closed target status.
+- Added rank-local state bundle capture/verify/restore and `RankSampler`
+  continuity for resume validation.
+- Added CPU 4-rank LRS proof and a torchcomms reconfigure preflight; live
+  rank split remains experimental until real 4-GPU validation.
+- Added the first checkpoint-control-plane slice: local `shardferry readiness`,
+  Go readiness models/CRDs for CheckpointRecord/RestoreDrill/RescueDecision/
+  MobilityTransaction, and cross-language schemas.
+- Added a real target-command `shardferry restore-drill` path that requires
+  model/optimizer load and N training steps before accepting the drill proof.
+- Added template-created Indexed restore-drill Jobs, multi-agent
+  `CheckpointRecord` scanning with 128-rank merge tests, and
+  version/digest-bound drill evidence.
+- Added fail-closed `RescueDecision` policy plus a generic Kubernetes Warning
+  event watcher; rescue works without Kueue.
+- Added `MobilityTransaction` compatibility projection over existing
+  `CheckpointMigration` lifecycle, plus `migrationSpec` creation of an owned
+  migration that still uses the existing planner/executor.
+- Added `shardferry-live-worker`, a durable `/v1/live/reconcile` CPU contract
+  worker with phase/coverage/quorum/proof output; the Go live path now has a
+  concrete on-demand worker instead of failing on a missing service.
+- Productized the Kueue adapter: Helm deployment/RBAC/profile, optional
+  CheckpointRecord-first observation, strict profile validation, and
+  `shardferryctl kueue status|explain`.
+- Added release-candidate version, capability and experimental-surface
+  documentation.
+
+Known limitations:
+
+- The 4-GPU NCCL reconfigure and cross-machine live path are not yet proven.
+- The CPU4 proof uses staged `destroy/reinit`, not live collective continuity.
+- Kueue integration is a separate workstream and is not part of this candidate.
+
 ## 0.1.1 - 2026-10-22
 
 GPU-validated alpha release.

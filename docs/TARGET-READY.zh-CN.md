@@ -118,6 +118,21 @@ target:
 完整可复制版本见
 [`examples/target-ready/migration.yaml`](../examples/target-ready/migration.yaml)。
 
+### 独立 RestoreDrill
+
+不经过 migration 也可以直接验证一个 `CheckpointRecord`：
+
+```bash
+kubectl apply -f examples/checkpoint-control/restore-drill.yaml
+kubectl get sfdrill training-step-100 -w
+shardferryctl readiness training-step-100
+```
+
+`RestoreDrill.spec.jobTemplate` 与 migration 的 target validation 使用同一套
+per-rank report 契约。也可以设置 `spec.jobName` 观测一个已有 Job；两条路径
+必须二选一。drill 成功后会把 load proof 绑定到 checkpoint version 与
+metadata digest；checkpoint 变化后旧 proof 自动失效。
+
 ### Job 模板约束
 
 - 必须是 `batch/v1 Job`；

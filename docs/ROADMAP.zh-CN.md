@@ -10,6 +10,12 @@
 - **0.2.0**：Checkpoint Mobility Control Plane；
 - 口语中的“0.11/0.12/0.13”统一写作 `0.1.1/0.1.2/0.1.3`，都属于 0.1 维护线。
 
+2026-10-22 owner 决策：先做 `0.2.0-rc.1` 产品闭环（Mobility、CLI、target-ready、
+诊断与文档），GPU 验证通过后切 `0.2.0`。`0.1.2` Rescue Demo 和 `0.1.3`
+性能专项保留为候选后的体验/性能工作，不再阻塞 `0.2.0-rc.1`。
+产品长期形态和日常 readiness 价值见
+[产品形态与日常价值](PRODUCT-FORM.zh-CN.md)。
+
 大版本的门槛不是“功能变多”，而是用户完成任务的形态发生变化。
 
 ## 0.1：静态 checkpoint 迁移（已完成，维护中）
@@ -75,6 +81,9 @@
 - 故障注入后不误报成功；
 - 观众能从 timeline 直接看到“暂停/失败/恢复/完成”。
 
+本地中断/续跑版本已落为 `docs/RESCUE-DEMO.zh-CN.md`；kind 故障矩阵
+（target agent 失败、controller restart）仍待执行。
+
 这不是 0.2，也不改变静态 checkpoint 迁移的边界。它只是让 0.1 的价值可见。
 
 ## 0.1.3：迁移性能专项
@@ -102,7 +111,8 @@
 
 ## 0.2.0：Checkpoint Mobility Control Plane
 
-启动条件：0.1.2 Demo 可用，0.1.3 性能基线稳定。
+启动条件：`0.2.0-rc.1` 产品面通过；`0.1.2`/`0.1.3` 是候选后的体验与
+性能工作，不阻塞本候选。
 
 ### 用户任务
 
@@ -119,6 +129,10 @@
    失败不能误报成功。
 
 三个功能共享 `CheckpointState + MobilityPlan + Transaction + Proof` 内核。
+
+2026-10-22 范围调整：Kueue preemption 是独立工作流，由对应会话继续；
+`0.2.0-rc.1` 产品候选只收口 Mobility、target-ready 与诊断体验。LRS 仍为
+实验模式，不作为 0.2 发布门槛。
 
 当前分支状态：Feature 2 的本地 DCP 跨 mesh 数据面、metadata-owner 分发和
 CPU/CLI 回归已完成；真实 4×L20 与 128 节点 selector 验收仍待执行。
@@ -194,11 +208,11 @@ target-ready 已经可靠之上。
 
 ## 当前优先级
 
-1. `0.1.2` Rescue Demo；
-2. `0.1.3` 性能专项；
-3. `0.2.0` checkpoint-aware preemption、跨 mesh local-shard migration、
-   target-ready integration；
-4. 真实 GPU 跨 mesh 迁移和 0.2 故障/规模矩阵；
-5. 0.2 实现中冒出的问题按 `0.2.x` 补丁登记。
+1. `0.2.0-rc.1` 产品闭环：版本/能力/CLI/文档一致性，static + cross-mesh +
+   target-ready 的真实用户路径；
+2. `0.2.0` GPU/cross-machine 门槛；
+3. `0.1.2` Rescue Demo；
+4. `0.1.3` 性能专项；
+5. 实现中冒出的问题按补丁版本登记。
 
 不在当前优先级：更多格式、更多 provider、模型推理和通用工作负载迁移。

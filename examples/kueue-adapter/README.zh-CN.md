@@ -1,7 +1,17 @@
 # Kueue preemption guard 示例
 
 这是 `0.2 Part 1` 的最小接入包。它只同步 checkpoint 状态到 Workload label，
-不修改 Kueue 源码。
+不修改 Kueue 源码。安装生产路径优先使用 Helm：
+
+```bash
+helm upgrade --install shardferry deploy/helm/shardferry \
+  --set kueueAdapter.enabled=true \
+  --set kueueAdapter.strict=true \
+  --set kueueAdapter.createPreemptionConfig=true
+```
+
+默认 `observation-source=auto`：优先关联 `CheckpointRecord`，没有 record
+时才读取 Job annotations。
 
 ## 前置
 
@@ -66,6 +76,13 @@ shardferry.io/preemption-protected=1
 shardferry.io/preemption-reason=ProgressThreshold
 shardferry.io/training-progress-percent=85
 shardferry.io/checkpoint-complete=1
+```
+
+查看产品化状态：
+
+```bash
+shardferryctl kueue status
+shardferryctl kueue explain training
 ```
 
 ## 验收边界

@@ -1,6 +1,6 @@
 apiVersion: v2
 name: shardferry
-description: Move local checkpoint shards between clusters and DeviceMeshes.
+description: Checkpoint readiness and mobility control plane with optional LRS worker and Kueue preemption adapter.
 type: application
-version: 0.1.1
-appVersion: "0.1.1"
+version: 0.2.0-rc.1
+appVersion: "0.2.0-rc.1"

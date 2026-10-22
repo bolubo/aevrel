@@ -25,6 +25,7 @@
 - [Feature 3: Target-ready 契约](TARGET-READY.zh-CN.md)
 - [发布检查清单](RELEASE.zh-CN.md)
 - [0.1.1 Release Notes](RELEASE-NOTES-0.1.1.md)
+- [0.2.0-rc.1 Release Notes](RELEASE-NOTES-0.2.0-rc.1.md)
 
 ## 使用
 
@@ -32,13 +33,19 @@
 - [完整使用场景与验收](USAGE.zh-CN.md)
 - [跨集群 live acceptance](LIVE-ACCEPTANCE.zh-CN.md)
 - [产品面契约](PRODUCT.zh-CN.md)
+- [产品形态与日常价值](PRODUCT-FORM.zh-CN.md)
+- [Checkpoint 生态与用户需求调研](CHECKPOINT-RESEARCH.zh-CN.md)
+- [产品构建计划](BUILD-PLAN.zh-CN.md)
+- [进度条与迁移状态 UX](PROGRESS-UX.zh-CN.md)
 - [目标 DCP 加载](TARGET-LOAD.zh-CN.md)
 - [Target-ready 示例](../examples/target-ready/migration.yaml)
+- [Checkpoint control plane 最小闭环](../examples/checkpoint-control/README.zh-CN.md)
 - [物理 A/B 实验](AB-EXPERIMENT.zh-CN.md)
 
 ## 架构与运维
 
 - [架构概览](ARCHITECTURE.zh-CN.md)
+- [控制面重构与任务计划](REFACTOR-PLAN.zh-CN.md)
 - [代码结构约定](STRUCTURE.zh-CN.md)
 - [排障与 support bundle](SUPPORT.zh-CN.md)
 - [错误目录](ERROR-CATALOG.zh-CN.md)
@@ -48,6 +55,7 @@
 - [GPU 验证记录（2026-10-22）](GPU-VALIDATION-2026-10-22.md)
 - [单卡 GPU 验证（2026-10-22）](GPU-SINGLE-CARD-VALIDATION.md)
 - [CPU target Job 验证（2026-10-22）](CPU-HANDOFF-VALIDATION.md)
+- [Rescue Demo：中断后续跑](RESCUE-DEMO.zh-CN.md)
 - [控制器 GPU 实验卡](CONTROLLER-GPU-EXPERIMENT.zh-CN.md)
 - [GPU Codec 传输加速](GPU-CODEC.zh-CN.md)
 - [Benchmark](BENCHMARK.zh-CN.md)
@@ -70,3 +78,5 @@
 - [LRS 全局整合](LRS-INTEGRATION.zh-CN.md)
 - [LRS Canonical Merge / Gap Matrix](LRS-CANONICAL-MERGE.zh-CN.md)
 - [Live Rank Split Go 产品面](LIVE-RANK-SPLIT-GO.zh-CN.md)
+- [Live Rank Split 用户流程](LIVE-RANK-SPLIT-USAGE.zh-CN.md)
+- [LRS on-demand worker](LRS-WORKER.zh-CN.md)

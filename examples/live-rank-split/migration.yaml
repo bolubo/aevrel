@@ -90,7 +90,7 @@ spec:
                     path: /var/lib/shardferry/live-state
                     type: Directory
   live:
-    maxInFlight: 1
+    maxInFlight: 2
     stateMode: L4
     stateRoot: /state/step-100000/rank{rank}
     stateProviders:

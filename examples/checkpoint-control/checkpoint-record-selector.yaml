@@ -1,0 +1,21 @@
+apiVersion: shardferry.io/v1
+kind: CheckpointRecord
+metadata:
+  name: training-step-100
+  namespace: default
+spec:
+  jobRef: training
+  version: step-100
+  step: 100
+  provider: dcp
+  formatVersion: "1.0.0"
+  checkpoint: /checkpoints/training/step-100
+  sourceWorldSize: 8
+  agentSelector:
+    matchLabels:
+      app.kubernetes.io/name: shardferry-agent
+    port: 9443
+    scheme: http
+  # Optional. If omitted, the controller uses SHARDFERRY_AGENT_TOKEN.
+  agentSecretRef:
+    name: shardferry-agent-token

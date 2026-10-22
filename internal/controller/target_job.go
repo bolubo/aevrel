@@ -241,8 +241,15 @@ func boolEnv(value bool) string {
 }
 
 func rawExtensionPayload(raw *runtime.RawExtension) ([]byte, error) {
+	return rawExtensionPayloadFor(raw, "target.validation.jobTemplate")
+}
+
+func rawExtensionPayloadFor(
+	raw *runtime.RawExtension,
+	field string,
+) ([]byte, error) {
 	if raw == nil {
-		return nil, fmt.Errorf("target.validation.jobTemplate is empty")
+		return nil, fmt.Errorf("%s is empty", field)
 	}
 	if len(raw.Raw) > 0 {
 		return raw.Raw, nil
@@ -250,22 +257,25 @@ func rawExtensionPayload(raw *runtime.RawExtension) ([]byte, error) {
 	if raw.Object != nil {
 		payload, err := json.Marshal(raw.Object)
 		if err != nil {
-			return nil, fmt.Errorf("encode target validation Job: %w", err)
+			return nil, fmt.Errorf("encode %s: %w", field, err)
 		}
 		return payload, nil
 	}
-	return nil, fmt.Errorf("target.validation.jobTemplate is empty")
+	return nil, fmt.Errorf("%s is empty", field)
 }
 
 func targetValidationJobName(migration *shardferryv1.CheckpointMigration) string {
 	if name := migration.Spec.Target.Validation.JobName; name != "" {
 		return name
 	}
-	suffix := "-target-ready"
-	base := strings.TrimRight(migration.Name, "-.")
+	return deterministicJobName(migration.Name, "-target-ready")
+}
+
+func deterministicJobName(resourceName, suffix string) string {
+	base := strings.TrimRight(resourceName, "-.")
 	maxBase := targetReadyJobNameLimit - len(suffix)
 	if len(base) > maxBase {
-		sum := sha256.Sum256([]byte(migration.Name))
+		sum := sha256.Sum256([]byte(resourceName))
 		hash := hex.EncodeToString(sum[:4])
 		prefixLength := maxBase - len(hash) - 1
 		base = strings.TrimRight(base[:prefixLength], "-.") + "-" + hash

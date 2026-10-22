@@ -11,10 +11,12 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	shardferryv1 "github.com/shardferry/shardferry/api/v1"
 	"github.com/shardferry/shardferry/internal/cutoverclient"
 	"github.com/shardferry/shardferry/internal/kueueadapter"
 )
@@ -30,6 +32,7 @@ func main() {
 	var protectUnknown bool
 	var strict bool
 	var preemptionConfigName string
+	var observationSource string
 	var handoffURL string
 	var handoffToken string
 	var handoffTimeout time.Duration
@@ -44,6 +47,7 @@ func main() {
 	flag.BoolVar(&protectUnknown, "protect-unknown", true, "protect workloads with unknown or invalid checkpoint state")
 	flag.BoolVar(&strict, "strict", false, "require the configurable-only Kueue profile before starting")
 	flag.StringVar(&preemptionConfigName, "preemption-config-name", "checkpoint-guard", "PreemptionConfig referenced by strict ClusterQueues")
+	flag.StringVar(&observationSource, "observation-source", "auto", "checkpoint state source: auto, annotations, or checkpoint-record")
 	flag.StringVar(&handoffURL, "handoff-url", "", "optional cutover service URL; enables eviction-triggered handoff")
 	flag.StringVar(&handoffToken, "handoff-token", os.Getenv("SHARDFERRY_CUTOVER_TOKEN"), "bearer token for the cutover service")
 	flag.DurationVar(&handoffTimeout, "handoff-timeout", 5*time.Minute, "timeout for a cutover request")
@@ -68,6 +72,10 @@ func main() {
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		ctrl.Log.Error(err, "build Kubernetes scheme")
+		os.Exit(1)
+	}
+	if err := shardferryv1.AddToScheme(scheme); err != nil {
+		ctrl.Log.Error(err, "build shardferry scheme")
 		os.Exit(1)
 	}
 	workloadGVK := schema.GroupVersionKind{
@@ -131,6 +139,7 @@ func main() {
 		Policy:          policy,
 		WorkloadGVK:     workloadGVK,
 		RefreshInterval: syncInterval,
+		Source:          observationSourceFor(mgr.GetClient(), observationSource),
 		Projector: kueueadapter.WorkloadLabelProjector{
 			Client:   mgr.GetClient(),
 			Recorder: mgr.GetEventRecorderFor("shardferry-kueue-adapter"),
@@ -151,5 +160,26 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		ctrl.Log.Error(err, "manager exited")
 		os.Exit(1)
+	}
+}
+
+func observationSourceFor(
+	reader client.Reader,
+	value string,
+) kueueadapter.ObservationSource {
+	switch value {
+	case "", "auto", "checkpoint-record":
+		return kueueadapter.CheckpointRecordSource{Reader: reader}
+	case "annotations":
+		return nil
+	default:
+		ctrl.Log.Error(
+			nil,
+			"invalid observation-source",
+			"value", value,
+			"allowed", "auto, annotations, checkpoint-record",
+		)
+		os.Exit(1)
+		return nil
 	}
 }

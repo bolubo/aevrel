@@ -1,22 +1,25 @@
 # shardferry 定位
 
 日期：2026-10-22
-阶段：Alpha / preview
+阶段：0.2.0-rc.1 candidate / Alpha
 
 ## 一句话
 
-**shardferry 的长期品类是跨控制域迁移层：A 有、B 缺时，判断能不能迁，
-选择最快且安全的路径，执行迁移，并证明 B 真正可用。**
+**shardferry 的长期品类是训练状态的 Checkpoint Readiness & Mobility
+Control Plane：持续判断 checkpoint 是否完整、新鲜、可加载、可迁移，
+在事件发生时决定 restore、restart、migrate 还是 hold，并留下 proof。**
 
-当前版本只交付其中一个最难、最具体的垂直场景：local-disk 训练集群的
-DCP checkpoint 迁移与 reshard。DCP 是第一条产品线，不是品类上限。
+当前版本先从 local-disk DCP 做起，但迁移只是其中一个执行动作。真正的
+产品中心是 CheckpointRecord/Readiness、restore drill、rescue decision 和
+可验证的 MobilityTransaction。DCP 是第一条 provider，不是品类上限。
 
-长期不是重写 Velero、CSI、数据库复制或云迁移服务，而是把它们作为
-provider 纳入统一的迁移控制面，由 planner 做全局组合和判错。
+长期不是重写 DCP、ByteCheckpoint、NVRx、Velero、CSI 或云迁移服务，而是
+把它们纳入统一的 checkpoint/state control plane，由 planner 做判定、决策、
+事务和证明。
 
-我们的默认位置是上层控制面和迁移语义，不是通用数据面性能竞赛。底层
-provider 能满足语义、正确性和 SLO 时优先集成；只有它无法表达关键语义、
-无法恢复或没有稳定 API 时，才考虑自研。
+我们的默认位置是上层控制面、状态语义和事务证明，不是通用数据面性能竞赛。
+底层 provider 能满足语义、正确性和 SLO 时优先集成；只有它无法表达关键
+语义、无法恢复或没有稳定 API 时，才考虑自研。
 
 整体问题定义和迁移方案必须自研；内部实现优先复用成熟组件，并通过
 provider/adapter 隔离，避免第三方类型和生命周期渗透到核心状态机。

@@ -1,0 +1,133 @@
+{
+  "completed_nodes_before_resume": 1,
+  "events": [
+    {
+      "at": "2026-10-22T14:48:56.728176+00:00",
+      "attempt": "first",
+      "detail": "source DCP indexed; starting migration",
+      "phase": "start"
+    },
+    {
+      "at": "2026-10-22T14:48:56.728283+00:00",
+      "attempt": "first",
+      "detail": "reading DCP metadata and indexing local shards",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.730398+00:00",
+      "attempt": "first",
+      "detail": "planning 4 -> 3 target ranks",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.731673+00:00",
+      "attempt": "first",
+      "detail": "transferring 6 chunks (65536 bytes)",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.751150+00:00",
+      "attempt": "first",
+      "detail": "simulated user interruption after 1 completed nodes",
+      "phase": "interrupted"
+    },
+    {
+      "at": "2026-10-22T14:48:56.751438+00:00",
+      "attempt": "resume",
+      "detail": "same command; journal has 1 completed node(s)",
+      "phase": "start"
+    },
+    {
+      "at": "2026-10-22T14:48:56.751543+00:00",
+      "attempt": "resume",
+      "detail": "reading DCP metadata and indexing local shards",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.753094+00:00",
+      "attempt": "resume",
+      "detail": "planning 4 -> 3 target ranks",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.753923+00:00",
+      "attempt": "resume",
+      "detail": "transferring 6 chunks (65536 bytes)",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.809609+00:00",
+      "attempt": "resume",
+      "detail": "verification passed; writing target DCP",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.811472+00:00",
+      "attempt": "resume",
+      "detail": "migration complete",
+      "phase": "progress"
+    },
+    {
+      "at": "2026-10-22T14:48:56.811515+00:00",
+      "attempt": "resume",
+      "detail": "target exported: /root/.cache/rescue-demo/target.dcp",
+      "phase": "committed"
+    }
+  ],
+  "first_attempt_seconds": 0.022958,
+  "interrupt_after_nodes": 1,
+  "journal_after": {
+    "committed_files": [],
+    "completed_nodes": {
+      "n000000": 16384,
+      "n000001": 5632,
+      "n000002": 10752,
+      "n000003": 11264,
+      "n000004": 5120,
+      "n000005": 16384
+    },
+    "plan_id": "sha256:7a0fb67337c4e0ae3669483d2c7906c9e0ad750a796bed859cfcc58e4d8d11ca",
+    "resumes": 1,
+    "status": "committed",
+    "verification": {
+      "details": "6 nodes, 65536 target bytes verified",
+      "method": "bitwise",
+      "passed": true
+    },
+    "version": "1"
+  },
+  "journal_before": {
+    "committed_files": [],
+    "completed_nodes": {
+      "n000000": 16384
+    },
+    "plan_id": "sha256:7a0fb67337c4e0ae3669483d2c7906c9e0ad750a796bed859cfcc58e4d8d11ca",
+    "resumes": 0,
+    "status": "in_progress",
+    "version": "1"
+  },
+  "resume_seconds": 0.060044,
+  "resumed": true,
+  "schema": "shardferry.rescue.local.v1",
+  "source": "/root/.cache/rescue-demo/source.dcp",
+  "source_sha256_after": "sha256:c6bee375997a1409fb08536f0917236dba887f32c5926d7ee369e2ab75d6706b",
+  "source_sha256_before": "sha256:c6bee375997a1409fb08536f0917236dba887f32c5926d7ee369e2ab75d6706b",
+  "source_unchanged": true,
+  "target": "/root/.cache/rescue-demo/target.dcp",
+  "target_load": {
+    "bytes": 65536,
+    "checkpoint": "/root/.cache/rescue-demo/target.dcp",
+    "duration_seconds": 1.102346,
+    "metadata_dir": "/root/.cache/rescue-demo/target.dcp",
+    "mode": "full",
+    "peak_rss_bytes": 287633408,
+    "rank": null,
+    "state": null,
+    "state_complete": false,
+    "state_restored": false,
+    "status": "ok",
+    "tensors": 1,
+    "version_id": "smoke"
+  },
+  "work_dir": "/root/.cache/rescue-demo"
+}

@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from math import prod
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from jsonschema import Draft202012Validator
 
@@ -127,8 +127,13 @@ def apply(
     target_root: str | Path | None = None,
     commit: bool = True,
     token: str | None = None,
+    progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
+    def emit(event: dict[str, Any]) -> None:
+        if progress is not None:
+            progress(event)
+
     validate_plan(plan, spec)
     target_mesh = parse_mesh(spec["target"]["mesh"])
     if target_rank is not None and not 0 <= target_rank < target_mesh.world_size:
@@ -213,6 +218,24 @@ def apply(
         _validate_report(result)
         return result
 
+    completed_count = sum(
+        1 for node in selected_nodes if node["id"] in journal.completed
+    )
+    moved_bytes = sum(
+        int(journal.data["completed_nodes"].get(node["id"], 0))
+        for node in selected_nodes
+    )
+    emit(
+        {
+            "phase": "transfer",
+            "completed_nodes": completed_count,
+            "total_nodes": len(selected_nodes),
+            "bytes_moved": moved_bytes,
+            "bytes_planned": selected_bytes,
+            "resumed": completed_count > 0,
+        }
+    )
+
     for target in targets:
         active = _active_path(target)
         if not active.is_file():
@@ -246,7 +269,30 @@ def apply(
         )
         target_storage.fsync(active.as_uri())
         journal.mark_node(node["id"], node_bytes)
+        completed_count += 1
+        moved_bytes += node_bytes
+        emit(
+            {
+                "phase": "transfer",
+                "completed_nodes": completed_count,
+                "total_nodes": len(selected_nodes),
+                "bytes_moved": moved_bytes,
+                "bytes_planned": selected_bytes,
+                "current_tensor": node["tensor"],
+                "current_rank": node["target_rank"],
+                "current_bytes": node_bytes,
+            }
+        )
 
+    emit(
+        {
+            "phase": "verifying",
+            "completed_nodes": completed_count,
+            "total_nodes": len(selected_nodes),
+            "bytes_moved": moved_bytes,
+            "bytes_planned": selected_bytes,
+        }
+    )
     active_paths = {
         key: _active_path(target) for key, target in target_map.items()
     }
@@ -258,6 +304,15 @@ def apply(
         token=token,
     )
     journal.mark_verified(verification)
+    emit(
+        {
+            "phase": "verified",
+            "completed_nodes": completed_count,
+            "total_nodes": len(selected_nodes),
+            "bytes_moved": moved_bytes,
+            "bytes_planned": selected_bytes,
+        }
+    )
     if not commit:
         result = _report(
             spec,
@@ -271,6 +326,15 @@ def apply(
         _validate_report(result)
         return result
 
+    emit(
+        {
+            "phase": "committing",
+            "completed_nodes": completed_count,
+            "total_nodes": len(selected_nodes),
+            "bytes_moved": moved_bytes,
+            "bytes_planned": selected_bytes,
+        }
+    )
     for target in targets:
         if target.stage_path.is_file():
             target.final_path.parent.mkdir(parents=True, exist_ok=True)
@@ -286,6 +350,15 @@ def apply(
                 f"{target.tensor}/rank{target.rank}"
             )
     journal.mark_committed()
+    emit(
+        {
+            "phase": "committed",
+            "completed_nodes": completed_count,
+            "total_nodes": len(selected_nodes),
+            "bytes_moved": moved_bytes,
+            "bytes_planned": selected_bytes,
+        }
+    )
 
     result = _report(
         spec, plan, journal, verification, started, target_rank=target_rank

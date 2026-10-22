@@ -7,9 +7,19 @@ metadata:
 rules:
   - apiGroups: ["shardferry.io"]
     resources: ["checkpointmigrations"]
-    verbs: ["get", "list", "watch", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: ["shardferry.io"]
     resources: ["checkpointmigrations/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["shardferry.io"]
+    resources: ["checkpointrecords", "restoredrills", "rescuedecisions", "mobilitytransactions"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["shardferry.io"]
+    resources:
+      - checkpointrecords/status
+      - restoredrills/status
+      - rescuedecisions/status
+      - mobilitytransactions/status
     verbs: ["get", "update", "patch"]
   - apiGroups: ["shardferry.io"]
     resources: ["shardferryclusters"]
@@ -25,7 +35,7 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: [""]
     resources: ["events"]
-    verbs: ["create", "patch"]
+    verbs: ["get", "list", "watch", "create", "patch"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]

@@ -83,3 +83,98 @@ def test_helm_crd_matches_config_crd() -> None:
         / "checkpointmigration.yaml"
     ).read_text(encoding="utf-8")
     assert config == helm
+
+
+def test_control_plane_crds_and_helm_copies_are_in_sync() -> None:
+    pairs = {
+        "checkpointrecords": "checkpointrecord",
+        "restoredrills": "restoredrill",
+        "rescuedecisions": "rescuedecision",
+        "mobilitytransactions": "mobilitytransaction",
+    }
+    for plural, singular in pairs.items():
+        config = (
+            ROOT / "config" / "crd" / "bases" / f"shardferry.io_{plural}.yaml"
+        ).read_text(encoding="utf-8")
+        helm = (
+            ROOT
+            / "deploy"
+            / "helm"
+            / "shardferry"
+            / "crds"
+            / f"{singular}.yaml"
+        ).read_text(encoding="utf-8")
+        assert config == helm
+
+
+def test_control_plane_crd_contracts() -> None:
+    restore = yaml.safe_load(
+        (
+            ROOT
+            / "config"
+            / "crd"
+            / "bases"
+            / "shardferry.io_restoredrills.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    restore_spec = restore["spec"]["versions"][0]["schema"]["openAPIV3Schema"][
+        "properties"
+    ]["spec"]["properties"]
+    assert "jobTemplate" in restore_spec
+    assert "checkpointTemplate" in restore_spec
+    assert (
+        restore_spec["jobTemplate"]["x-kubernetes-preserve-unknown-fields"]
+        is True
+    )
+
+    record = yaml.safe_load(
+        (
+            ROOT
+            / "config"
+            / "crd"
+            / "bases"
+            / "shardferry.io_checkpointrecords.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    record_spec = record["spec"]["versions"][0]["schema"]["openAPIV3Schema"][
+        "properties"
+    ]["spec"]["properties"]
+    assert "agentSelector" in record_spec
+    assert "agentEndpoint" in record_spec
+
+    rescue = yaml.safe_load(
+        (
+            ROOT
+            / "config"
+            / "crd"
+            / "bases"
+            / "shardferry.io_rescuedecisions.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    rescue_spec = rescue["spec"]["versions"][0]["schema"]["openAPIV3Schema"][
+        "properties"
+    ]["spec"]["properties"]
+    assert rescue_spec["fallback"]["enum"] == ["hold", "restart"]
+    rescue_status = rescue["spec"]["versions"][0]["schema"]["openAPIV3Schema"][
+        "properties"
+    ]["status"]["properties"]
+    assert "reasonCode" in rescue_status
+
+    mobility = yaml.safe_load(
+        (
+            ROOT
+            / "config"
+            / "crd"
+            / "bases"
+            / "shardferry.io_mobilitytransactions.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    mobility_spec = mobility["spec"]["versions"][0]["schema"][
+        "openAPIV3Schema"
+    ]["properties"]["spec"]["properties"]
+    assert "migrationRef" in mobility_spec
+    mobility_status = mobility["spec"]["versions"][0]["schema"][
+        "openAPIV3Schema"
+    ]["properties"]["status"]["properties"]
+    assert "migrationPhase" in mobility_status
+    assert "targetReady" in mobility_status

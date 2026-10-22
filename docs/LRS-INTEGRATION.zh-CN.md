@@ -1,8 +1,8 @@
 # LRS 全局整合
 
-状态：A3.2 / RANK / L4 / Go 产品契约 / A5 CPU4 已接；A2 VPS、
-真实 DCP/FSDP、NCCL 4 卡待接
-日期：2026-10-22
+状态：A3.2 / RANK / L4 / Go 产品契约 / A5 CPU4 / CPU contract worker 已接；
+A2 VPS、真实 DCP/FSDP、NCCL 4 卡待接
+日期：2026-10-23
 
 ## 1. 分层
 
@@ -16,7 +16,7 @@
 | A5 | CPU 4-rank 真实 gloo 4→3→4 + state handoff | 20-step proof；`global_stop=true`，非最终 live collective |
 | RANK | RankSampler/ShardBlob.aux 进入 LRS 迁移/takeover | 4 tests |
 | L4 | target-load restore/verify + target job requireState | 7 tests |
-| GO | CRD `mode=live-rank-split`、执行器 HTTP 契约、fail-closed 门禁 | 已接；Python 服务待实现 |
+| GO/Python worker | CRD `mode=live-rank-split`、`/v1/live/reconcile`、CPU contract worker、fail-closed 门禁 | 已接；GPU/真实训练 backend 待验证 |
 
 ## 2. 已闭环
 
@@ -42,11 +42,11 @@
    生成 shard 布局与 reshard。
 2. **真实 DCP/FSDP target job N-step**：target-load 已能 load DCP + restore
    state bundle；还要在真实训练 entrypoint 里跑 N step，比较下一 batch/RNG。
-3. **Go controller/CRD `stateMode`**：已接
-   `mode=live-rank-split`、`/v1/live/reconcile` 客户端、coverage/quorum/
-   stateComplete/target-ready 门禁；见
-   [Live Rank Split Go 产品面](LIVE-RANK-SPLIT-GO.zh-CN.md)。剩余是 Python
-   服务端实现该 HTTP 契约。
+3. **Go controller + Python worker**：已接
+   `mode=live-rank-split`、`/v1/live/reconcile`、CPU contract backend、
+   coverage/quorum/stateComplete/target-ready 门禁和 durable tick/proof；
+   见 [Live Rank Split Go 产品面](LIVE-RANK-SPLIT-GO.zh-CN.md)。
+   剩余是真实训练/GPU backend，不应把 CPU contract 当成 GPU 证明。
 4. **NCCL rank handoff / 4 卡 / 2 节点**：NCCL communicator rebuild、
    RoCE/IB preflight、真 A/B。
 
@@ -66,6 +66,6 @@
 
 1. A2 VPS 接 M5，去掉 TP/PP hardcode；
 2. 真实 DCP/FSDP target job 跑 N step，接 `TrainingStateProvider`；
-3. Python LRS 实现 `/v1/live/reconcile`，与 Go 客户端做进程级联调；
+3. 把 CPU contract backend 替换/扩展成真实训练 worker；
 4. 4 卡/2 节点 NCCL + RoCE/IB；
 5. 全部通过后再冻结 LRS v1。

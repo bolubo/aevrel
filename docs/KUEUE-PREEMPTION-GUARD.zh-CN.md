@@ -11,6 +11,8 @@
 - 它不计算权重、不替代 priority、不改 quota、不做 admission ordering；
 - 它不修改 Kueue 代码，也不假设 Kueue 会理解 shardferry 的自定义 CRD；
 - 它输出的是 Kueue 现有 `PreemptionConfig.numericLabels` 能消费的整数 label。
+- 默认观测源是 shardferry 的 `CheckpointRecord`；没有 record 时才回退到
+  Job/Workload annotations。
 
 更重要的是，它没有硬件门槛。没有 GPU 也能验证 checkpoint 发布、策略决策、
 label 幂等同步和 Kueue 候选过滤。
@@ -30,7 +32,7 @@ adapter 不创建、不删除、不 suspend、不 reprioritize Workload。
 
 ## 用户配置
 
-训练 Job 必须显式 opt in：
+训练 Job 必须显式 opt in；有 `CheckpointRecord` 时 state 以控制面为准：
 
 ```yaml
 metadata:
@@ -55,6 +57,11 @@ metadata:
 | `checkpoint-age-seconds` | 否 | 最近完整 checkpoint 的年龄；当前仅保留 |
 
 annotations 优先，labels 可作 sidecar 的简化回退。
+`shardferry.io/checkpoint-record` 可显式指定 record；没有显式引用时，adapter
+按 Workload 的 owner Job 查找 `CheckpointRecord.spec.jobRef`，多个匹配按
+step/mtime 选最新，完全无法区分时 fail closed。只有 readiness 为 `READY`
+（complete/fresh/loadable）才视为可抢占；未验证、过期或缺失 record 默认
+protected。
 `checkpoint-version` 和 `checkpoint-age-seconds` 暂不参与二元决策，避免
 MVP 偷偷变成 cost scorer。
 
@@ -160,6 +167,35 @@ protected 处理，只有 adapter 显式发布 `eligible` 才能成为 victim。
 缺少任一条，二元保护就退化为 advisory：仍然能过滤一部分候选，但不能
 承诺“protected workload 永远不会被 Kueue 选中”。
 
+## 安装与产品入口
+
+推荐通过 shardferry Helm chart 安装 adapter、RBAC 和默认
+`PreemptionConfig`：
+
+```bash
+helm upgrade --install shardferry deploy/helm/shardferry \
+  --set kueueAdapter.enabled=true \
+  --set kueueAdapter.strict=true \
+  --set kueueAdapter.createPreemptionConfig=true
+```
+
+然后给目标 ClusterQueue 加 annotation：
+
+```bash
+kubectl annotate clusterqueue <name> \
+  kueue.x-k8s.io/preemption-config-name=checkpoint-guard
+```
+
+用户不需要直接读 Workload YAML：
+
+```bash
+shardferryctl kueue status
+shardferryctl kueue explain <workload>
+```
+
+输出会给出 `Protected`、`Reason`、progress/checkpoint/source 和 Kueue
+condition，并在最后给出下一步检查方向。
+
 adapter 以 `--strict=true` 启动时，会在启动阶段检查
 `PreemptionConfig` 的 strict numeric-label 规则，以及引用它的 ClusterQueue
 的 classical 三项配置；检查失败就退出，不启动控制器。FairSharing 是 Kueue
@@ -188,6 +224,7 @@ go run ./cmd/kueue-adapter \
   --kubeconfig "$HOME/.kube/config" \
   --strict=true \
   --preemption-config-name=checkpoint-guard \
+  --observation-source=auto \
   --workload-api-version v1beta2 \
   --protect-progress-gte 0.8 \
   --require-checkpoint-complete=true \

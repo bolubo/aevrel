@@ -71,6 +71,7 @@ from .sim import (
 from .state import DeltaLog, InMemoryTransfer, ShardBlob
 from .toy import BatchStream, ToyConfig, ToyDataset, canonical_gradient
 from .transport import DeltaSink, HttpDeltaServer, HttpDeltaSink
+from .worker import LiveWorker, LiveWorkerError, LiveWorkerServer
 
 __all__ = [
     "BatchStream",
@@ -84,6 +85,9 @@ __all__ = [
     "InMemoryTransfer",
     "HttpDeltaServer",
     "HttpDeltaSink",
+    "LiveWorker",
+    "LiveWorkerError",
+    "LiveWorkerServer",
     "LRSSimulator",
     "LayoutError",
     "LrsError",

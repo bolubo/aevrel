@@ -296,3 +296,36 @@ def test_m2_duplicate_rank_fails_closed() -> None:
             ],
             max_in_flight=2,
         )
+
+
+def test_m2_all_ranks_can_use_migrated_b_temp_owners() -> None:
+    config = ToyConfig(
+        world_size=4,
+        shard_size=1,
+        param_count=4,
+        batch_per_rank=2,
+        dataset_size=32,
+        seed=7,
+    )
+    baseline = LRSSimulator(config).run(7)
+    migrated = LRSSimulator(config).run(
+        7,
+        [
+            Migration(rank=0, begin_step=1, cutover_step=3),
+            Migration(rank=1, begin_step=1, cutover_step=3),
+            Migration(rank=2, begin_step=4, cutover_step=6),
+            Migration(rank=3, begin_step=4, cutover_step=6),
+        ],
+        max_in_flight=2,
+    )
+    assert migrated.theta.tobytes() == baseline.theta.tobytes()
+    assert migrated.momentum.tobytes() == baseline.momentum.tobytes()
+    assert migrated.loss_history == baseline.loss_history
+    assert migrated.batch_history == baseline.batch_history
+    assert migrated.cluster_layout == {
+        rank: Cluster.B for rank in range(4)
+    }
+    assert [proof.rank for proof in migrated.proofs] == [0, 1, 2, 3]
+    assert [proof.temp_owner for proof in migrated.proofs] == [2, 3, 0, 1]
+    assert all(proof.steps_lost == 0 for proof in migrated.proofs)
+    assert all(proof.global_stop == 0 for proof in migrated.proofs)

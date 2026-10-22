@@ -1,25 +1,50 @@
 # shardferry 产品面
 
-状态：V1 本地迁移入口  
+状态：0.2.0-rc.1 候选（控制面重构中）
 日期：2026-10-22
 
 ## 1. 产品定义
 
-用户只有一件事要做：把一个已经落盘的 PyTorch DCP checkpoint 迁移到新的
-world size / DeviceMesh，并确认结果逐字节正确。
+用户不需要先决定“要不要迁移”。平台首先要持续回答：
+
+- 最新完整 checkpoint 在哪里；
+- 是否覆盖所有 rank/shard；
+- 最近一次真实加载验证是什么时候；
+- 目标集群是否能接；
+- 抢占或故障后应该 restore、restart、migrate 还是 hold。
+
+迁移只是这些状态之上的一个动作。当前仓库仍保留成熟的 DCP 迁移数据面；
+控制面重构将把 `CheckpointRecord` / `Readiness` 提升为首要资源。
 
 用户不需要理解 MigrationSpec、plan node、journal、agent 或 controller。
 这些仍属于稳定内部契约，但不是首屏 API。
 
-## 2. 稳定入口
+完整的日常价值、产品形态和不可降级验收见
+[产品形态与日常价值](PRODUCT-FORM.zh-CN.md)。
+工程阶段和验收见[产品构建计划](BUILD-PLAN.zh-CN.md)。
+
+## 2. 当前入口
 
 ```text
 shardferry demo
 shardferry doctor --checkpoint PATH
+shardferry readiness --checkpoint PATH --target-world N
+shardferry restore-drill --checkpoint PATH --target-command "python train_resume.py --checkpoint {checkpoint}" --steps 10
 shardferry migrate --checkpoint PATH --target-world N
 shardferry capabilities --json
 shardferryctl migrate -f migration.yaml --wait
 ```
+
+`readiness` 是只读入口：完整/新鲜不等于可恢复；没有 restore drill 时为
+`UNVERIFIED`。集群侧使用 `shardferryctl readiness NAME` 查看
+`CheckpointRecord` 状态。
+
+`restore-drill` 必须由目标训练命令真实加载 checkpoint、运行 N step 并写
+target-ready report；CLI 不伪造训练步数。
+
+集群侧 `CheckpointRecord.spec.agentEndpoint` 可让 Go controller 拉取
+agent 的只读 `/v1/checkpoint-record` facts；agent token 可复用 controller
+token 或 Secret。
 
 ### demo
 
@@ -62,6 +87,26 @@ shardferryctl migrate -f migration.yaml --dry-run
 shardferryctl migrate -f migration.yaml --wait
 ```
 
+### state（高级入口）
+
+`state` 管理 rank-local resume state bundle，用于验证 target 是否拿到了
+完整模型、优化器、RNG、sampler 和训练计数：
+
+```bash
+shardferry state capture --root /state/rank0 --checkpoint-id job42 \
+  --checkpoint-version step-100000 --rank 0 --source-world 4
+shardferry state verify --root /state/rank0 --require-complete
+shardferry state restore --root /state/rank0 --target-rank 0
+```
+
+它是 target-ready L4 的高级前置，不是首屏迁移入口。
+
+### handoff（实验入口）
+
+`handoff` 是 warm-target checkpoint 追赶/切换服务，当前只作为实验能力
+暴露。它需要 source/target 路径、token、暂停与恢复命令以及 target-ready
+检查；没有产品级 SLA，也不替代 `migrate` 的静态路径。
+
 ### live-rank-split（实验入口）
 
 同一个 `CheckpointMigration` 增加 `spec.mode: live-rank-split`，由外部
@@ -79,6 +124,8 @@ shardferryctl describe migration live-rank-split-demo --ranks
 `controller.liveURL`）。没有执行器时 live CR 失败关闭；不会退回静态全量
 停机路径。协议与边界见
 [Live Rank Split Go 产品面](LIVE-RANK-SPLIT-GO.zh-CN.md)。
+完整用户操作顺序、输出和失败动作见
+[Live Rank Split 用户流程](LIVE-RANK-SPLIT-USAGE.zh-CN.md)。
 
 ## 3. 输出契约
 
@@ -128,6 +175,12 @@ spec-http fetch-spec summarize
 
 它们不出现在 `shardferry --help`。如果某个流程被用户真实使用，应优先把能力
 提升为 `demo` / `doctor` / `migrate` 的一个选项，而不是继续扩张首屏命令面。
+
+`state` 与 `handoff` 是例外：它们出现在 help 中，但分别标注为高级和
+实验入口；默认迁移不需要使用它们。
+
+进度显示和失败后的下一步动作见
+[进度条与迁移状态 UX](PROGRESS-UX.zh-CN.md)。
 
 ## 5. 产品不变量
 

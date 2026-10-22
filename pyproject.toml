@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shardferry"
-version = "0.1.1"
+version = "0.2.0-rc.1"
 description = "Move and reshard local checkpoint shards across DeviceMeshes and clusters."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -45,6 +45,7 @@ shardferry = "shardferry.cli:main"
 shardferry-target-load = "shardferry.commands.target_load:main"
 shardferry-target-report = "shardferry.commands.target_report:main"
 shardferry-support-bundle = "shardferry.commands.support_bundle:main"
+shardferry-live-worker = "shardferry.commands.live_worker:main"
 
 [project.urls]
 Homepage = "https://github.com/bolubo/shardferry"

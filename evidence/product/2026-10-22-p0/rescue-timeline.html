@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>shardferry rescue timeline</title>
+<style>
+body { font: 14px/1.5 system-ui, sans-serif; margin: 32px; color: #18212b; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid #d8dee7; padding: 8px; text-align: left; }
+th { background: #f4f7fa; }
+.ok { color: #18794e; font-weight: 600; }
+</style>
+<h1>shardferry rescue timeline</h1>
+<p class="ok">interruption → journal preserved → resume → target verified</p>
+<table>
+<thead><tr><th>Time</th><th>Attempt</th><th>Phase</th><th>Detail</th></tr></thead>
+<tbody><tr><td>2026-10-22T14:48:56.728176+00:00</td><td>first</td><td>start</td><td>source DCP indexed; starting migration</td></tr>
+<tr><td>2026-10-22T14:48:56.728283+00:00</td><td>first</td><td>progress</td><td>reading DCP metadata and indexing local shards</td></tr>
+<tr><td>2026-10-22T14:48:56.730398+00:00</td><td>first</td><td>progress</td><td>planning 4 -&gt; 3 target ranks</td></tr>
+<tr><td>2026-10-22T14:48:56.731673+00:00</td><td>first</td><td>progress</td><td>transferring 6 chunks (65536 bytes)</td></tr>
+<tr><td>2026-10-22T14:48:56.751150+00:00</td><td>first</td><td>interrupted</td><td>simulated user interruption after 1 completed nodes</td></tr>
+<tr><td>2026-10-22T14:48:56.751438+00:00</td><td>resume</td><td>start</td><td>same command; journal has 1 completed node(s)</td></tr>
+<tr><td>2026-10-22T14:48:56.751543+00:00</td><td>resume</td><td>progress</td><td>reading DCP metadata and indexing local shards</td></tr>
+<tr><td>2026-10-22T14:48:56.753094+00:00</td><td>resume</td><td>progress</td><td>planning 4 -&gt; 3 target ranks</td></tr>
+<tr><td>2026-10-22T14:48:56.753923+00:00</td><td>resume</td><td>progress</td><td>transferring 6 chunks (65536 bytes)</td></tr>
+<tr><td>2026-10-22T14:48:56.809609+00:00</td><td>resume</td><td>progress</td><td>verification passed; writing target DCP</td></tr>
+<tr><td>2026-10-22T14:48:56.811472+00:00</td><td>resume</td><td>progress</td><td>migration complete</td></tr>
+<tr><td>2026-10-22T14:48:56.811515+00:00</td><td>resume</td><td>committed</td><td>target exported: /root/.cache/rescue-demo/target.dcp</td></tr></tbody>
+</table>
+</html>

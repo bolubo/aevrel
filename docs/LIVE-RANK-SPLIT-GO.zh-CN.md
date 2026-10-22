@@ -12,7 +12,7 @@
 spec:
   mode: live-rank-split
   live:
-    maxInFlight: 1
+    maxInFlight: 2
     stateMode: L4
     stateRoot: /state/step-100000/rank{rank}
     stateProviders: [python.random, numpy.random, torch.cpu.rng, training.state]

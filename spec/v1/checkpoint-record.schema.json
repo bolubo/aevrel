@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/checkpoint-record-v1.json",
+  "title": "ShardferryCheckpointRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "checkpoint", "namespace", "job_uid", "version", "provider",
+    "format_version", "metadata_digest", "ranks", "observed_at", "complete"
+  ],
+  "properties": {
+    "checkpoint": { "type": "string", "minLength": 1 },
+    "namespace": { "type": "string" },
+    "job_uid": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "step": { "type": ["integer", "null"], "minimum": 0 },
+    "provider": { "type": "string", "minLength": 1 },
+    "format_version": { "type": "string", "minLength": 1 },
+    "metadata_digest": { "type": "string", "minLength": 1 },
+    "ranks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rank" }
+    },
+    "observed_at": { "type": "string", "minLength": 1 },
+    "latest_mtime": { "type": ["string", "null"] },
+    "complete": { "type": "boolean" },
+    "reasons": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reason" }
+    }
+  },
+  "$defs": {
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "detail"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string" }
+      }
+    },
+    "shard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name", "relative_path", "rank", "offset", "length", "size_bytes"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "relative_path": { "type": "string" },
+        "rank": { "type": "integer", "minimum": 0 },
+        "offset": { "type": "integer", "minimum": 0 },
+        "length": { "type": "integer", "minimum": 0 },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "rank": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rank", "shards", "bytes"],
+      "properties": {
+        "rank": { "type": "integer", "minimum": 0 },
+        "shards": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/shard" }
+        },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

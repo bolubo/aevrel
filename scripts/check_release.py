@@ -55,6 +55,11 @@ def check(image_prefix: str) -> dict[str, Any]:
         errors.append("Chart.yaml appVersion is empty")
     if not chart_version:
         errors.append("Chart.yaml version is empty")
+    if chart_version != app_version:
+        errors.append(
+            "Chart.yaml version must equal appVersion: "
+            f"{chart_version} != {app_version}"
+        )
     if project_version != app_version:
         errors.append(
             "pyproject.toml version must equal Chart.yaml appVersion: "
@@ -73,21 +78,27 @@ def check(image_prefix: str) -> dict[str, Any]:
         )
 
     images = values.get("image", {})
-    for component in ("controller", "gateway", "agent"):
-        image = str(images.get(component, ""))
+    for key, artifact in (
+        ("controller", "controller"),
+        ("gateway", "gateway"),
+        ("agent", "agent"),
+        ("liveWorker", "live-worker"),
+        ("kueueAdapter", "kueue-adapter"),
+    ):
+        image = str(images.get(key, ""))
         if not image:
-            errors.append(f"values.yaml image.{component} is empty")
+            errors.append(f"values.yaml image.{key} is empty")
             continue
         if image.endswith(":latest"):
-            errors.append(f"values.yaml image.{component} uses latest")
-        expected_prefix = f"{image_prefix}/shardferry-{component}:"
+            errors.append(f"values.yaml image.{key} uses latest")
+        expected_prefix = f"{image_prefix}/shardferry-{artifact}:"
         if not image.startswith(expected_prefix):
             errors.append(
-                f"image.{component} must start with {expected_prefix!r}: {image}"
+                f"image.{key} must start with {expected_prefix!r}: {image}"
             )
         if image.rsplit(":", 1)[-1] != app_version:
             errors.append(
-                f"image.{component} tag must equal appVersion {app_version}: {image}"
+                f"image.{key} tag must equal appVersion {app_version}: {image}"
             )
 
     scripts = pyproject.get("project", {}).get("scripts", {})
@@ -96,6 +107,7 @@ def check(image_prefix: str) -> dict[str, Any]:
         "shardferry-target-load",
         "shardferry-target-report",
         "shardferry-support-bundle",
+        "shardferry-live-worker",
     ):
         if command not in scripts:
             errors.append(f"pyproject.toml is missing console script {command}")
@@ -104,6 +116,7 @@ def check(image_prefix: str) -> dict[str, Any]:
         "deploy/docker/Dockerfile.controller",
         "deploy/docker/Dockerfile.gateway",
         "deploy/docker/Dockerfile.agent",
+        "deploy/docker/Dockerfile.live-worker",
         "deploy/helm/shardferry/crds/checkpointmigration.yaml",
         "deploy/helm/shardferry/crds/shardferrycluster.yaml",
         "docs/SCENARIO.zh-CN.md",
@@ -117,6 +130,7 @@ def check(image_prefix: str) -> dict[str, Any]:
         "docs/USER-ENABLEMENT.zh-CN.md",
         "docs/RELEASE.zh-CN.md",
         "docs/LIVE-ACCEPTANCE.zh-CN.md",
+        "docs/LRS-WORKER.zh-CN.md",
         "scripts/gpu_preflight.py",
         "spec/v1/target-ready.schema.json",
         ".github/workflows/release.yml",

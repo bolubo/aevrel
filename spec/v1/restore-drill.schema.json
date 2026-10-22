@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/restore-drill-v1.json",
+  "title": "ShardferryRestoreDrill",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_version", "version", "target_world_size", "steps", "phase",
+    "started_at"
+  ],
+  "properties": {
+    "record_version": { "type": "string", "minLength": 1 },
+    "job_name": { "type": "string" },
+    "job_template": { "type": ["object", "null"] },
+    "checkpoint_template": { "type": "string" },
+    "state_template": { "type": "string" },
+    "state_providers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "require_state_complete": { "type": "boolean" },
+    "version": { "type": "string", "minLength": 1 },
+    "target_world_size": { "type": "integer", "minimum": 1 },
+    "steps": { "type": "integer", "minimum": 1 },
+    "phase": {
+      "type": "string",
+      "enum": ["Pending", "Running", "Succeeded", "Failed", "Cancelled"]
+    },
+    "started_at": { "type": "string", "minLength": 1 },
+    "finished_at": { "type": ["string", "null"] },
+    "proof_ref": { "type": "string" },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "detail"],
+        "properties": {
+          "code": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  }
+}

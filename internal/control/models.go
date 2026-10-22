@@ -1,0 +1,146 @@
+package control
+
+import "time"
+
+type ReadinessStatus string
+
+const (
+	ReadinessUnknown       ReadinessStatus = "UNKNOWN"
+	ReadinessIncomplete    ReadinessStatus = "INCOMPLETE"
+	ReadinessStale         ReadinessStatus = "STALE"
+	ReadinessUnverified    ReadinessStatus = "UNVERIFIED"
+	ReadinessReady         ReadinessStatus = "READY"
+	ReadinessTargetBlocked ReadinessStatus = "TARGET_BLOCKED"
+)
+
+const (
+	ReasonMetadataMissing   = "METADATA_MISSING"
+	ReasonSourceUnreadable  = "SOURCE_UNREADABLE"
+	ReasonRankMissing       = "RANK_MISSING"
+	ReasonRankDuplicate     = "RANK_DUPLICATE"
+	ReasonShardMissing      = "SHARD_MISSING"
+	ReasonShardTruncated    = "SHARD_TRUNCATED"
+	ReasonStale             = "STALE"
+	ReasonDrillMissing      = "DRILL_MISSING"
+	ReasonDrillFailed       = "DRILL_FAILED"
+	ReasonTargetUnspecified = "TARGET_UNSPECIFIED"
+	ReasonTargetBlocked     = "TARGET_BLOCKED"
+)
+
+type Reason struct {
+	Code   string `json:"code"`
+	Detail string `json:"detail"`
+}
+
+type ShardRef struct {
+	Name         string `json:"name"`
+	RelativePath string `json:"relative_path"`
+	Rank         int    `json:"rank"`
+	Offset       int64  `json:"offset"`
+	Length       int64  `json:"length"`
+	SizeBytes    int64  `json:"size_bytes"`
+}
+
+type RankInventory struct {
+	Rank   int        `json:"rank"`
+	Shards []ShardRef `json:"shards"`
+	Bytes  int64      `json:"bytes"`
+}
+
+type CheckpointRecord struct {
+	Checkpoint     string          `json:"checkpoint"`
+	Namespace      string          `json:"namespace"`
+	JobUID         string          `json:"job_uid"`
+	Version        string          `json:"version"`
+	Step           *int64          `json:"step,omitempty"`
+	Provider       string          `json:"provider"`
+	FormatVersion  string          `json:"format_version"`
+	MetadataDigest string          `json:"metadata_digest"`
+	Ranks          []RankInventory `json:"ranks"`
+	ObservedAt     string          `json:"observed_at"`
+	LatestMtime    string          `json:"latest_mtime,omitempty"`
+	Complete       bool            `json:"complete"`
+	Reasons        []Reason        `json:"reasons,omitempty"`
+}
+
+type DrillOutcome struct {
+	Phase     string `json:"phase"`
+	Succeeded bool   `json:"succeeded"`
+	StepsRan  int    `json:"steps_ran"`
+	ProofRef  string `json:"proof_ref,omitempty"`
+	Detail    string `json:"detail,omitempty"`
+}
+
+type CheckpointReadiness struct {
+	Status              ReadinessStatus `json:"status"`
+	Complete            bool            `json:"complete"`
+	Fresh               bool            `json:"fresh"`
+	Loadable            *bool           `json:"loadable"`
+	Movable             *bool           `json:"movable"`
+	Reasons             []Reason        `json:"reasons,omitempty"`
+	ObservedAt          string          `json:"observed_at"`
+	TargetWorldSize     *int            `json:"target_world_size,omitempty"`
+	EstimatedRTOSeconds *int64          `json:"estimated_rto_seconds,omitempty"`
+	LastDrill           string          `json:"last_drill,omitempty"`
+}
+
+type RestoreDrill struct {
+	RecordVersion   string    `json:"record_version"`
+	TargetWorldSize int       `json:"target_world_size"`
+	Steps           int       `json:"steps"`
+	Phase           string    `json:"phase"`
+	StartedAt       time.Time `json:"started_at"`
+	FinishedAt      time.Time `json:"finished_at,omitempty"`
+	ProofRef        string    `json:"proof_ref,omitempty"`
+	Reasons         []Reason  `json:"reasons,omitempty"`
+}
+
+type RescueAction string
+
+const (
+	RescueRestore RescueAction = "restore"
+	RescueRestart RescueAction = "restart"
+	RescueMigrate RescueAction = "migrate"
+	RescueHold    RescueAction = "hold"
+)
+
+type RescueDecision struct {
+	Event     string       `json:"event"`
+	Action    RescueAction `json:"action"`
+	Code      string       `json:"code,omitempty"`
+	Reason    string       `json:"reason"`
+	Target    string       `json:"target,omitempty"`
+	ProofRef  string       `json:"proof_ref,omitempty"`
+	DecidedAt string       `json:"decided_at,omitempty"`
+}
+
+type TransactionMode string
+
+const (
+	TransactionStatic TransactionMode = "static"
+	TransactionLive   TransactionMode = "live"
+)
+
+type TransactionPhase string
+
+const (
+	TransactionPending          TransactionPhase = "Pending"
+	TransactionPreparing        TransactionPhase = "Preparing"
+	TransactionTransferring     TransactionPhase = "Transferring"
+	TransactionVerifying        TransactionPhase = "Verifying"
+	TransactionCommitting       TransactionPhase = "Committing"
+	TransactionSucceeded        TransactionPhase = "Succeeded"
+	TransactionFailed           TransactionPhase = "Failed"
+	TransactionCancelled        TransactionPhase = "Cancelled"
+	TransactionCommitIncomplete TransactionPhase = "CommitIncomplete"
+)
+
+type MobilityTransaction struct {
+	RecordVersion string           `json:"record_version"`
+	Mode          TransactionMode  `json:"mode"`
+	Phase         TransactionPhase `json:"phase"`
+	Source        string           `json:"source"`
+	Target        string           `json:"target"`
+	ProofRef      string           `json:"proof_ref,omitempty"`
+	Reasons       []Reason         `json:"reasons,omitempty"`
+}

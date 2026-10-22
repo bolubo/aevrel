@@ -37,6 +37,9 @@ func executePreflight(
 	if err != nil {
 		return err
 	}
+	if err := applyMaxInFlight(migration, options.maxInFlight); err != nil {
+		return err
+	}
 	if err := validateProductMigration(migration); err != nil {
 		return fmt.Errorf("invalid migration: %w", err)
 	}
@@ -189,6 +192,17 @@ func executePreflight(
 		sourceRanks,
 		targetRanks,
 	)
+	if liveMode {
+		fmt.Fprintln(
+			out,
+			"next: configure controller --live-url, then run `shardferryctl plan -f <file>`",
+		)
+	} else {
+		fmt.Fprintln(
+			out,
+			"next: run `shardferryctl plan -f <file>` and `shardferryctl migrate -f <file> --dry-run`",
+		)
+	}
 	return nil
 }
 
@@ -230,7 +244,8 @@ func clusterStatus(
 }
 
 type preflightOptions struct {
-	file string
+	file        string
+	maxInFlight int32
 }
 
 func parsePreflight(args []string) (preflightOptions, error) {
@@ -243,9 +258,19 @@ func parsePreflight(args []string) (preflightOptions, error) {
 				return options, fmt.Errorf("%s requires a path", args[index-1])
 			}
 			options.file = args[index]
+		case "--max-in-flight":
+			index++
+			if index >= len(args) {
+				return options, fmt.Errorf("--max-in-flight requires a number")
+			}
+			value, err := parseMaxInFlight(args[index])
+			if err != nil {
+				return options, err
+			}
+			options.maxInFlight = value
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl preflight -f migration.yaml",
+				"usage: shardferryctl preflight -f migration.yaml [--max-in-flight N]",
 			)
 		default:
 			return options, fmt.Errorf("unknown preflight option: %s", args[index])

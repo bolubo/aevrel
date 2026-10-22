@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,8 @@ type migrateOptions struct {
 	dryRun        bool
 	timeout       time.Duration
 	artifactClaim string
+	maxInFlight   int32
+	noProgress    bool
 }
 
 func executeMigrate(
@@ -45,6 +48,9 @@ func executeMigrate(
 	}
 	if options.artifactClaim != "" {
 		migration.Spec.Artifacts.ClaimName = options.artifactClaim
+	}
+	if err := applyMaxInFlight(migration, options.maxInFlight); err != nil {
+		return err
 	}
 	if !containsFinalizer(migration, "shardferry.io/cleanup") {
 		migration.Finalizers = append(
@@ -114,6 +120,8 @@ func parseMigrate(args []string) (migrateOptions, error) {
 			options.wait = true
 		case "--dry-run":
 			options.dryRun = true
+		case "--no-progress":
+			options.noProgress = true
 		case "--timeout":
 			index++
 			if index >= len(args) {
@@ -130,9 +138,19 @@ func parseMigrate(args []string) (migrateOptions, error) {
 				return options, fmt.Errorf("--artifact-claim requires a name")
 			}
 			options.artifactClaim = args[index]
+		case "--max-in-flight":
+			index++
+			if index >= len(args) {
+				return options, fmt.Errorf("--max-in-flight requires a number")
+			}
+			value, err := parseMaxInFlight(args[index])
+			if err != nil {
+				return options, err
+			}
+			options.maxInFlight = value
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl migrate -f migration.yaml [--wait] [--dry-run] [--timeout 1h] [--artifact-claim NAME]",
+				"usage: shardferryctl migrate -f migration.yaml [--wait] [--dry-run] [--no-progress] [--timeout 1h] [--artifact-claim NAME] [--max-in-flight N]",
 			)
 		default:
 			return options, fmt.Errorf("unknown migrate option: %s", args[index])
@@ -142,6 +160,29 @@ func parseMigrate(args []string) (migrateOptions, error) {
 		return options, fmt.Errorf("migrate requires -f migration.yaml")
 	}
 	return options, nil
+}
+
+func parseMaxInFlight(value string) (int32, error) {
+	parsed, err := strconv.ParseInt(value, 10, 32)
+	if err != nil || parsed < 1 {
+		return 0, fmt.Errorf("--max-in-flight must be a positive integer")
+	}
+	return int32(parsed), nil
+}
+
+func applyMaxInFlight(
+	migration *shardferryv1.CheckpointMigration,
+	value int32,
+) error {
+	if value <= 0 {
+		return nil
+	}
+	if migration.Spec.Mode != shardferryv1.MigrationModeLiveRankSplit ||
+		migration.Spec.Live == nil {
+		return fmt.Errorf("--max-in-flight requires mode: live-rank-split")
+	}
+	migration.Spec.Live.MaxInFlight = value
+	return nil
 }
 
 func loadMigration(path, namespace string) (*shardferryv1.CheckpointMigration, error) {
@@ -397,32 +438,34 @@ func waitForMigration(
 	waitCtx, cancel := context.WithTimeout(ctx, options.timeout)
 	defer cancel()
 	key := client.ObjectKeyFromObject(migration)
+	tty := isTerminalWriter(out)
+	if !jsonOut && !options.noProgress {
+		fmt.Fprintf(
+			out,
+			"watching migration %s/%s; inspect with `shardferryctl describe migration %s -n %s`\n",
+			migration.Namespace,
+			migration.Name,
+			migration.Name,
+			migration.Namespace,
+		)
+	}
 	lastPhase := ""
+	lastBucket := -1
 	for {
 		var current shardferryv1.CheckpointMigration
 		if err := kubeClient.Get(waitCtx, key, &current); err != nil {
 			return err
 		}
-		if !jsonOut && current.Status.Phase != lastPhase {
-			fmt.Fprintf(
-				out,
-				"phase=%s prepared=%d staged=%d committed=%d failed=%d\n",
-				current.Status.Phase,
-				current.Status.Counts.Prepared,
-				current.Status.Counts.Staged,
-				current.Status.Counts.Committed,
-				current.Status.Counts.Failed,
-			)
-			if live := current.Status.Live; live != nil {
-				fmt.Fprintf(
-					out,
-					"live=%s inFlight=%v coverage=%v quorum=%d stateComplete=%t\n",
-					emptyDash(live.CutoverPhase),
-					live.InFlight,
-					live.Coverage,
-					live.Quorum,
-					live.StateComplete,
-				)
+		if !jsonOut && !options.noProgress {
+			bucket := progressBucket(&current)
+			if tty || current.Status.Phase != lastPhase || bucket != lastBucket {
+				line := migrationProgressLine(&current, tty)
+				if tty {
+					fmt.Fprintf(out, "\r%-150s", line)
+				} else {
+					fmt.Fprintln(out, line)
+				}
+				lastBucket = bucket
 			}
 			lastPhase = current.Status.Phase
 		}
@@ -430,6 +473,9 @@ func waitForMigration(
 		case shardferryv1.MigrationPhaseSucceeded:
 			if jsonOut {
 				return writeJSON(out, &current)
+			}
+			if tty {
+				fmt.Fprintln(out)
 			}
 			fmt.Fprintf(
 				out,
@@ -451,11 +497,14 @@ func waitForMigration(
 				if err := writeJSON(out, &current); err != nil {
 					return err
 				}
+			} else if tty {
+				fmt.Fprintln(out)
 			}
 			return fmt.Errorf(
-				"migration ended in phase %s: %s",
+				"migration ended in phase %s: %s; next: %s",
 				current.Status.Phase,
 				conditionMessage(&current, conditionType),
+				nextAction(&current),
 			)
 		}
 		select {
@@ -466,7 +515,7 @@ func waitForMigration(
 				current.Namespace,
 				current.Name,
 			)
-		case <-time.After(2 * time.Second):
+		case <-time.After(time.Second):
 		}
 	}
 }

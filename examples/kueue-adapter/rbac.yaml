@@ -23,6 +23,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - shardferry.io
+  resources:
+  - checkpointrecords
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - kueue.x-k8s.io
   resources:
   - workloads

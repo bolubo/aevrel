@@ -965,6 +965,7 @@ def migrate_dcp(
     force: bool = False,
     keep_work: bool = False,
     progress: Callable[[str], None] | None = None,
+    progress_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     def notify(message: str) -> None:
         if progress is not None:
@@ -1028,7 +1029,7 @@ def migrate_dcp(
         f"transferring {len(plan_payload['nodes'])} chunks "
         f"({plan_payload['total_bytes']} bytes)"
     )
-    report = execute_plan(plan_payload, spec)
+    report = execute_plan(plan_payload, spec, progress=progress_event)
     (work_path / "plan.json").write_text(
         json.dumps(plan_payload, indent=2),
         encoding="utf-8",

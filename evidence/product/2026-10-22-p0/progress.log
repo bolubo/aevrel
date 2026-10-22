@@ -1,0 +1,23 @@
+shardferry: reading DCP metadata and indexing local shards
+shardferry: planning 4 -> 3 target ranks
+shardferry: transferring 5 chunks (128 bytes)
+transfer [------------------------]   0% 0 B/128 B 0/5 nodes
+transfer [######------------------]  25% 32 B/128 B 1/5 nodes 32 B/s ETA 2.91s w/rank0
+transfer [#########---------------]  38% 48 B/128 B 2/5 nodes 49 B/s ETA 1.62s w/rank0
+transfer [############------------]  50% 64 B/128 B 3/5 nodes 65 B/s ETA 0.98s w/rank1
+transfer [##################------]  75% 96 B/128 B 4/5 nodes 97 B/s ETA 0.33s w/rank1
+transfer [########################] 100% 128 B/128 B 5/5 nodes 130 B/s w/rank2
+verify [------------------------] checking 128 B
+verified [########################] 128 B
+commit [########################] 5/5 nodes
+committed [########################] 5/5 nodes
+shardferry: verification passed; writing target DCP
+shardferry: migration complete
+Migration complete
+  checkpoint:   /root/.cache/shardferry-product-acceptance/dcp/source.dcp
+  output:       /root/.cache/shardferry-product-acceptance/progress-target
+  topology:     4 -> 3 ranks
+  plan:         5 chunks, 128 B
+  moved:        128 B in 0.03s
+  verification: bitwise passed
+  work dir:     /root/.cache/shardferry-product-acceptance/progress-work

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/readiness-v1.json",
+  "title": "ShardferryCheckpointReadiness",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status", "complete", "fresh", "loadable", "movable",
+    "reasons", "observed_at"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN", "INCOMPLETE", "STALE", "UNVERIFIED",
+        "READY", "TARGET_BLOCKED"
+      ]
+    },
+    "complete": { "type": "boolean" },
+    "fresh": { "type": "boolean" },
+    "loadable": { "type": ["boolean", "null"] },
+    "movable": { "type": ["boolean", "null"] },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "detail"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "observed_at": { "type": "string", "minLength": 1 },
+    "target_world_size": { "type": ["integer", "null"], "minimum": 1 },
+    "estimated_rto_seconds": { "type": ["integer", "null"], "minimum": 0 },
+    "last_drill": { "type": ["string", "null"] },
+    "last_drill_version": { "type": ["string", "null"] },
+    "last_drill_digest": { "type": ["string", "null"] }
+  }
+}

@@ -1,6 +1,6 @@
 # GitHub user discovery — 2026-10-22
 
-状态：第二轮代码/上游验证；仍不是访谈后的用户验证结论
+状态：第二轮代码/上游验证；外部访谈不作为当前开发门槛
 
 ## 方法
 
@@ -36,7 +36,8 @@ GitHub 搜索 API 触发过 secondary rate limit，因此这是首轮而非穷�
 
 这是一个值得做控制面实验的方向，尤其是“checkpoint freshness 标签 +
 PreemptionConfig”可以在不修改 Kueue 核心的情况下先做 PoC。但它还不能
-证明用户愿意安装 shardferry；需要真实 Kueue 用户访谈。
+证明上游存在代码缺口；采用验证仍以内部 acceptance matrix 和真实环境为准，
+不把外部访谈作为发布前置。
 
 ### 2. PyTorch separate DeviceMesh local-shard migration
 
@@ -213,12 +214,13 @@ Live Handoff 仍然可能是这个组合的一个高阶形态，但不应在没�
 
 ## 下一步
 
-- 对 issue authors / maintainers 做 5–8 次问题访谈，不问“会不会用”，只问
-  最近一次真实迁移/恢复；
-- 验证至少 3 个团队是否真的有“无共享存储 + 异拓扑 + 可安装 controller”
-  的组合；
-- 为 Kueue #477/KEP-5710 与 PyTorch #154787 各写一张完整 problem card；
-- 如果两条线都成立，定义一个 **CheckpointState + MobilityPlan +
-  MobilityTransaction + Proof** 的最小控制面契约，再决定 0.2 是
-  checkpoint-aware preemption、local-shard migration，还是两者合并；
-- 如果只有 one-off 需求，保持 0.1.x 工具定位，不把 Live Handoff 硬做成平台。
+外部访谈不作为开发门槛。下一阶段以内部验收矩阵和真实环境测试为准：
+
+- 冻结 **CheckpointState + Readiness + RestoreDrill + MobilityTransaction +
+  Proof** 契约；
+- 先做只读 inventory/readiness，再做 restore drill 和 rescue decision；
+- 用本地、kind、4 GPU、2 节点和 128 rank 场景验证；
+- Kueue/Volcano/Kubeflow 只作为 adapter，不作为产品成立的前置条件。
+
+详见 [产品构建计划](BUILD-PLAN.zh-CN.md) 和
+[产品形态与日常价值](PRODUCT-FORM.zh-CN.md)。

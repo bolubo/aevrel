@@ -25,6 +25,7 @@ spec:
         - --require-checkpoint-complete=true
         - --protect-unknown=true
         - --sync-interval=30s
+        - --observation-source=auto
         ports:
         - name: metrics
           containerPort: 8080

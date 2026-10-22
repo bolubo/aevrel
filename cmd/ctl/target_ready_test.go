@@ -45,6 +45,7 @@ func TestDescribeShowsTargetReady(t *testing.T) {
 	}
 	text := output.String()
 	for _, want := range []string{
+		"Next:",
 		"TargetReady: ready=false condition=Incomplete",
 		"version=step-100000 ranks=1/2",
 		"Target proof: http://controller/artifacts/target",

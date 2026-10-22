@@ -113,7 +113,16 @@ def test_help_only_exposes_product_commands(capsys) -> None:
         main(["--help"])
     assert exc.value.code == 0
     output = capsys.readouterr().out
-    for command in ("demo", "migrate", "doctor", "capabilities"):
+    for command in (
+        "demo",
+        "migrate",
+        "doctor",
+        "capabilities",
+        "readiness",
+        "restore-drill",
+        "state",
+        "handoff",
+    ):
         assert command in output
     for command in ("inspect", "dcp-migrate", "serve", "apply"):
         assert command not in output
@@ -359,3 +368,7 @@ def test_capabilities_cli_is_machine_readable(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["apiVersion"] == "shardferry.io/v1"
     assert "dcp" in payload["features"]
+    assert "checkpoint-readiness" in payload["features"]
+    assert "restore-drill" in payload["features"]
+    assert "state-bundle" in payload["features"]
+    assert "target-ready" in payload["features"]

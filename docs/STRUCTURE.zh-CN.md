@@ -1,7 +1,9 @@
 # 代码结构约定
 
 日期：2026-10-22
-状态：Alpha 结构约定；不是一次性大重构
+状态：兼容布局说明；控制面目标结构以
+[控制面架构](ARCHITECTURE.zh-CN.md) 和
+[重构与任务计划](REFACTOR-PLAN.zh-CN.md) 为准
 
 ## 原则
 
@@ -31,15 +33,16 @@
 
 ```text
 src/shardferry/
-  cli/                 # shardferry 命令分发
-  commands/            # 安装后的用户命令
-    target_load.py
-    support_bundle.py
-  dcp/                 # DCP metadata/range/write/inventory
-  agent/               # agent HTTP、task state、executor
-  planning/            # mesh/layout/planner/cost
-  transport/           # file/http/router
+  local/               # local CLI adapter: DCP inventory/provider/readiness
+  mobility/            # static/live transaction orchestration
+  state/               # rank-local state bundle
   verification/        # verify/proof/target-ready
+  agent/               # read-only inventory + HTTP
+  commands/            # installed user commands
+  cli/                 # command dispatch
+  dcp/                 # DCP provider implementation (compatibility)
+  planning/            # existing planner (mobility compatibility)
+  transport/           # file/http/router
 ```
 
 已开始的第一小步：`target_load` 和 `support_bundle` 已放入

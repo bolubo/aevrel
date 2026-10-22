@@ -433,7 +433,7 @@ class LRSSimulator:
         source_epoch = record.epoch
         reserved_ranks = set(reserved or ())
         migrating = set(self._runtimes) | {spec.rank}
-        candidates = [
+        source_candidates = [
             rank
             for rank in sorted(self.ranks)
             if rank not in migrating
@@ -441,8 +441,16 @@ class LRSSimulator:
             and self.ranks[rank].phase is RankPhase.ACTIVE
             and self.ranks[rank].cluster is Cluster.A
         ]
+        candidates = source_candidates or [
+            rank
+            for rank in sorted(self.ranks)
+            if rank not in migrating
+            and rank not in reserved_ranks
+            and self.ranks[rank].phase is RankPhase.ACTIVE
+            and self.ranks[rank].cluster is Cluster.B
+        ]
         if not candidates:
-            raise LrsError("no active source-cluster rank for temporary ownership")
+            raise LrsError("no active rank for temporary ownership")
         load = {rank: 0 for rank in candidates}
         for runtime in self._runtimes.values():
             if runtime.temp_owner in load:

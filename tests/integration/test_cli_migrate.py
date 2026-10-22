@@ -113,6 +113,33 @@ def test_migrate_cli_2d_mesh_to_1d_target(tmp_path, capsys) -> None:
     assert len(list(output.glob("*.distcp"))) == 3
 
 
+def test_migrate_cli_prints_transfer_progress(tmp_path, capsys) -> None:
+    pytest.importorskip("torch")
+    source = _source_dcp(tmp_path)
+    output = tmp_path / "target.dcp"
+    work = tmp_path / "work"
+
+    result = main(
+        [
+            "migrate",
+            "--checkpoint",
+            str(source),
+            "--target-world",
+            "3",
+            "--output",
+            str(output),
+            "--work-dir",
+            str(work),
+        ]
+    )
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "transfer [" in captured.err
+    assert "commit [" in captured.err
+    assert "Migration complete" in captured.out
+
+
 def test_doctor_cli_checks_real_dcp(tmp_path, capsys) -> None:
     pytest.importorskip("torch")
     source = _source_dcp(tmp_path)

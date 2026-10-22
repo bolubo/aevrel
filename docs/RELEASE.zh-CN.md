@@ -1,6 +1,7 @@
 # 发布检查清单
 
-当前发布：`v0.1.1`。`v0.1.0` 保留为历史预览，不移动、不覆盖。
+当前发布：`v0.1.1`。当前候选：`v0.2.0-rc.1`，只在 GPU/cross-machine
+门槛通过后发布为正式版本。`v0.1.0` 保留为历史预览，不移动、不覆盖。
 
 ## 本地发布候选
 
@@ -29,9 +30,10 @@ python scripts/check_release.py --json
 3. 推送发布候选提交。
 4. 等 CI 的 Python、Go、Helm 三个 job 全绿。
 5. 在仓库设置中启用 Secret scanning 和 private vulnerability reporting。
-6. 创建 `v0.1.1` tag 和 release notes。
+6. 创建 `v0.2.0-rc.1` tag 和
+   [`release notes`](RELEASE-NOTES-0.2.0-rc.1.md)；正式发布前保持 prerelease。
 7. 挂载 Python wheel、验证附件和 release notes。
-8. 确认 GHCR 的 controller/gateway/agent 镜像与 Helm chart 可拉取。
+8. 确认 GHCR 的 controller/gateway/agent/live-worker 镜像与 Helm chart 可拉取。
 
 发布前额外运行：
 
@@ -46,16 +48,17 @@ python scripts/check_release.py --json
 
 发布 tag 会触发 `.github/workflows/release.yml`，构建并推送
 `ghcr.io/bolubo/shardferry-controller`、`shardferry-gateway`、
-`shardferry-agent`。Helm values 必须指向本次 tag 对应的真实镜像；GHCR 包
-需要设置为 public，否则用户安装会失败。
+`shardferry-agent`、`shardferry-live-worker`、`shardferry-kueue-adapter`。
+Helm values 必须指向本次 tag 对应的真实镜像；GHCR 包需要设置为 public，
+否则用户安装会失败。
 
 Python wheel 作为 GitHub Release asset 上传，不依赖 PyPI：
 
 ```bash
 uv build --wheel --out-dir dist
-gh release upload v0.1.1 dist/shardferry-0.1.1-py3-none-any.whl
-gh release upload v0.1.1 dist/shardferry-0.1.1.tgz
-gh release upload v0.1.1 dist/shardferry-0.1.1-evidence.tar.gz
+gh release upload v0.2.0-rc.1 dist/shardferry-0.2.0rc1-py3-none-any.whl
+gh release upload v0.2.0-rc.1 dist/shardferry-0.2.0-rc.1.tgz
+gh release upload v0.2.0-rc.1 dist/shardferry-0.2.0-rc.1-evidence.tar.gz
 ```
 
 ## 未验证项

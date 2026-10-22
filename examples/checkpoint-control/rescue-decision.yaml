@@ -1,0 +1,29 @@
+apiVersion: shardferry.io/v1
+kind: RescueDecision
+metadata:
+  name: training-preempted
+  namespace: default
+spec:
+  event: Preempted
+  workloadRef: training
+  checkpointRef: training-step-100
+  target: cluster-b
+  fallback: hold
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: training
+  namespace: default
+  labels:
+    shardferry.io/rescue: enabled
+  annotations:
+    shardferry.io/checkpoint-record: training-step-100
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: trainer
+          image: ghcr.io/example/trainer:latest
+          command: ["python", "train.py"]

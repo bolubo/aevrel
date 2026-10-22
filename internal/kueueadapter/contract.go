@@ -11,9 +11,10 @@ import (
 const (
 	// AnnotationProtection is the explicit opt-in. The adapter does not modify
 	// unrelated Kueue Workloads.
-	AnnotationProtection   = "shardferry.io/preemption-protection"
-	AnnotationHandoff      = "shardferry.io/handoff"
-	AnnotationHandoffState = "shardferry.io/handoff-state"
+	AnnotationProtection       = "shardferry.io/preemption-protection"
+	AnnotationHandoff          = "shardferry.io/handoff"
+	AnnotationHandoffState     = "shardferry.io/handoff-state"
+	AnnotationCheckpointRecord = "shardferry.io/checkpoint-record"
 
 	// Checkpoint publisher contract. Annotations are authoritative; labels are
 	// accepted as a fallback for simple sidecars.

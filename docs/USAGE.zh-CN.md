@@ -1,7 +1,7 @@
 # shardferry 使用场景与验收口径
 
 日期：2026-10-22  
-适用版本：`0.1.1`
+适用版本：`0.2.0-rc.1` candidate
 
 ## 1. 先做一个判断
 
@@ -18,7 +18,7 @@
 | 单机、NFS、对象存储挂载后能看到完整 DCP 目录 | 是，三条命令 | 可以，前提是先有可安装包 |
 | 单机 DCP，2D mesh | 是，但需显式传 mesh/placement | 有条件可以 |
 | 128 个节点各自 local disk，没有共享路径 | `shardferryctl migrate + agentSelector` | 已有产品入口，待真实多节点验收 |
-| 训练不停机在线切换 | 代码有 CDP/cutover 基础 | 还不能，未形成产品入口 |
+| 训练不停机在线切换 | live-rank-split 契约 + 实验 handoff | 还不能，Python LRS 执行器和 4-GPU 验证未闭环 |
 
 ## 2. 场景 A：一个人恢复一个 DCP checkpoint
 
@@ -235,7 +235,8 @@ controller 会：
 3. 组合完整 source rankMap；
 4. 把 target rank 确定性轮转分配到 target agents；
 5. 执行 inventory、plan、stage、commit；
-6. `--wait` 打印 phase 和 rank counts，直到 succeeded/failed。
+6. `--wait` 打印 rank/字节进度条（LRS 为 coverage/in-flight/quorum）到
+   succeeded/failed；失败时给出 `Next:` 动作。
 
 每个 target rank 在 commit 后会 finalize 成本地可加载的 DCP 目录：
 
@@ -264,11 +265,13 @@ local-disk 场景把所有 rank 汇总到一台机器。完整目标任务的 `l
 - 多租户 selector 隔离；
 - 镜像仍需自行构建/推送，Python 也还没有公开发布 wheel。
 
-## 4. 场景 C：训练不停机在线切换
+## 4. 场景 C：训练不停机在线切换（实验）
 
-CDP、fencing、pause、promote/rollback 和 cutover 服务基础已经存在。当前入口
-是内部 `cutover-serve`，不是三命令产品面；在真实 GPU/target load 验收前，
-仍不要对外宣传“在线热迁移已完成”。
+CDP、fencing、pause、promote/rollback 和 cutover 服务基础已经存在。当前
+用户入口是实验性的 `shardferry handoff` 和 `CheckpointMigration`
+`mode: live-rank-split`；在 Python 执行器和 4-GPU 验收前，仍不要对外宣传
+“在线热迁移已完成”。用户操作顺序见
+[Live Rank Split 用户流程](LIVE-RANK-SPLIT-USAGE.zh-CN.md)。
 
 `cutover-serve` 默认每 `--follow-interval` 秒后台追赶 source 完整版本，
 持续维护 target shadow；`/v1/status` 会同时返回 `follow_state`、lag 和最近

@@ -17,7 +17,8 @@ import (
 )
 
 type planOptions struct {
-	file string
+	file        string
+	maxInFlight int32
 }
 
 func executePlan(
@@ -37,6 +38,9 @@ func executePlan(
 	}
 	migration, err := loadMigration(options.file, namespace)
 	if err != nil {
+		return err
+	}
+	if err := applyMaxInFlight(migration, options.maxInFlight); err != nil {
 		return err
 	}
 	if err := validateProductMigration(migration); err != nil {
@@ -125,9 +129,19 @@ func parsePlan(args []string) (planOptions, error) {
 			options.file = args[index]
 		case "--dry-run":
 			// plan is always side-effect free.
+		case "--max-in-flight":
+			index++
+			if index >= len(args) {
+				return options, fmt.Errorf("--max-in-flight requires a number")
+			}
+			value, err := parseMaxInFlight(args[index])
+			if err != nil {
+				return options, err
+			}
+			options.maxInFlight = value
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl plan -f migration.yaml [--dry-run]",
+				"usage: shardferryctl plan -f migration.yaml [--dry-run] [--max-in-flight N]",
 			)
 		default:
 			return options, fmt.Errorf("unknown plan option: %s", args[index])
@@ -216,6 +230,13 @@ func writeLivePlan(
 	if len(summary.StateProviders) > 0 {
 		fmt.Fprintf(out, "State providers: %s\n", strings.Join(summary.StateProviders, ","))
 	}
+	fmt.Fprintln(out, "Prereq:         controller --live-url (token optional)")
+	fmt.Fprintln(out, "Prereq:         executor must implement POST /v1/live/reconcile")
+	if summary.StateMode == shardferryv1.LiveStateModeL4 {
+		fmt.Fprintln(out, "Prereq:         target.validation is required for L4")
+	}
+	fmt.Fprintln(out, "Fallback:       none; switch to mode: static explicitly if live is unavailable")
+	fmt.Fprintln(out, "Next:           shardferryctl preflight -f <file>; shardferryctl migrate -f <file> --wait")
 	fmt.Fprintln(out, "Plan:           delegated to live executor (POST /v1/live/reconcile)")
 	return nil
 }

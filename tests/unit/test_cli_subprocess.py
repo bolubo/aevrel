@@ -30,6 +30,7 @@ def test_version_process_exit_code() -> None:
         check=False,
     )
     assert result.returncode == 0
+    assert "0.2.0-rc.1" in result.stdout
 
 
 def test_module_entrypoint_and_product_help() -> None:
@@ -41,6 +42,9 @@ def test_module_entrypoint_and_product_help() -> None:
     )
     assert result.returncode == 0
     assert "shardferry demo" in result.stdout
+    assert "readiness" in result.stdout
+    assert "state" in result.stdout
+    assert "handoff" in result.stdout
     assert "dcp-migrate" not in result.stdout
 
 

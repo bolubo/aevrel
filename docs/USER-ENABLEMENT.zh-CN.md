@@ -15,6 +15,7 @@
 - [错误目录](ERROR-CATALOG.zh-CN.md)
 - [升级与版本偏差](UPGRADE.zh-CN.md)
 - [跨集群 live acceptance](LIVE-ACCEPTANCE.zh-CN.md)
+- [Rescue Demo：中断后续跑](RESCUE-DEMO.zh-CN.md)
 
 ## GPU 环境
 

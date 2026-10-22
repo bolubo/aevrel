@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/mobility-transaction-v1.json",
+  "title": "ShardferryMobilityTransaction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "mode", "phase", "source", "target"],
+  "properties": {
+    "record_version": { "type": "string", "minLength": 1 },
+    "migration_ref": { "type": "string" },
+    "migration_spec": { "type": ["object", "null"] },
+    "mode": { "type": "string", "enum": ["static", "live"] },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "Pending", "Preparing", "Transferring", "Verifying",
+        "Committing", "Succeeded", "Failed", "Cancelled",
+        "CommitIncomplete"
+      ]
+    },
+    "migration_phase": { "type": "string" },
+    "source": { "type": "string", "minLength": 1 },
+    "target": { "type": "string", "minLength": 1 },
+    "source_digest": { "type": "string" },
+    "target_digest": { "type": "string" },
+    "proof_ref": { "type": "string" },
+    "target_ready": { "type": ["object", "null"] },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "detail"],
+        "properties": {
+          "code": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  }
+}

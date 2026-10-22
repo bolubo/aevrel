@@ -153,6 +153,7 @@ class AgentApp:
             features.append("rank-discovery")
         if self.dcp_checkpoint is not None:
             features.append("metadata-transfer")
+            features.append("checkpoint-readiness")
         if self.target_root is not None:
             features.append("target-preflight")
         if self.range_codec is not None:
@@ -290,6 +291,36 @@ class AgentApp:
             "chunks": chunks,
             "agent_version": __version__,
             "torch_version": "runtime",
+        }
+
+    def checkpoint_record(
+        self,
+        *,
+        namespace: str = "",
+        job_uid: str = "",
+        version: str = "",
+        step: int | None = None,
+    ) -> dict[str, Any]:
+        if self.dcp_checkpoint is None:
+            raise AgentError(
+                "checkpoint readiness requires dcp_checkpoint"
+            )
+        from ..local.dcp import DCPStateProvider
+        from ..local.errors import LocalError
+
+        try:
+            record = DCPStateProvider().inventory(
+                self.dcp_checkpoint,
+                namespace=namespace,
+                job_uid=job_uid,
+                version=version,
+                step=step,
+            )
+        except LocalError as exc:
+            raise AgentError(str(exc)) from exc
+        return {
+            "version": "1",
+            "record": record.to_dict(),
         }
 
     def ranks(self) -> dict[str, Any]:
@@ -656,6 +687,30 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                         "source",
                         False,
                         "inventory",
+                        0,
+                        str(exc),
+                    )
+                return
+            if path == "/v1/checkpoint-record":
+                query = parse_qs(parsed.query)
+                try:
+                    step_value = query.get("step", [""])[0]
+                    step = int(step_value) if step_value else None
+                    self._json(
+                        app.checkpoint_record(
+                            namespace=query.get("namespace", [""])[0],
+                            job_uid=query.get("job_uid", [""])[0],
+                            version=query.get("version", [""])[0],
+                            step=step,
+                        )
+                    )
+                except (AgentError, ValueError) as exc:
+                    self._error(
+                        404,
+                        "SOURCE_NOT_FOUND",
+                        "source",
+                        False,
+                        "checkpoint-record",
                         0,
                         str(exc),
                     )

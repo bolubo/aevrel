@@ -1,0 +1,11 @@
+apiVersion: shardferry.io/v1
+kind: MobilityTransaction
+metadata:
+  name: training-move-view
+  namespace: default
+spec:
+  recordRef: training-step-100
+  migrationRef: training-move
+  mode: static
+  source: cluster-a
+  target: cluster-b

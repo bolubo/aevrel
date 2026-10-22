@@ -18,6 +18,7 @@ import (
 
 	shardferryv1 "github.com/shardferry/shardferry/api/v1"
 	"github.com/shardferry/shardferry/internal/clusterclient"
+	"github.com/shardferry/shardferry/internal/kueueadapter"
 )
 
 func main() {
@@ -39,6 +40,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	kueueadapter.AddToScheme(scheme, kueueadapter.DefaultWorkloadGVK)
 	var kubeClient client.Client
 	if needsKubeClient(args) {
 		config, err := ctrl.GetConfig()
@@ -92,9 +94,14 @@ func needsKubeClient(args []string) bool {
 }
 
 func printUsage(out io.Writer) {
-	fmt.Fprintln(out, "usage: shardferryctl migrate -f FILE [--wait|--dry-run]")
-	fmt.Fprintln(out, "       shardferryctl plan -f FILE [--dry-run]")
-	fmt.Fprintln(out, "       shardferryctl preflight -f FILE")
+	fmt.Fprintln(out, "usage: shardferryctl migrate -f FILE [--wait|--dry-run] [--no-progress] [--max-in-flight N]")
+	fmt.Fprintln(out, "       shardferryctl plan -f FILE [--dry-run] [--max-in-flight N]")
+	fmt.Fprintln(out, "       shardferryctl preflight -f FILE [--max-in-flight N]")
+	fmt.Fprintln(out, "       shardferryctl readiness [NAME]")
+	fmt.Fprintln(out, "       shardferryctl kueue status|explain NAME")
+	fmt.Fprintln(out, "       shardferryctl rescue --event REASON [--workload NAME] [--checkpoint NAME] [--target TARGET] [--fallback hold|restart]")
+	fmt.Fprintln(out, "       shardferryctl get rescuedecisions|rescuedecision NAME")
+	fmt.Fprintln(out, "       shardferryctl get mobilitytransactions|mobilitytransaction NAME")
 	fmt.Fprintln(out, "       shardferryctl get migrations|migration NAME")
 	fmt.Fprintln(out, "       shardferryctl get clusters|cluster NAME")
 	fmt.Fprintln(out, "       shardferryctl describe migration NAME")
@@ -123,6 +130,12 @@ func execute(
 		return executePlan(ctx, kubeClient, namespace, jsonOut, args[1:], out)
 	case "preflight":
 		return executePreflight(ctx, kubeClient, namespace, jsonOut, args[1:], out)
+	case "readiness":
+		return executeReadiness(ctx, kubeClient, namespace, jsonOut, args[1:], out)
+	case "kueue":
+		return executeKueue(ctx, kubeClient, namespace, jsonOut, args[1:], out)
+	case "rescue":
+		return executeRescue(ctx, kubeClient, namespace, jsonOut, args[1:], out)
 	case "get":
 		return executeGet(ctx, kubeClient, namespace, jsonOut, args[1:], out)
 	case "describe":
@@ -218,7 +231,7 @@ func executeGet(
 	out io.Writer,
 ) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: shardferryctl get migrations|migration NAME|clusters|cluster NAME")
+		return fmt.Errorf("usage: shardferryctl get RESOURCE [NAME]")
 	}
 	switch args[0] {
 	case "migrations":
@@ -256,6 +269,40 @@ func executeGet(
 			return fmt.Errorf("usage: shardferryctl get cluster NAME")
 		}
 		return executeGetCluster(ctx, kubeClient, namespace, args[1], jsonOut, out)
+	case "rescuedecisions":
+		return executeGetRescueDecisions(ctx, kubeClient, namespace, jsonOut, out)
+	case "rescuedecision":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: shardferryctl get rescuedecision NAME")
+		}
+		return executeGetRescueDecision(
+			ctx,
+			kubeClient,
+			namespace,
+			args[1],
+			jsonOut,
+			out,
+		)
+	case "mobilitytransactions":
+		return executeGetMobilityTransactions(
+			ctx,
+			kubeClient,
+			namespace,
+			jsonOut,
+			out,
+		)
+	case "mobilitytransaction":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: shardferryctl get mobilitytransaction NAME")
+		}
+		return executeGetMobilityTransaction(
+			ctx,
+			kubeClient,
+			namespace,
+			args[1],
+			jsonOut,
+			out,
+		)
 	default:
 		return fmt.Errorf("unknown resource: %s", args[0])
 	}
@@ -601,6 +648,7 @@ func writeDescribe(
 		mode = shardferryv1.MigrationModeStatic
 	}
 	fmt.Fprintf(out, "Mode:       %s\n", mode)
+	fmt.Fprintf(out, "Next:       %s\n", nextAction(migration))
 	fmt.Fprintf(
 		out,
 		"Source:     %d rank(s), mesh %v, root %s\n",

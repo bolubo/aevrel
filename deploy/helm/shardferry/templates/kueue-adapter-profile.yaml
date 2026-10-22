@@ -1,0 +1,19 @@
+{{- if and .Values.kueueAdapter.enabled .Values.kueueAdapter.createPreemptionConfig }}
+apiVersion: kueue.x-k8s.io/v1alpha1
+kind: PreemptionConfig
+metadata:
+  name: {{ .Values.kueueAdapter.preemptionConfigName }}
+  labels:
+    {{- include "shardferry.labels" . | nindent 4 }}
+spec:
+  rules:
+    - name: exclude-protected-workloads
+      activationPolicy:
+        trigger: Always
+      candidateSelectors:
+        - scope: AnyClusterQueue
+          numericLabels:
+            - key: shardferry.io/preemption-protected
+              maxValue: 0
+              fallbackValue: {{ .Values.kueueAdapter.fallbackValue }}
+{{- end }}

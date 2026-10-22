@@ -208,7 +208,7 @@ func TestLiveRankSplitExampleIsValid(t *testing.T) {
 		t.Fatalf("mode = %q", migration.Spec.Mode)
 	}
 	if migration.Spec.Live == nil ||
-		migration.Spec.Live.MaxInFlight != 1 ||
+		migration.Spec.Live.MaxInFlight != 2 ||
 		migration.Spec.Live.StateMode != shardferryv1.LiveStateModeL4 {
 		t.Fatalf("live = %+v", migration.Spec.Live)
 	}
@@ -232,12 +232,43 @@ func TestLiveRankSplitExampleIsValid(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Mode:       live-rank-split",
-		"Live spec:  maxInFlight=1 stateMode=L4",
+		"Live spec:  maxInFlight=2 stateMode=L4",
 		"Live:       phase=following inFlight=[2]",
 	} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("describe missing %q:\n%s", want, output.String())
 		}
+	}
+}
+
+func TestLiveRankSplitMaxInFlightOverride(t *testing.T) {
+	path := filepath.Join(
+		"..",
+		"..",
+		"examples",
+		"live-rank-split",
+		"migration.yaml",
+	)
+	var output bytes.Buffer
+	err := executeMigrate(
+		context.Background(),
+		nil,
+		"default",
+		false,
+		[]string{
+			"-f",
+			path,
+			"--dry-run",
+			"--max-in-flight",
+			"3",
+		},
+		&output,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "maxInFlight: 3") {
+		t.Fatalf("override missing:\n%s", output.String())
 	}
 }
 
@@ -268,7 +299,9 @@ func TestLiveRankSplitPlanIsProductSummary(t *testing.T) {
 	for _, want := range []string{
 		"Mode:           live-rank-split",
 		"Handoff:        http://lrs-handoff.live.svc:9460",
-		"Max in flight:  1",
+		"Max in flight:  2",
+		"Prereq:         executor must implement POST /v1/live/reconcile",
+		"Fallback:       none",
 		"Plan:           delegated to live executor",
 	} {
 		if !strings.Contains(output.String(), want) {

@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 import sys
+import time
 from math import prod
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from . import __version__
 from .agent import AgentError, build_agent_server
 from .agent_executor import HttpArtifactResolver, TargetTaskExecutor
 from .coordinator import expected_rank_work
+from .commands.readiness import run_readiness
+from .commands.restore_drill import run_restore_drill_command
 from .contracts import contract_version, validate_capabilities
 from .cdp import ChunkingPolicy
 from .cutover import CutoverPolicy
@@ -65,6 +68,8 @@ _PUBLIC_COMMANDS = (
     "migrate",
     "doctor",
     "capabilities",
+    "readiness",
+    "restore-drill",
     "handoff",
     "state",
 )
@@ -108,14 +113,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "  shardferry demo\n"
             "  shardferry doctor --checkpoint /path/to/source.dcp\n"
             "  shardferry migrate --checkpoint /path/to/source.dcp "
-            "--target-world 3"
+            "--target-world 3\n"
+            "Advanced: shardferry state; experimental: shardferry handoff"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="store_true", help="print version")
     sub = parser.add_subparsers(
         dest="command",
-        metavar="{handoff,demo,migrate,doctor,capabilities}",
+        metavar="{demo,migrate,doctor,capabilities,readiness,restore-drill,state,handoff}",
     )
 
     inspect = sub.add_parser("inspect")
@@ -199,7 +205,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     cutover = sub.add_parser(
         "handoff",
-        help="run the warm-target checkpoint handoff service",
+        help="run the experimental warm-target checkpoint handoff service",
     )
     cutover.add_argument("--source", required=True)
     cutover.add_argument("--target", required=True)
@@ -397,6 +403,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print machine-readable JSON",
     )
+    migrate.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="disable the transfer progress display",
+    )
     topology = migrate.add_argument_group(
         "topology (inferred for the common 1D FSDP case)"
     )
@@ -475,13 +486,43 @@ def _build_parser() -> argparse.ArgumentParser:
 
     capabilities = sub.add_parser(
         "capabilities",
-        help="print machine-readable agent capabilities",
+        help="print machine-readable capabilities",
     )
     capabilities.add_argument("--json", action="store_true")
 
+    readiness = sub.add_parser(
+        "readiness",
+        help="show checkpoint completeness, freshness, and readiness",
+    )
+    readiness.add_argument("--checkpoint", "-c", required=True)
+    readiness.add_argument("--namespace", default="")
+    readiness.add_argument("--job-uid", default="")
+    readiness.add_argument("--version", default="")
+    readiness.add_argument("--step", type=int, default=None)
+    readiness.add_argument("--target-world", type=int, default=None)
+    readiness.add_argument("--max-age-seconds", type=int, default=86400)
+    readiness.add_argument("--strict", action="store_true")
+    readiness.add_argument("--json", action="store_true")
+
+    restore_drill = sub.add_parser(
+        "restore-drill",
+        help="run a real target-command load + N-step restore drill",
+    )
+    restore_drill.add_argument("--checkpoint", "-c", required=True)
+    restore_drill.add_argument("--target-command", required=True)
+    restore_drill.add_argument("--target-world", type=int, default=1)
+    restore_drill.add_argument("--rank", type=int, default=0)
+    restore_drill.add_argument("--steps", type=int, default=10)
+    restore_drill.add_argument("--version", default="")
+    restore_drill.add_argument("--migration-uid", default="")
+    restore_drill.add_argument("--report", default="")
+    restore_drill.add_argument("--timeout", type=float, default=900.0)
+    restore_drill.add_argument("--require-state-complete", action="store_true")
+    restore_drill.add_argument("--json", action="store_true")
+
     state = sub.add_parser(
         "state",
-        help="capture, verify, or restore rank-local resume state",
+        help="capture, verify, or restore rank-local resume state (advanced)",
     )
     state_sub = state.add_subparsers(dest="state_command", required=True)
     state_capture = state_sub.add_parser("capture")
@@ -936,6 +977,10 @@ def main(argv: list[str] | None = None) -> int:
             if not args.json:
                 print(f"shardferry: {message}", file=sys.stderr, flush=True)
 
+        progress_event = None
+        if not args.json and not args.no_progress:
+            progress_event = _make_progress_event_reporter()
+
         try:
             result = migrate_dcp(
                 args.checkpoint,
@@ -949,6 +994,7 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
                 keep_work=args.keep_work,
                 progress=report_progress,
+                progress_event=progress_event,
             )
             summary = _migration_summary(args.checkpoint, result)
             if args.json:
@@ -1043,6 +1089,10 @@ def main(argv: list[str] | None = None) -> int:
                     "merkle-proof",
                     "rank-discovery",
                     "metadata-transfer",
+                    "checkpoint-readiness",
+                    "restore-drill",
+                    "state-bundle",
+                    "target-ready",
                     "adaptive-rate-limit",
                 ],
             }
@@ -1052,6 +1102,10 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(f"shardferry capabilities: {exc}", file=sys.stderr)
             return 2
+    if args.command == "readiness":
+        return run_readiness(args)
+    if args.command == "restore-drill":
+        return run_restore_drill_command(args)
     if args.command == "state":
         try:
             if args.state_command == "capture":
@@ -1254,6 +1308,101 @@ def _format_seconds(value: float) -> str:
         return f"{minutes}m {seconds:02d}s"
     hours, minutes = divmod(minutes, 60)
     return f"{hours}h {minutes:02d}m"
+
+
+def _make_progress_event_reporter():
+    tty = sys.stderr.isatty()
+    started = time.perf_counter()
+    last_bucket = -1
+
+    def report(event: dict) -> None:
+        nonlocal last_bucket
+        phase = event.get("phase")
+        total_nodes = max(0, int(event.get("total_nodes", 0)))
+        completed = max(0, int(event.get("completed_nodes", 0)))
+        moved = max(0, int(event.get("bytes_moved", 0)))
+        planned = max(0, int(event.get("bytes_planned", 0)))
+        ratio = (
+            min(1.0, moved / planned)
+            if planned
+            else min(1.0, completed / total_nodes)
+            if total_nodes
+            else 0.0
+        )
+        percent = int(round(ratio * 100))
+        elapsed = max(0.001, time.perf_counter() - started)
+        rate = moved / elapsed if moved else 0.0
+        eta = (
+            (planned - moved) / rate
+            if rate > 0 and planned > moved
+            else 0.0
+        )
+
+        if phase == "transfer":
+            bucket = percent // 5
+            if not tty and bucket == last_bucket and percent < 100:
+                return
+            last_bucket = bucket
+            bar = _progress_bar(ratio, tty=tty)
+            line = (
+                f"transfer [{bar}] {percent:3d}% "
+                f"{_format_bytes(moved)}/{_format_bytes(planned)} "
+                f"{completed}/{total_nodes} nodes"
+            )
+            if rate:
+                line += f" {_format_bytes(int(rate))}/s"
+            if eta:
+                line += f" ETA {_format_seconds(eta)}"
+            if event.get("current_tensor"):
+                line += (
+                    f" {event['current_tensor']}"
+                    f"/rank{event.get('current_rank', '?')}"
+                )
+            if tty:
+                print(f"\r{line[:140]:<140}", end="", file=sys.stderr, flush=True)
+            else:
+                print(line, file=sys.stderr, flush=True)
+            return
+
+        if tty:
+            print(file=sys.stderr)
+        if phase == "verifying":
+            print(
+                f"verify [{_progress_bar(0.0, tty=tty)}] "
+                f"checking {_format_bytes(moved)}",
+                file=sys.stderr,
+                flush=True,
+            )
+        elif phase == "verified":
+            print(
+                f"verified [{_progress_bar(1.0, tty=tty)}] "
+                f"{_format_bytes(moved)}",
+                file=sys.stderr,
+                flush=True,
+            )
+        elif phase == "committing":
+            print(
+                f"commit [{_progress_bar(1.0, tty=tty)}] "
+                f"{completed}/{total_nodes} nodes",
+                file=sys.stderr,
+                flush=True,
+            )
+        elif phase == "committed":
+            print(
+                f"committed [{_progress_bar(1.0, tty=tty)}] "
+                f"{completed}/{total_nodes} nodes",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    return report
+
+
+def _progress_bar(ratio: float, *, tty: bool, width: int = 24) -> str:
+    filled = max(0, min(width, int(round(ratio * width))))
+    if tty:
+        return "█" * filled + "░" * (width - filled)
+    return "#" * filled + "-" * (width - filled)
 
 
 def _load_json_object(path: str) -> dict:

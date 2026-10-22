@@ -100,6 +100,30 @@ Demo complete
 这会检查 Python、PyTorch/DCP、checkpoint metadata、源文件和输出路径，只读，
 不会创建目标目录。看到 `Ready to migrate.` 再执行下一步。
 
+## 4.1 查看 readiness
+
+```bash
+.venv/bin/python -m shardferry readiness \
+  --checkpoint /data/job42/checkpoint \
+  --target-world 3
+```
+
+这是只读检查，不会修改 source。`complete=true`、`fresh=true` 只说明
+inventory 完整；没有真实 restore drill 时状态会是 `UNVERIFIED`，不能把
+“有文件”当成“可恢复”。
+
+需要验证 target 真的能继续训练时，提供一个目标训练命令：
+
+```bash
+.venv/bin/python -m shardferry restore-drill \
+  --checkpoint /data/job42/checkpoint-3rank \
+  --target-command "python train_resume.py --checkpoint {checkpoint}" \
+  --steps 10
+```
+
+命令必须真实加载 model/optimizer、跑够 step，并写 target-ready report；
+否则 drill 不会成功。
+
 ## 5. 真实 DCP 4->3
 
 假设源 checkpoint 目录是 `/data/job42/checkpoint`，执行：
@@ -120,6 +144,9 @@ Demo complete
 
 如果目标目录已存在且非空，命令会拒绝覆盖；确认可以覆盖时加 `--force`。
 中断后重新执行同一条命令会续跑，不要手工删除 `.shardferry` 目录。
+
+迁移默认在 stderr 显示真实的 transfer 进度条（节点、字节、速率、ETA）；
+`--json` 时不污染 stdout，自动化场景可额外加 `--no-progress`。
 
 ## 6. 2D mesh 怎么写
 
@@ -201,7 +228,24 @@ plan 做完整性汇总：
 客户端对 source agent 默认走直连，不继承 `HTTP_PROXY/HTTPS_PROXY`，避免
 `NO_PROXY` 配错时把私网请求发到本地代理。
 
-## 9. 常见问题
+## 9. 高级与实验入口
+
+这两个入口不属于最短路径，默认迁移不需要使用：
+
+- `shardferry state capture|verify|restore`：高级入口，用于 rank-local
+  resume state bundle；target-ready L4 需要在确认状态闭包时使用。
+- `shardferry handoff`：实验入口，warm-target checkpoint 追赶/切换服务；
+  需要 source/target 路径、token 和暂停/恢复命令，不提供生产 SLA。
+- `shardferryctl migrate ... --max-in-flight N`：live-rank-split 时一次
+  同时在途的 rank 数；按网络和 target 容量设置，不能假设系统只迁一个。
+- `shardferry-live-worker`：Go live 路径的按需 HTTP worker；当前是 CPU
+  contract backend，启动后 controller 通过 `--live-url` 调用，GPU backend
+  仍需后续验证。
+
+实验入口失败时不得回退成“看起来成功”的静态迁移。先看
+`docs/PRODUCT.zh-CN.md` 和 `docs/ERROR-CATALOG.zh-CN.md`。
+
+## 10. 常见问题
 
 ### `torch` import 失败
 

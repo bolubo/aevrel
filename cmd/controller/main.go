@@ -253,6 +253,42 @@ func main() {
 		ctrl.Log.Error(err, "unable to create controller")
 		os.Exit(1)
 	}
+	if err := (&controller.CheckpointReadinessReconciler{
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		AgentToken: agentToken,
+	}).SetupWithManager(mgr); err != nil {
+		ctrl.Log.Error(err, "unable to create checkpoint readiness controller")
+		os.Exit(1)
+	}
+	if err := (&controller.RestoreDrillReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		ctrl.Log.Error(err, "unable to create restore drill controller")
+		os.Exit(1)
+	}
+	if err := (&controller.RescueDecisionReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		ctrl.Log.Error(err, "unable to create rescue decision controller")
+		os.Exit(1)
+	}
+	if err := (&controller.RescueEventReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		ctrl.Log.Error(err, "unable to create rescue event controller")
+		os.Exit(1)
+	}
+	if err := (&controller.MobilityTransactionReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		ctrl.Log.Error(err, "unable to create mobility transaction controller")
+		os.Exit(1)
+	}
 	if err := (&controller.ClusterHealthReconciler{
 		Client:   mgr.GetClient(),
 		Reader:   mgr.GetAPIReader(),
