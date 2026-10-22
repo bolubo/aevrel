@@ -509,6 +509,10 @@ Gate:
 - Added `HttpTargetReady` and `cutover-serve --target-ready-url` for target
   job readiness endpoints. 2xx succeeds; 404/409/425/429/5xx retry until the
   deadline; other 4xx fail closed. CLI smoke promoted with one readiness call.
+- Restored DCP range inventory and agent range serving in the isolated branch;
+  `verify()` now propagates source bearer tokens. With local CPU PyTorch and
+  native release built, the full Python gate is `255 passed / 2 skipped`
+  (only distributed/HTTP DCP opt-in tests remain).
 - Gate: `238 passed / 19 skipped` (PyTorch/native optional skips), compileall
   and `cutover-serve --help` pass. This work is on branch `python-rto` in
   worktree `shardferry-rto`; do not merge into the shared checkout while the

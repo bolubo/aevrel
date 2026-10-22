@@ -26,7 +26,6 @@ from .defaults import (
     DEFAULT_WORK_SUFFIX,
 )
 from .dcp_range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
-from .dcp_range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
 from .executor import apply as execute_plan
 from .identity import source_id
 from .layout import DTYPE_BYTES, local_region
@@ -599,36 +598,6 @@ def read_dcp_chunk(
             f"{digest} != {ref.checksum}"
         )
     return raw
-
-
-def read_dcp_chunk_range(
-    checkpoint: str | Path,
-    ref: DcpChunkRef,
-    offset: int,
-    length: int,
-) -> bytes:
-    if offset < 0 or length < 0 or offset + length > ref.size:
-        raise DcpError(
-            f"DCP chunk range is out of bounds: {offset}+{length} > {ref.size}"
-        )
-    if not ref.data_size:
-        return read_dcp_chunk(checkpoint, ref)[offset : offset + length]
-    tensor_range = ZipTensorRange(
-        name=ref.data_name,
-        data_offset=ref.data_offset,
-        size=ref.data_size,
-        compression=ref.data_compression,
-    )
-    try:
-        return tensor_range.read(
-            Path(checkpoint).resolve() / ref.relative_path,
-            offset,
-            length,
-        )
-    except DcpRangeError as exc:
-        raise DcpError(
-            f"could not read DCP range {ref.relative_path}: {exc}"
-        ) from exc
 
 
 def read_dcp_chunk_range(
