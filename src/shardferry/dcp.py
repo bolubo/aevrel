@@ -10,6 +10,7 @@ import uuid
 import warnings
 import zipfile
 from dataclasses import dataclass
+from math import prod
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable

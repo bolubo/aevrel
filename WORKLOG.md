@@ -509,7 +509,7 @@ Gate:
 - Added `HttpTargetReady` and `cutover-serve --target-ready-url` for target
   job readiness endpoints. 2xx succeeds; 404/409/425/429/5xx retry until the
   deadline; other 4xx fail closed. CLI smoke promoted with one readiness call.
-- Gate: `234 passed / 19 skipped` (PyTorch/native optional skips), compileall
+- Gate: `238 passed / 19 skipped` (PyTorch/native optional skips), compileall
   and `cutover-serve --help` pass. This work is on branch `python-rto` in
   worktree `shardferry-rto`; do not merge into the shared checkout while the
   parallel Go/K8s session is active.
