@@ -46,6 +46,7 @@
 - [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)
 - [GPU 验证记录（2026-10-22）](GPU-VALIDATION-2026-10-22.md)
 - [单卡 GPU 验证（2026-10-22）](GPU-SINGLE-CARD-VALIDATION.md)
+- [CPU target Job 验证（2026-10-22）](CPU-HANDOFF-VALIDATION.md)
 - [控制器 GPU 实验卡](CONTROLLER-GPU-EXPERIMENT.zh-CN.md)
 - [GPU Codec 传输加速](GPU-CODEC.zh-CN.md)
 - [Benchmark](BENCHMARK.zh-CN.md)

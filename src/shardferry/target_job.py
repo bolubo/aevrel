@@ -30,6 +30,8 @@ class TargetJobConfig:
     kubectl: str = "kubectl"
 
     def __post_init__(self) -> None:
+        if isinstance(self.template, str):
+            object.__setattr__(self, "template", Path(self.template))
         if self.world_size < 1:
             raise ValueError("target world size must be positive")
         if self.steps < 1:
@@ -87,6 +89,7 @@ class KubernetesTargetReady:
         if not isinstance(metadata, dict):
             raise TargetReadyError("target Job metadata must be an object")
         metadata["namespace"] = self.config.namespace
+        metadata.pop("generateName", None)
         metadata.setdefault("name", self._job_name(version_id))
         if not metadata["name"]:
             metadata["name"] = self._job_name(version_id)
