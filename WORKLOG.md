@@ -521,3 +521,22 @@ Gate:
   and `cutover-serve --help` pass. This work is on branch `python-rto` in
   worktree `shardferry-rto`; do not merge into the shared checkout while the
   parallel Go/K8s session is active.
+
+## 2026-10-22 / post-incident capability completion
+
+- The workspace deletion was recovered only for capabilities that matter to
+  this line; old test files were not restored wholesale.
+- Restored the Go execution/controller path (`internal/execution`,
+  `internal/controller`, `cmd/controller`), file-backed artifacts, agent TLS,
+  and controller proof/cutover wiring.
+- Restored target-agent proof support (`--proof`, rank proof in commit report,
+  `POST /v1/proof/merge`) and source-token propagation through the target
+  executor.
+- Restored the adaptive HTTP limiter/429 hook and target-ready cutover hooks.
+- Added `DcpTargetReady`: an optional real CPU DCP load proof exposed through
+  `cutover-serve --target-ready-dcp-checkpoint`; it can be chained after the
+  file probe and before the target-job readiness URL.
+- Python: `257 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
+  `go build ./cmd/controller` pass; Helm lint/template pass.
+- Direct target proof smoke passed: rank proof generated, combined proof root
+  produced. Physical kind/e2e is not available in this environment.
