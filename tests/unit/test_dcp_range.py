@@ -90,6 +90,35 @@ def test_zip_tensor_range_matches_full_dcp_chunk(tmp_path: Path) -> None:
     assert tensor_range.read(storage_path, 1, 17) == raw[1:18]
 
 
+def test_zip_tensor_range_reads_a_segment_inside_a_concatenated_file(
+    tmp_path: Path,
+) -> None:
+    def zip_segment(data: bytes) -> bytes:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(
+            buffer,
+            "w",
+            compression=zipfile.ZIP_STORED,
+        ) as archive:
+            archive.writestr("__0_0/data/0", data)
+        return buffer.getvalue()
+
+    first = zip_segment(b"first")
+    second = zip_segment(b"second!")
+    path = tmp_path / "segments.distcp"
+    path.write_bytes(first + second)
+
+    first_range = inspect_zip_tensor(path, base_offset=0, length=len(first))
+    second_range = inspect_zip_tensor(
+        path,
+        base_offset=len(first),
+        length=len(second),
+    )
+
+    assert first_range.read(path, 0, 5) == b"first"
+    assert second_range.read(path, 0, 7) == b"second!"
+
+
 def test_inventory_does_not_require_torch_chunk_deserialization(
     tmp_path: Path,
     monkeypatch,
@@ -181,6 +210,20 @@ def test_inventory_multiple_chunks_for_one_rank(tmp_path: Path) -> None:
     assert len({chunk["id"] for chunk in inventory["chunks"]}) == len(
         inventory["chunks"]
     )
+
+
+def test_inventory_handles_real_gpu_concatenated_dcp() -> None:
+    pytest.importorskip("torch")
+    fixture = (
+        Path(__file__).parents[1]
+        / "fixtures"
+        / "gpu-b-4to3-source"
+    )
+    for rank in range(4):
+        inventory, refs = inventory_dcp_descriptors(fixture, rank)
+        assert inventory["tensors"]
+        assert inventory["chunks"]
+        assert refs
 
 
 def test_compressed_zip_has_explicit_fallback(tmp_path: Path) -> None:
