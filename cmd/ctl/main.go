@@ -90,6 +90,7 @@ func needsKubeClient(args []string) bool {
 
 func printUsage(out io.Writer) {
 	fmt.Fprintln(out, "usage: shardferryctl migrate -f FILE [--wait|--dry-run]")
+	fmt.Fprintln(out, "       shardferryctl plan -f FILE [--dry-run]")
 	fmt.Fprintln(out, "       shardferryctl preflight -f FILE")
 	fmt.Fprintln(out, "       shardferryctl get migrations|migration NAME")
 	fmt.Fprintln(out, "       shardferryctl get clusters|cluster NAME")
@@ -113,6 +114,8 @@ func execute(
 	switch args[0] {
 	case "migrate":
 		return executeMigrate(ctx, kubeClient, namespace, jsonOut, args[1:], out)
+	case "plan":
+		return executePlan(ctx, kubeClient, namespace, jsonOut, args[1:], out)
 	case "preflight":
 		return executePreflight(ctx, kubeClient, namespace, jsonOut, args[1:], out)
 	case "get":
