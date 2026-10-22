@@ -52,3 +52,11 @@ See [`GPU-VALIDATION-2026-10-22.md`](GPU-VALIDATION-2026-10-22.md) and
 
 `v0.1.0` remains available but should be treated as superseded. Use the
 `0.1.1` wheel, images and Helm chart. No manual checkpoint rewrite is required.
+
+## Release asset SHA256
+
+```text
+e3da00dba8fe7170154fc9c890d37768d48b42c24a6ac14e3ef64667944ec586  shardferry-0.1.1-py3-none-any.whl
+232003deabe287cf208d978765869bdb44c4b1e7392362bb34b8d83f314a2be0  shardferry-0.1.1.tgz
+03f88013a4776665a5bb1cf19a9b61b98875274e3d280d68fc45049647ff3e8c  shardferry-0.1.1-evidence.tar.gz
+```
