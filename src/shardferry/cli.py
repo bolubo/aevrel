@@ -24,7 +24,12 @@ from .cutover_service import (
 )
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
-from .target_ready import CommandTargetReady, HttpTargetReady, TargetReadyChain
+from .target_ready import (
+    CommandTargetReady,
+    DcpTargetReady,
+    HttpTargetReady,
+    TargetReadyChain,
+)
 from .defaults import (
     DEFAULT_LISTEN,
     DEFAULT_PUBLIC_LISTEN,
@@ -195,6 +200,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="readiness endpoint polled after promote; {version_id} is substituted",
     )
+    cutover.add_argument("--target-ready-dcp-checkpoint", default="")
+    cutover.add_argument("--target-ready-dcp-metadata", default="")
     cutover.add_argument(
         "--target-ready-token",
         default=os.environ.get("SHARDFERRY_TARGET_READY_TOKEN", ""),
@@ -614,6 +621,13 @@ def main(argv: list[str] | None = None) -> int:
                     CommandTargetReady(
                         shlex.split(args.target_ready_command),
                         timeout=args.target_ready_timeout,
+                    )
+                )
+            if args.target_ready_dcp_checkpoint:
+                checks.append(
+                    DcpTargetReady(
+                        args.target_ready_dcp_checkpoint,
+                        metadata_dir=args.target_ready_dcp_metadata or None,
                     )
                 )
             if args.target_ready_url:

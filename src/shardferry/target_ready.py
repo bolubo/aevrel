@@ -131,3 +131,50 @@ class TargetReadyChain:
     def __call__(self, version_id: str) -> None:
         for check in self.checks:
             check(version_id)
+
+
+class DcpTargetReady:
+    """Load a complete target DCP checkpoint as a readiness proof.
+
+    This intentionally performs a real DCP load, not just a metadata check.
+    It allocates the target state dict in CPU memory, so callers running a
+    large model should use it as a target-job hook only when that budget is
+    acceptable.
+    """
+
+    def __init__(
+        self,
+        checkpoint: str | Path,
+        *,
+        metadata_dir: str | Path | None = None,
+    ) -> None:
+        self.checkpoint = Path(checkpoint).resolve()
+        self.metadata_dir = (
+            Path(metadata_dir).resolve()
+            if metadata_dir is not None
+            else self.checkpoint
+        )
+
+    def __call__(self, version_id: str) -> None:
+        try:
+            from torch.distributed.checkpoint import load as dcp_load
+            import torch
+
+            from .dcp import read_dcp_metadata
+
+            metadata = read_dcp_metadata(self.metadata_dir)
+            state_dict = {}
+            for name, tensor_metadata in metadata.state_dict_metadata.items():
+                if not hasattr(tensor_metadata, "size"):
+                    continue
+                state_dict[name] = torch.empty(
+                    tuple(tensor_metadata.size),
+                    dtype=tensor_metadata.properties.dtype,
+                )
+            if not state_dict:
+                raise ValueError("target DCP contains no tensors")
+            dcp_load(state_dict, checkpoint_id=str(self.checkpoint))
+        except Exception as exc:
+            raise TargetReadyError(
+                f"target DCP load failed for {version_id}: {exc}"
+            ) from exc
