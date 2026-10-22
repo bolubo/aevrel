@@ -288,6 +288,13 @@ shadow 文件。GPU 训练侧的真实 load hook 应在下一步替换/包装这
 如果 target 已经是 DCP 目录，可加
 `--target-ready-dcp-checkpoint /targets/job42` 做真实 CPU DCP load；它会占用
 目标 state dict 的内存，适合作为 target job 的内部 hook，不作为大模型默认探针。
+也可以直接在 target job 内执行：
+
+```bash
+python -m shardferry.target_probe \
+  --dcp-checkpoint /targets/job42 \
+  --version-id "{version_id}"
+```
 
 如果用户要的是训练不中断，验收必须额外包含：
 

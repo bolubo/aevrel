@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 from .cdp import CDPError, VersionTarget
+from .target_ready import DcpTargetReady, TargetReadyError
 
 
 class TargetProbeError(RuntimeError):
@@ -93,29 +94,47 @@ def main(argv: list[str] | None = None) -> int:
         prog="python -m shardferry.target_probe",
         description="Check that a promoted target checkpoint is ready.",
     )
-    parser.add_argument("--target-root", required=True)
+    parser.add_argument("--target-root", required=False)
+    parser.add_argument("--dcp-checkpoint", required=False)
+    parser.add_argument("--dcp-metadata", required=False)
     parser.add_argument("--version-id", required=True)
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--poll-interval", type=float, default=0.1)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+    if not args.target_root and not args.dcp_checkpoint:
+        parser.error("one of --target-root or --dcp-checkpoint is required")
     try:
-        result = wait_for_target(
-            args.target_root,
-            args.version_id,
-            timeout=args.timeout,
-            poll_interval=args.poll_interval,
-        )
-    except (TargetProbeError, CDPError, OSError, ValueError) as exc:
+        if args.dcp_checkpoint:
+            DcpTargetReady(
+                args.dcp_checkpoint,
+                metadata_dir=args.dcp_metadata or None,
+            )(args.version_id)
+            result = {
+                "version_id": args.version_id,
+                "mode": "dcp-load",
+                "checkpoint": str(Path(args.dcp_checkpoint).resolve()),
+            }
+        else:
+            result = wait_for_target(
+                args.target_root,
+                args.version_id,
+                timeout=args.timeout,
+                poll_interval=args.poll_interval,
+            )
+    except (TargetProbeError, TargetReadyError, CDPError, OSError, ValueError) as exc:
         print(f"shardferry target-probe: {exc}", file=sys.stderr)
         return 2
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
-        print(
-            f"target ready: {result['version_id']} "
-            f"({result['chunks']} chunks)"
-        )
+        if result.get("mode") == "dcp-load":
+            print(f"target ready: {result['version_id']} (DCP load)")
+        else:
+            print(
+                f"target ready: {result['version_id']} "
+                f"({result['chunks']} chunks)"
+            )
     return 0
 
 

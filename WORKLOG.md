@@ -536,7 +536,11 @@ Gate:
 - Added `DcpTargetReady`: an optional real CPU DCP load proof exposed through
   `cutover-serve --target-ready-dcp-checkpoint`; it can be chained after the
   file probe and before the target-job readiness URL.
-- Python: `257 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
+- `python -m shardferry.target_probe --dcp-checkpoint ...` now provides the
+  same load proof as a target-job command; cutover RTO includes its load time.
+- Python: `259 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
   `go build ./cmd/controller` pass; Helm lint/template pass.
+- HTTP range reads now reuse per-host `HTTP(S)Connection` keep-alive
+  connections; the existing agent/HTTP/DCP-provider tests remain green.
 - Direct target proof smoke passed: rank proof generated, combined proof root
   produced. Physical kind/e2e is not available in this environment.
