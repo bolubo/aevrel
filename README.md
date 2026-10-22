@@ -22,6 +22,10 @@ Status: **0.1.1 Alpha**. The local DCP path and the Kubernetes control-plane pat
 are usable within the boundaries below. This is not a production SLA and does
 not promise online/live training cutover.
 
+Roadmap: [`0.1.x` static checkpoint mobility](docs/0.1-ACCEPTANCE.zh-CN.md) is
+released; [`0.2.0` Live Handoff](docs/0.2-ACCEPTANCE.zh-CN.md) is the next major
+capability. See the full [`roadmap`](docs/ROADMAP.zh-CN.md).
+
 ## Why
 
 A 128-rank training job can leave DCP shards on local NVMe, with no shared
