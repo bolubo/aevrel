@@ -2,11 +2,11 @@
 
 Move and reshard local checkpoint shards across DeviceMeshes and clusters.
 
-Status: **recovery checkpoint**. The product path is local `demo`, `doctor`, and
+Status: **active development**. The product path is local `demo`, `doctor`, and
 `migrate`, plus selector-based `shardferryctl migrate -f FILE --wait` for
-Kubernetes local-disk agents. The recovery merge is still being validated;
-`cmd/ctl` and the Python product tests are green, while the full Go controller
-and a few cutover tests need reconciliation.
+Kubernetes local-disk agents. Python capability tests, the Go execution/
+controller path, and Helm packaging are green; physical multi-node/GPU
+acceptance remains environment work.
 
 ## Product path
 
@@ -73,7 +73,6 @@ and planned bytes match the plan.
 - `src/shardferry/{contracts,doctor}.py`: contract validation and read-only
   preflight checks.
 - `src/shardferry/adaptive.py`: opt-in token bucket / 429 backpressure model.
-- `src/shardferry/adaptive.py`: opt-in token bucket / 429 backpressure model.
 - `src/shardferry/{agent,agent_state}.py`: V1 agent HTTP surface, durable task
   state, and idempotent task transitions.
 - `src/shardferry/agent_executor.py`: local artifact resolution plus target
@@ -116,8 +115,10 @@ and planned bytes match the plan.
 
 ## Local workflow
 
-No `git init`, no remote, no upload until MVP freeze. Each phase gate gets a tar
-snapshot under `/root/lines/oss/aicluster/snapshots/`.
+Git is present for recovery/rollback. Keep virtualenvs, build outputs, and
+benchmark data out of commits; use an explicit branch/worktree for parallel
+development. Phase evidence remains under
+`/root/lines/oss/aicluster/snapshots/`.
 
 V1 contract and preflight checks:
 
@@ -127,8 +128,9 @@ python -m shardferry.cli doctor --spec SPEC.yaml --json
 ```
 
 `capabilities` declares the stable machine-readable surface. `doctor` is
-read-only: it validates the spec, V1 schemas, source URI reachability, and the
-target parent/root without creating a target directory.
+read-only: it validates the spec, V1 schemas, source URI reachability, the
+target parent/root, and a conservative source/work/output disk estimate without
+creating a target directory.
 
 Agent API foundation (HTTPS/WSS deployment is not wired yet):
 

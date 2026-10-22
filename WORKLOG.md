@@ -538,9 +538,11 @@ Gate:
   file probe and before the target-job readiness URL.
 - `python -m shardferry.target_probe --dcp-checkpoint ...` now provides the
   same load proof as a target-job command; cutover RTO includes its load time.
-- Python: `259 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
+- Python: `261 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
   `go build ./cmd/controller` pass; Helm lint/template pass.
 - HTTP range reads now reuse per-host `HTTP(S)Connection` keep-alive
   connections; the existing agent/HTTP/DCP-provider tests remain green.
+- `doctor --checkpoint` now reports a conservative source/work/output disk
+  estimate against the actual destination free space.
 - Direct target proof smoke passed: rank proof generated, combined proof root
   produced. Physical kind/e2e is not available in this environment.

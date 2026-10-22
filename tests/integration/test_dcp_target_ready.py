@@ -6,7 +6,7 @@ import pytest
 
 from shardferry.cdp import VersionMarker, write_marker
 from shardferry.cutover_service import CutoverService
-from shardferry.dcp import export_dcp
+from shardferry.dcp import export_dcp, export_dcp_local
 from shardferry.executor import apply
 from shardferry.planner import plan
 from shardferry.target_ready import DcpTargetReady, TargetReadyError
@@ -57,6 +57,28 @@ def test_target_probe_dcp_cli_mode(tmp_path: Path) -> None:
             "--json",
         ]
     ) == 0
+
+
+def test_local_rank_dcp_target_ready(tmp_path: Path) -> None:
+    pytest.importorskip("torch")
+    spec, arrays, _ = generate_sharded_spec(
+        (8, 4),
+        (4,),
+        ("Shard(0)",),
+        (2,),
+        ("Shard(0)",),
+    )
+    materialize_source_files(spec, arrays, tmp_path)
+    apply(plan(spec), spec)
+    local = tmp_path / "rank0.dcp"
+    export_dcp_local(
+        spec,
+        local,
+        raw_root=tmp_path / "target",
+        ranks=(0,),
+    )
+
+    DcpTargetReady(local)("step-100")
 
 
 def test_dcp_target_ready_fails_closed_on_missing_checkpoint(

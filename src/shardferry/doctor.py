@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from jsonschema import Draft202012Validator
 from .contracts import SCHEMA_DIR
 from .dcp import DcpError, read_dcp_metadata
 from .defaults import DEFAULT_MIGRATED_SUFFIX, DEFAULT_WORK_SUFFIX
+from .layout import DTYPE_BYTES
 from .manifest import ManifestError, load_spec
 from .storage.router import StorageRouter
 from .targets import target_root_path
@@ -59,6 +61,26 @@ def checkpoint_doctor(
                 )
             )
             checks.append(_check_dcp_storage(checkpoint_path, metadata))
+            checks.append(
+                _check_disk_estimate(
+                    checkpoint_path,
+                    metadata,
+                    output=(
+                        Path(output).resolve()
+                        if output is not None
+                        else checkpoint_path.with_name(
+                            checkpoint_path.name + DEFAULT_MIGRATED_SUFFIX
+                        )
+                    ),
+                    work_dir=(
+                        Path(work_dir).resolve()
+                        if work_dir is not None
+                        else checkpoint_path.with_name(
+                            checkpoint_path.name + DEFAULT_WORK_SUFFIX
+                        )
+                    ),
+                )
+            )
 
     if not checkpoint_check["ok"]:
         return _result(checks)
@@ -241,6 +263,90 @@ def _check_dcp_storage(checkpoint: Path, metadata: Any) -> dict[str, Any]:
         True,
         f"{len(storage_data)} storage reference(s) readable",
     )
+
+
+def _check_disk_estimate(
+    checkpoint: Path,
+    metadata: Any,
+    *,
+    output: Path,
+    work_dir: Path,
+) -> dict[str, Any]:
+    tensors = [
+        value
+        for value in getattr(metadata, "state_dict_metadata", {}).values()
+        if hasattr(value, "size")
+    ]
+    tensor_bytes = 0
+    for tensor in tensors:
+        dtype = getattr(tensor.properties, "dtype", None)
+        dtype_name = getattr(dtype, "name", "") or str(dtype).rsplit(".", 1)[-1]
+        item_bytes = DTYPE_BYTES.get(dtype_name)
+        if item_bytes is None:
+            return _check(
+                "disk-estimate",
+                False,
+                f"unsupported dtype for disk estimate: {dtype_name}",
+            )
+        tensor_bytes += int(tensor.size.numel()) * item_bytes
+    storage_files: dict[Path, int] = {}
+    for info in (getattr(metadata, "storage_data", None) or {}).values():
+        relative = getattr(info, "relative_path", "")
+        if not relative:
+            continue
+        path = checkpoint / relative
+        try:
+            storage_files[path] = path.stat().st_size
+        except OSError:
+            continue
+    source_bytes = sum(storage_files.values())
+    work_required = tensor_bytes * 2
+    output_required = tensor_bytes
+    work_free = _free_bytes(work_dir)
+    output_free = _free_bytes(output)
+    if work_free < work_required:
+        return _check(
+            "disk-estimate",
+            False,
+            f"work needs { _human(work_required) }, free { _human(work_free) }",
+            hint="free local disk or choose another --work-dir",
+        )
+    if output_free < output_required:
+        return _check(
+            "disk-estimate",
+            False,
+            f"output needs { _human(output_required) }, free { _human(output_free) }",
+            hint="free local disk or choose another --output",
+        )
+    return _check(
+        "disk-estimate",
+        True,
+        (
+            f"source {_human(source_bytes)}, target {_human(tensor_bytes)}, "
+            f"work-needs {_human(work_required)}; "
+            f"free work/output {_human(work_free)}/{_human(output_free)}"
+        ),
+    )
+
+
+def _free_bytes(path: Path) -> int:
+    candidate = path
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    try:
+        return shutil.disk_usage(candidate).free
+    except OSError:
+        return 0
+
+
+def _human(value: int) -> str:
+    units = ("B", "KiB", "MiB", "GiB", "TiB")
+    size = float(value)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            return f"{size:.1f}{unit}"
+        size /= 1024
+    return f"{value}B"
 
 
 def _check_output_path(
