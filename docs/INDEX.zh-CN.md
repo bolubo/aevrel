@@ -4,6 +4,7 @@
 
 - [定位](POSITIONING.zh-CN.md)
 - [竞争与移动层策略](COMPETITIVE-STRATEGY.zh-CN.md)
+- [用户故事卡](USER-STORIES.zh-CN.md)
 - [GitHub 用户发现（2026-10-22）](USER-DISCOVERY-2026-10-22.md)
 - [迁移品类](CATEGORY.zh-CN.md)
 - [v0 场景](SCENARIO.zh-CN.md)
