@@ -217,3 +217,20 @@ source agent 已切到 HTTP/1.1，`HttpStorage` 对同一 host 复用
 `HTTP(S)Connection`。range-heavy 的 128-rank 场景不再每个 range 都新建
 TCP/TLS 连接；现有 HTTP source/agent/executor 测试通过。实际吞吐收益需要在
 真实网络/多节点上补测。
+
+### target-ready probe RTO
+
+`cdp_benchmark.py` 默认在 cutover 后运行
+`python -m shardferry.target_probe`，校验 target current、manifest root、
+CAS chunk 和 shadow；报告新增 `target_probe=true`、`target_ready_seconds`
+和 `rto_seconds`。可用 `--no-target-probe` 关闭。
+
+128MiB x 3、8→4、file-level 的本地验收：
+
+- full CDP wall `2.68s`
+- max RSS `94.3MiB`
+- cutover pause / rto `0.0913s`
+- target-ready `0.0352s`
+- `--assert-p1` passed
+
+这证明 target probe 已进入可重复 benchmark，而不是只存在于单测。
