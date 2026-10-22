@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from itertools import product
 from math import prod
 from typing import Iterable
@@ -15,7 +16,21 @@ class TensorIOError(ValueError):
     """Raised when a tensor byte range cannot be read, reduced, or written."""
 
 
-DEFAULT_RUN_BATCH_BYTES = 4 * 1024 * 1024
+def _default_run_batch_bytes() -> int:
+    configured = os.environ.get("SHARDFERRY_RUN_BATCH_BYTES", "")
+    if not configured:
+        codec = os.environ.get("SHARDFERRY_GPU_CODEC", "").strip().lower()
+        if codec not in {"", "off", "identity"}:
+            return 16 * 1024 * 1024
+        return 4 * 1024 * 1024
+    try:
+        value = int(configured)
+    except ValueError:
+        return 4 * 1024 * 1024
+    return value if value > 0 else 4 * 1024 * 1024
+
+
+DEFAULT_RUN_BATCH_BYTES = _default_run_batch_bytes()
 
 
 def region_bytes(region_size: tuple[int, ...], item_size: int) -> int:

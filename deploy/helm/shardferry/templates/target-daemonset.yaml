@@ -60,6 +60,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.agentToken.existingSecret }}
                   key: {{ .Values.agentToken.key }}
+            - name: SHARDFERRY_GPU_CODEC
+              value: {{ .Values.target.gpuCodec | quote }}
+            - name: SHARDFERRY_GPU_CODEC_NETWORK_GBPS
+              value: {{ .Values.target.gpuCodecNetworkGbps | quote }}
+            - name: SHARDFERRY_RUN_BATCH_BYTES
+              value: {{ .Values.target.runBatchBytes | quote }}
             {{- if .Values.tls.enabled }}
             - name: SHARDFERRY_TLS_CA
               value: /tls/{{ .Values.tls.caKey }}

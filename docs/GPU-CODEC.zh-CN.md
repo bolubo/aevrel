@@ -95,14 +95,27 @@ RTX 5070 Ti Laptop 12GB，32 个 4MiB range：
 - 同一批 range 逐 range 自适应在 4MiB/1Gbps 下会跳过，batch 才把固定
   采样/决策开销摊薄。
 
+云端 4×L20，同一 batch probe，128MB 样本，1Gbps：
+
+- 可压重复数据：ratio `0.0198`，启用，投影收益 `+0.159s`。
+- 随机高熵数据：ratio `1.000`，identity，投影收益 `-0.131s`。
+- 硬件吞吐不同，但启用/禁用边界与本地一致。
+
 `gpu_codec_probe.py --adaptive --batch-ranges N` 可复现；默认仍未接入主路径。
 
-## 后续接入（未做）
+## 接入现状
 
-- source agent 按 `Accept-Encoding` 返回 `X-Shard-Encoding`；
-- target `HttpStorage` 解码并校验原始 SHA256；
-- `SHARDFERRY_GPU_CODEC=off|auto|nvcomp-*`，默认 `off`；
-- codec 能力、ratio、吞吐和 fallback 进入 metrics。
+- source agent 已支持按 `X-Shard-Accept-Encoding: sfg1` 返回编码后的 shard；
+- target `HttpStorage` 已支持解码并校验原始 SHA256；
+- `SHARDFERRY_GPU_CODEC=off|identity|zlib|nvcomp-*` 默认 `off`；
+- `SHARDFERRY_GPU_CODEC_NETWORK_GBPS` 必填；
+- 启用 GPU codec 时 `SHARDFERRY_RUN_BATCH_BYTES` 默认提升到 16MiB，
+  也可以显式覆盖；
+- source/target 的 Helm 都暴露了 `gpuCodec`、`gpuCodecNetworkGbps`、
+  `runBatchBytes`，默认关闭。
+
+`gpu_batch.py` 的 `SFB1` 多 range batch 已实现，但还没接 HTTP batch endpoint；
+当前 HTTP 接入先使用 16MiB 单 range 形态，后续再换成真正的多 range batch。
 
 GPUDirect Storage 不在 G0/G1 范围；它是硬件相关后端，等压缩路径和真实数据
 证明有收益后再评估。

@@ -9,6 +9,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener, urlopen
 
+from ..gpu_transport import (
+    RANGE_ACCEPT_HEADER,
+    RANGE_ENCODING,
+    RANGE_ENCODING_HEADER,
+    RANGE_RAW_LENGTH_HEADER,
+    RangeCodec,
+)
 from .file import StorageError
 
 
@@ -36,6 +43,7 @@ class HttpStorage:
         use_proxy: bool = False,
         rate_controller=None,
         rate_registry=None,
+        range_codec: RangeCodec | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/") if base_url else None
         self.token = token
@@ -45,6 +53,7 @@ class HttpStorage:
         self.use_proxy = use_proxy
         self.rate_controller = rate_controller
         self.rate_registry = rate_registry
+        self.range_codec = range_codec
         self._connections: dict[tuple[str, str, int], http.client.HTTPConnection] = {}
         self._ssl_context = _tls_context_from_env()
         handlers = []
@@ -68,8 +77,27 @@ class HttpStorage:
         try:
             data = response.read()
             expected_range = response.headers.get("X-Range-SHA256")
+            encoding = response.headers.get(RANGE_ENCODING_HEADER)
+            raw_length = response.headers.get(RANGE_RAW_LENGTH_HEADER)
         finally:
             response.close()
+        if encoding:
+            if self.range_codec is None:
+                raise StorageError(
+                    f"HTTP response uses unsupported range encoding: {encoding}"
+                )
+            if encoding != RANGE_ENCODING:
+                raise StorageError(
+                    f"HTTP response uses unknown range encoding: {encoding}"
+                )
+            try:
+                data = self.range_codec.decode(data)
+            except Exception as exc:
+                raise StorageError(f"range decode failed: {exc}") from exc
+            if raw_length is not None and int(raw_length) != len(data):
+                raise StorageError(
+                    f"decoded range length {len(data)} != {raw_length}"
+                )
         if len(data) != size:
             raise StorageError(
                 f"short HTTP range from {uri}: wanted {size}, got {len(data)}"
@@ -126,6 +154,8 @@ class HttpStorage:
         headers = {}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        if self.range_codec is not None:
+            headers[RANGE_ACCEPT_HEADER] = RANGE_ENCODING
         parsed = urlsplit(url)
         if not self.use_proxy and parsed.scheme in {"http", "https"}:
             return self._open_pooled(method, url, parsed, headers)
