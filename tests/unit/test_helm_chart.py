@@ -43,3 +43,4 @@ def test_chart_lints_and_renders_source_and_target_agents() -> None:
     assert "hostPort: 9443" in rendered.stdout
     assert "hostPort: 9444" in rendered.stdout
     assert "mountPath: /targets" in rendered.stdout
+    assert 'resources: ["jobs"]' in rendered.stdout

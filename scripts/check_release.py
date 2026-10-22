@@ -94,6 +94,7 @@ def check(image_prefix: str) -> dict[str, Any]:
     for command in (
         "shardferry",
         "shardferry-target-load",
+        "shardferry-target-report",
         "shardferry-support-bundle",
     ):
         if command not in scripts:
@@ -107,6 +108,7 @@ def check(image_prefix: str) -> dict[str, Any]:
         "deploy/helm/shardferry/crds/shardferrycluster.yaml",
         "docs/SCENARIO.zh-CN.md",
         "docs/TARGET-LOAD.zh-CN.md",
+        "docs/TARGET-READY.zh-CN.md",
         "docs/SUPPORT.zh-CN.md",
         "docs/ERROR-CATALOG.zh-CN.md",
         "docs/GPU-RUNBOOK.zh-CN.md",
@@ -116,6 +118,7 @@ def check(image_prefix: str) -> dict[str, Any]:
         "docs/RELEASE.zh-CN.md",
         "docs/LIVE-ACCEPTANCE.zh-CN.md",
         "scripts/gpu_preflight.py",
+        "spec/v1/target-ready.schema.json",
         ".github/workflows/release.yml",
     ]
     for relative in required:

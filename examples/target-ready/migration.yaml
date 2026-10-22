@@ -1,0 +1,89 @@
+apiVersion: shardferry.io/v1
+kind: CheckpointMigration
+metadata:
+  name: resume-trainjob
+  namespace: default
+spec:
+  checkpoint:
+    format: dcp
+    formatVersion: "1.0.0"
+  source:
+    metadataOwnerRank: 0
+    worldSize: 4
+    mesh:
+      shape: [4]
+      placements: ["Shard(0)"]
+    rankMap:
+      - rank: 0
+        endpoint: http://source-0:9443
+      - rank: 1
+        endpoint: http://source-1:9443
+      - rank: 2
+        endpoint: http://source-2:9443
+      - rank: 3
+        endpoint: http://source-3:9443
+    checkpointRoot: /source/rank{rank}
+  target:
+    worldSize: 2
+    mesh:
+      shape: [2]
+      placements: ["Shard(0)"]
+    rankMap:
+      - rank: 0
+        endpoint: http://target-0:9443
+      - rank: 1
+        endpoint: http://target-1:9443
+    rootTemplate: /targets/rank{rank}
+    validation:
+      version: step-100000
+      steps: 10
+      timeoutSeconds: 900
+      jobTemplate:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              restartPolicy: Never
+              nodeSelector:
+                accelerator: nvidia
+              containers:
+                - name: trainer
+                  image: ghcr.io/example/trainer:latest
+                  command: ["/bin/sh", "-c"]
+                  args:
+                    - |
+                      set -eu
+                      rank="${JOB_COMPLETION_INDEX:?missing JOB_COMPLETION_INDEX}"
+                      checkpoint="${SHARDFERRY_CHECKPOINT_TEMPLATE//\{rank\}/$rank}"
+                      echo "rank=${rank} checkpoint=${checkpoint} version=${SHARDFERRY_VERSION}"
+
+                      # Replace this with the workload's real resume path.
+                      # It must fail non-zero if model or optimizer state cannot load.
+                      python train_resume.py \
+                        --checkpoint "$checkpoint" \
+                        --world-size "$SHARDFERRY_TARGET_WORLD_SIZE" \
+                        --steps "$SHARDFERRY_VALIDATION_STEPS"
+
+                      shardferry-target-report \
+                        --model-loaded \
+                        --optimizer-loaded \
+                        --steps-ran "$SHARDFERRY_VALIDATION_STEPS"
+                  volumeMounts:
+                    - name: target-local
+                      mountPath: /targets
+              volumes:
+                - name: target-local
+                  hostPath:
+                    path: /var/lib/shardferry/target
+                    type: Directory
+  policy:
+    verify: bitwise
+    commit: all-or-nothing
+    maxConcurrentTransfers: 16
+    maxAttemptsPerRank: 5
+    timeoutSeconds: 3600
+    sourceChunkCacheBytes: 2147483648
+  artifacts:
+    store: pvc
+    claimName: shardferry-artifacts
