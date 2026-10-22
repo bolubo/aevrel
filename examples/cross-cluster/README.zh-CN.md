@@ -86,6 +86,7 @@ per-cluster token 路由。`ShardferryCluster.secretRef` 的 token 必须与
   source SHA256 不变，plan `full_gather=false`，report 包含 64 reports + 64 proofs。
   这是控制面/数据面闭环，不是性能基准。
 - source gateway 停止时，`preflight` 明确失败，已有成功 migration 不受影响。
+- target agent 停止时，`preflight` 在 resolve 阶段明确失败，不创建迁移。
 - target root 在 agent 允许根之外时，`preflight` 明确失败；允许根内会检查
   父目录可写、剩余空间和路径非空状态。
 - controller 重启后，已成功 migration 仍保持 `succeeded`，不会静默重跑。
