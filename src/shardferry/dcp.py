@@ -600,6 +600,21 @@ def read_dcp_chunk(
     return raw
 
 
+def read_dcp_tensor_chunk(
+    checkpoint: str | Path,
+    ref: DcpChunkRef,
+):
+    """Deserialize one local DCP chunk without loading a global tensor."""
+    return _read_storage_tensor(
+        Path(checkpoint).resolve(),
+        SimpleNamespace(
+            relative_path=ref.relative_path,
+            offset=ref.offset,
+            length=ref.length,
+        ),
+    )
+
+
 def read_dcp_chunk_range(
     checkpoint: str | Path,
     ref: DcpChunkRef,

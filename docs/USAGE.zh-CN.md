@@ -313,6 +313,10 @@ python -m shardferry.target_probe \
   --version-id "{version_id}"
 ```
 
+local-disk target 每个 rank 只持有自己的分片时，加 `--dcp-rank N`（或
+`cutover-serve --target-ready-dcp-rank N`）：它只反序列化本 rank 的
+`.distcp` chunk，不构造 global state dict。
+
 如果用户要的是训练不中断，验收必须额外包含：
 
 - source 暂停窗口；

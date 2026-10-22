@@ -147,15 +147,22 @@ class DcpTargetReady:
         checkpoint: str | Path,
         *,
         metadata_dir: str | Path | None = None,
+        rank: int | None = None,
     ) -> None:
+        if rank is not None and rank < 0:
+            raise ValueError("DCP rank must be non-negative")
         self.checkpoint = Path(checkpoint).resolve()
         self.metadata_dir = (
             Path(metadata_dir).resolve()
             if metadata_dir is not None
             else self.checkpoint
         )
+        self.rank = rank
 
     def __call__(self, version_id: str) -> None:
+        if self.rank is not None:
+            self._load_rank(version_id)
+            return
         try:
             from torch.distributed.checkpoint import load as dcp_load
             import torch
@@ -177,4 +184,39 @@ class DcpTargetReady:
         except Exception as exc:
             raise TargetReadyError(
                 f"target DCP load failed for {version_id}: {exc}"
+            ) from exc
+
+    def _load_rank(self, version_id: str) -> None:
+        try:
+            from .dcp import (
+                inventory_dcp_descriptors,
+                read_dcp_tensor_chunk,
+            )
+
+            inventory, refs = inventory_dcp_descriptors(
+                self.checkpoint,
+                self.rank,
+                metadata_dir=self.metadata_dir,
+            )
+            chunk_meta = {
+                chunk["checksum"]: chunk
+                for chunk in inventory["chunks"]
+            }
+            for digest, ref in refs.items():
+                tensor = read_dcp_tensor_chunk(self.checkpoint, ref)
+                expected = tuple(chunk_meta[digest]["tensor_size"])
+                if tuple(tensor.shape) != expected:
+                    raise ValueError(
+                        f"chunk shape mismatch for rank {self.rank}: "
+                        f"{tuple(tensor.shape)} != {expected}"
+                    )
+                del tensor
+            if not refs:
+                raise ValueError(
+                    f"target rank {self.rank} has no local DCP chunks"
+                )
+        except Exception as exc:
+            raise TargetReadyError(
+                f"target rank {self.rank} DCP load failed for "
+                f"{version_id}: {exc}"
             ) from exc
