@@ -1,0 +1,90 @@
+{
+  "schema": "shardferry.lrs.rank-state.v1",
+  "checks": {
+    "theta bitwise": true,
+    "momentum bitwise": true,
+    "loss bitwise": true,
+    "batch bitwise": true,
+    "rank1 rng restored": true,
+    "rank0 rng isolated": true,
+    "rng in proof digest": true,
+    "wrong rng fail closed": true
+  },
+  "sampler_digests": {
+    "baseline_rank1": "1a504b335a48bf17ba60654e3d2e79a700cb70a18de757ad9f867b568826c770",
+    "migrated_rank1": "1a504b335a48bf17ba60654e3d2e79a700cb70a18de757ad9f867b568826c770",
+    "baseline_rank0": "ac931629bf1e99588653ab19df5484a4757f12b9f14fe60b5e6102813e2a8558",
+    "migrated_rank0": "ac931629bf1e99588653ab19df5484a4757f12b9f14fe60b5e6102813e2a8558"
+  },
+  "migration_proof": {
+    "rank": 1,
+    "shard_id": 1,
+    "begin_step": 4,
+    "cutover_step": 10,
+    "snapshot_step": 3,
+    "source_cluster": "A",
+    "target_cluster": "B",
+    "snapshot_digest": "sha256:a3846ace6e96b33cec29d0335d5c9d4cf1734665a4b8986f0ca4af88b05541e1",
+    "live_cutover_digest": "sha256:21f73e6be2161454951e1930ac6ddbe00ed29c0ce940a2b396eca5cad1ba4ec6",
+    "target_cutover_digest": "sha256:21f73e6be2161454951e1930ac6ddbe00ed29c0ce940a2b396eca5cad1ba4ec6",
+    "temp_owner": 0,
+    "in_flight_at_cutover": 1,
+    "source_epoch": 0,
+    "cutover_epoch": 1,
+    "target_epoch": 2,
+    "coverage": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "quorum_votes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "steps_lost": 0,
+    "global_stop": 0,
+    "timeline": [
+      [
+        "begin",
+        4
+      ],
+      [
+        "snapshot",
+        3
+      ],
+      [
+        "transfer_to_temp",
+        4
+      ],
+      [
+        "temp_epoch",
+        1
+      ],
+      [
+        "cutover",
+        10
+      ],
+      [
+        "fence",
+        10
+      ]
+    ],
+    "cutover_wait_seconds": 1.324995537288487e-06
+  },
+  "wrong_rng": {
+    "fail_closed": true,
+    "error": "shard 1 digest mismatch at step 10/10: sha256:b296f14e99a4eec1b9a06e17cf2898a8a77aa282fe8eba1858c522ad84acf3e0 != sha256:21f73e6be2161454951e1930ac6ddbe00ed29c0ce940a2b396eca5cad1ba4ec6",
+    "proofs": 0
+  }
+}

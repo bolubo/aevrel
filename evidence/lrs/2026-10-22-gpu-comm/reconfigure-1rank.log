@@ -1,0 +1,9 @@
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+I1022 22:18:39.621359 806569 TorchCommFactory.cpp:167] [TC] Backend nccl-lazy is registered
+I1022 22:18:39.621379 806569 TorchCommFactory.cpp:167] [TC] Backend nccl is registered
+I1022 22:18:39.621381 806569 TorchCommFactory.cpp:167] [TC] Backend fake is registered
+I1022 22:18:39.621383 806569 TorchCommNCCL.cpp:91] [TC][name=] Initializing TorchCommNCCL for device: cuda:0
+I1022 22:18:39.621464 806569 TorchCommNCCL.cpp:113] [TC][name=lrs-torchcomms-probe] TorchCommNCCL dynamic regime enabled, deferring initialization
+I1022 22:18:39.622977 806569 TorchCommNCCLReconfigure.cpp:208] [TC][name=lrs-torchcomms-probe] TorchCommNCCL reconfigure starting
+world=1 reconfigure_seconds=0.701 all_reduce_value=1.0 expected=1.0 diff=0.000e+00
+TORCHCOMMS RECONFIGURE PROBE PASSED

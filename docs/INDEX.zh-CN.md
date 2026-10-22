@@ -50,3 +50,21 @@
 - [控制器 GPU 实验卡](CONTROLLER-GPU-EXPERIMENT.zh-CN.md)
 - [GPU Codec 传输加速](GPU-CODEC.zh-CN.md)
 - [Benchmark](BENCHMARK.zh-CN.md)
+
+## 研究线（LRS）
+
+- [LRS contract](LRS-CONTRACT.zh-CN.md)
+- [LRS M1 实现与验收](LRS-M1.zh-CN.md)
+- [LRS M2 并发迁移与验收](LRS-M2.zh-CN.md)
+- [LRS M3 HTTP 传输与断链恢复](LRS-M3.zh-CN.md)
+- [LRS M4 source death takeover](LRS-M4.zh-CN.md)
+- [LRS M5 TP=2/PP=2 重配置](LRS-M5.zh-CN.md)
+- [LRS A2 VPS-lite 布局代数](LRS-A2-VPS.zh-CN.md)
+- [LRS A3.1/A3.2 训练状态闭包](LRS-A3-STATE.zh-CN.md)
+- [LRS A4 双进程训练状态 handoff](LRS-A4-HANDOFF.zh-CN.md)
+- [LRS A5 CPU 4-rank 真实训练迁移前置](LRS-A5-CPU4.zh-CN.md)
+- [LRS M6 8+4/16+8 与故障矩阵](LRS-M6.zh-CN.md)
+- [LRS 4-GPU runbook](LRS-4GPU-RUNBOOK.zh-CN.md)
+- [LRS RANK state closure](LRS-RANK-STATE.zh-CN.md)
+- [LRS 全局整合](LRS-INTEGRATION.zh-CN.md)
+- [LRS Canonical Merge / Gap Matrix](LRS-CANONICAL-MERGE.zh-CN.md)

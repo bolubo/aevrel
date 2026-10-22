@@ -1,0 +1,27 @@
+{
+  "schema": "shardferry.lrs.gpu_comm.preflight.v1",
+  "date": "2026-10-22",
+  "static_venv": {
+    "torch": "2.14.1+cu130",
+    "cuda": "13.0",
+    "nccl": "2.30.7",
+    "gpu_count": 1,
+    "nccl_world1_all_reduce": 1.0
+  },
+  "comm_venv": {
+    "torch": "2.15.0.dev20260824+cu130",
+    "torchcomms": "0.3.0.dev20260824+cu130",
+    "gpu_count": 1,
+    "nccl_world1_all_reduce": 1.0,
+    "reconfigure_world": 1,
+    "reconfigure_seconds": 0.701,
+    "reconfigure_all_reduce_value": 1.0,
+    "reconfigure_passed": true
+  },
+  "not_yet_proven": [
+    "4-rank NCCL reconfigure",
+    "rank shrink with live active ranks",
+    "rank grow after target state handoff",
+    "cross-machine NCCL bootstrap"
+  ]
+}

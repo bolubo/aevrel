@@ -1,0 +1,24 @@
+{
+  "schema": "shardferry.lrs.a4.proof.v1",
+  "device": "cuda",
+  "checks": {
+    "parameter trajectory": true,
+    "loss trajectory": true,
+    "step continuity": true,
+    "source exited before load": true
+  },
+  "parameter_max_abs_delta": 0.0,
+  "loss_max_abs_delta": 0.0,
+  "handoff_pause_seconds": 1.1484700590008288,
+  "baseline_losses": [
+    2.156766891479492,
+    0.905553936958313,
+    0.7452714443206787,
+    0.36555224657058716,
+    1.8614709377288818
+  ],
+  "target_losses": [
+    0.36555224657058716,
+    1.8614709377288818
+  ]
+}
