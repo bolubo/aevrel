@@ -45,6 +45,10 @@ explicit topology, bitwise verification**.
 See [`docs/POSITIONING.zh-CN.md`](docs/POSITIONING.zh-CN.md) and
 [`docs/ROADMAP.zh-CN.md`](docs/ROADMAP.zh-CN.md) for the product boundary and
 development sequence.
+See [`docs/WHY-SHARDFERRY.zh-CN.md`](docs/WHY-SHARDFERRY.zh-CN.md) for the
+DCP comparison, [`docs/USE-CASES.zh-CN.md`](docs/USE-CASES.zh-CN.md) for
+concrete workflows, and [`docs/INDEX.zh-CN.md`](docs/INDEX.zh-CN.md) for the
+full documentation index.
 
 ## Product path
 
