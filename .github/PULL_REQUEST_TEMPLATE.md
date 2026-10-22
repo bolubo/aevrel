@@ -11,6 +11,8 @@
 - [ ] Python tests
 - [ ] Go tests / vet / build
 - [ ] Helm lint/template
+- [ ] Optional liveWorker/Kueue Helm render, if applicable
+- [ ] New container image build, if applicable
 - [ ] Real DCP test, if applicable
 - [ ] Failure or recovery path, if applicable
 

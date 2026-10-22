@@ -1,82 +1,60 @@
 # shardferry 文档索引
 
-## 产品与定位
+> 当前产品：**Checkpoint readiness, recovery and mobility control plane**。
+> 历史实验已移入 [`archive/`](archive/README.md)，研究证据见
+> [`research/`](research/README.md)。
+
+## 先读这些
+
+- [快速开始](QUICKSTART.zh-CN.md)
+- [产品形态与日常价值](PRODUCT-FORM.zh-CN.md)
+- [使用场景与闭环](USAGE.zh-CN.md)
+- [Checkpoint control plane 示例](../examples/checkpoint-control/README.zh-CN.md)
+- [架构概览](ARCHITECTURE.zh-CN.md)
+
+## 产品与设计
 
 - [定位](POSITIONING.zh-CN.md)
-- [竞争与移动层策略](COMPETITIVE-STRATEGY.zh-CN.md)
-- [用户故事卡](USER-STORIES.zh-CN.md)
-- [GitHub 用户发现（2026-10-22）](USER-DISCOVERY-2026-10-22.md)
-- [迁移品类](CATEGORY.zh-CN.md)
-- [v0 场景](SCENARIO.zh-CN.md)
-- [用户交付与排障](USER-ENABLEMENT.zh-CN.md)
-- [为什么不用原生 DCP](WHY-SHARDFERRY.zh-CN.md)
-- [典型使用场景](USE-CASES.zh-CN.md)
-- [跨集群示例](../examples/cross-cluster/README.zh-CN.md)
-- [兼容性矩阵](COMPATIBILITY.zh-CN.md)
-- [升级与版本偏差](UPGRADE.zh-CN.md)
+- [产品契约](PRODUCT.zh-CN.md)
 - [路线图](ROADMAP.zh-CN.md)
-- [0.1 静态迁移验收](0.1-ACCEPTANCE.zh-CN.md)
-- [0.2 Checkpoint Mobility 验收](0.2-ACCEPTANCE.zh-CN.md)
-- [0.3 Online checkpoint handoff](HANDOFF.zh-CN.md)
-- [0.3 Resume Closure](RESUME-CLOSURE.zh-CN.md)
-- [Feature 1: Kueue 集成设计](FEATURE-1-KUEUE-INTEGRATION.zh-CN.md)
-- [Feature 1: Kueue binary guard 实现](KUEUE-PREEMPTION-GUARD.zh-CN.md)
-- [Feature 2: Separate-Mesh local-shard migration](0.2-FEATURE-2-CROSS-MESH.zh-CN.md)
-- [Feature 3: Target-ready 契约](TARGET-READY.zh-CN.md)
-- [发布检查清单](RELEASE.zh-CN.md)
-- [0.1.1 Release Notes](RELEASE-NOTES-0.1.1.md)
-- [0.2.0-rc.1 Release Notes](RELEASE-NOTES-0.2.0-rc.1.md)
+- [构建计划](BUILD-PLAN.zh-CN.md)
+- [控制面重构计划](REFACTOR-PLAN.zh-CN.md)
+- [Checkpoint 生态与需求调研](CHECKPOINT-RESEARCH.zh-CN.md)
+- [用户发现记录](USER-DISCOVERY-2026-10-22.md)
+- [兼容性](COMPATIBILITY.zh-CN.md)
 
-## 使用
+## 使用与集成
 
-- [新手操作手册](QUICKSTART.zh-CN.md)
-- [完整使用场景与验收](USAGE.zh-CN.md)
-- [跨集群 live acceptance](LIVE-ACCEPTANCE.zh-CN.md)
-- [产品面契约](PRODUCT.zh-CN.md)
-- [产品形态与日常价值](PRODUCT-FORM.zh-CN.md)
-- [Checkpoint 生态与用户需求调研](CHECKPOINT-RESEARCH.zh-CN.md)
-- [产品构建计划](BUILD-PLAN.zh-CN.md)
-- [进度条与迁移状态 UX](PROGRESS-UX.zh-CN.md)
+- [用户交付与排障](USER-ENABLEMENT.zh-CN.md)
 - [目标 DCP 加载](TARGET-LOAD.zh-CN.md)
-- [Target-ready 示例](../examples/target-ready/migration.yaml)
-- [Checkpoint control plane 最小闭环](../examples/checkpoint-control/README.zh-CN.md)
-- [物理 A/B 实验](AB-EXPERIMENT.zh-CN.md)
-
-## 架构与运维
-
-- [架构概览](ARCHITECTURE.zh-CN.md)
-- [控制面重构与任务计划](REFACTOR-PLAN.zh-CN.md)
-- [代码结构约定](STRUCTURE.zh-CN.md)
-- [排障与 support bundle](SUPPORT.zh-CN.md)
-- [错误目录](ERROR-CATALOG.zh-CN.md)
-- [目标 Agent 任务卡](AGENT-TARGET-PROMPT.zh-CN.md)
-- [GPU/FSDP 实验卡](GPU-EXPERIMENT.zh-CN.md)
-- [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)
-- [GPU 验证记录（2026-10-22）](GPU-VALIDATION-2026-10-22.md)
-- [单卡 GPU 验证（2026-10-22）](GPU-SINGLE-CARD-VALIDATION.md)
-- [CPU target Job 验证（2026-10-22）](CPU-HANDOFF-VALIDATION.md)
-- [Rescue Demo：中断后续跑](RESCUE-DEMO.zh-CN.md)
-- [控制器 GPU 实验卡](CONTROLLER-GPU-EXPERIMENT.zh-CN.md)
-- [GPU Codec 传输加速](GPU-CODEC.zh-CN.md)
-- [Benchmark](BENCHMARK.zh-CN.md)
-
-## 研究线（LRS）
-
-- [LRS contract](LRS-CONTRACT.zh-CN.md)
-- [LRS M1 实现与验收](LRS-M1.zh-CN.md)
-- [LRS M2 并发迁移与验收](LRS-M2.zh-CN.md)
-- [LRS M3 HTTP 传输与断链恢复](LRS-M3.zh-CN.md)
-- [LRS M4 source death takeover](LRS-M4.zh-CN.md)
-- [LRS M5 TP=2/PP=2 重配置](LRS-M5.zh-CN.md)
-- [LRS A2 VPS-lite 布局代数](LRS-A2-VPS.zh-CN.md)
-- [LRS A3.1/A3.2 训练状态闭包](LRS-A3-STATE.zh-CN.md)
-- [LRS A4 双进程训练状态 handoff](LRS-A4-HANDOFF.zh-CN.md)
-- [LRS A5 CPU 4-rank 真实训练迁移前置](LRS-A5-CPU4.zh-CN.md)
-- [LRS M6 8+4/16+8 与故障矩阵](LRS-M6.zh-CN.md)
-- [LRS 4-GPU runbook](LRS-4GPU-RUNBOOK.zh-CN.md)
-- [LRS RANK state closure](LRS-RANK-STATE.zh-CN.md)
+- [Target-ready 契约](TARGET-READY.zh-CN.md)
+- [迁移进度 UX](PROGRESS-UX.zh-CN.md)
+- [Rescue Demo](RESCUE-DEMO.zh-CN.md)
+- [Kueue preemption guard](KUEUE-PREEMPTION-GUARD.zh-CN.md)
+- [LRS on-demand worker](LRS-WORKER.zh-CN.md)
 - [LRS 全局整合](LRS-INTEGRATION.zh-CN.md)
-- [LRS Canonical Merge / Gap Matrix](LRS-CANONICAL-MERGE.zh-CN.md)
 - [Live Rank Split Go 产品面](LIVE-RANK-SPLIT-GO.zh-CN.md)
 - [Live Rank Split 用户流程](LIVE-RANK-SPLIT-USAGE.zh-CN.md)
-- [LRS on-demand worker](LRS-WORKER.zh-CN.md)
+- [跨集群示例](../examples/cross-cluster/README.zh-CN.md)
+
+## 运维与发布
+
+- [发布检查清单](RELEASE.zh-CN.md)
+- [升级指南](UPGRADE.zh-CN.md)
+- [排障与 support bundle](SUPPORT.zh-CN.md)
+- [错误目录](ERROR-CATALOG.zh-CN.md)
+- [0.2 Checkpoint Mobility 验收](0.2-ACCEPTANCE.zh-CN.md)
+- [0.2.0-rc.1 Release Notes](RELEASE-NOTES-0.2.0-rc.1.md)
+- [0.1.1 Release Notes](RELEASE-NOTES-0.1.1.md)
+- [性能与方法](BENCHMARK.zh-CN.md)
+- [跨集群 live acceptance](LIVE-ACCEPTANCE.zh-CN.md)
+
+## 研究证据
+
+- [LRS research](research/lrs/README.md)
+- [GPU / CPU experiments](research/gpu/README.md)
+- [0.1 静态迁移验收](0.1-ACCEPTANCE.zh-CN.md)
+
+## 历史归档
+
+- [Archive index](archive/README.md)

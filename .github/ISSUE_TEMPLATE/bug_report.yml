@@ -22,7 +22,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: OS, Python/Go/PyTorch versions, storage type, and relevant deployment mode.
+      description: OS, Python/Go/PyTorch versions, storage type, Kubernetes/Kueue version, and relevant deployment mode.
     validations:
       required: true
   - type: textarea

@@ -33,7 +33,7 @@ now have concrete evidence behind them.
   `output_ok=True optimizer_state_loaded=True`.
 - Cross-cluster: 16→8, synthetic 128→64 and 1 GiB control/data-plane runs.
 
-See [`GPU-VALIDATION-2026-10-22.md`](GPU-VALIDATION-2026-10-22.md) and
+See [`GPU-VALIDATION-2026-10-22.md`](research/gpu/GPU-VALIDATION-2026-10-22.md) and
 [`BENCHMARK.zh-CN.md`](BENCHMARK.zh-CN.md).
 
 ## Honest limitations

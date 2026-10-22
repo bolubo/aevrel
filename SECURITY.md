@@ -2,7 +2,8 @@
 
 ## Supported versions
 
-Security fixes target the latest `0.1.x` line.
+Security fixes target `main` and the latest `0.2.x` candidate line. The `0.1.x`
+line is legacy and will receive fixes only when the issue is reproducible there.
 
 ## Reporting a vulnerability
 

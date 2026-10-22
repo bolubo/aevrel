@@ -24,6 +24,8 @@ body:
     attributes:
       label: Scope
       options:
+        - label: This changes the checkpoint control plane or readiness semantics.
         - label: This changes the checkpoint data plane or commit semantics.
         - label: This is specific to the Kubernetes/controller path.
+        - label: This is specific to LRS, Kueue, or another adapter.
         - label: This is documentation or developer tooling only.

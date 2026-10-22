@@ -4,7 +4,7 @@
 
 ## 迁移前
 
-- [迁移品类](CATEGORY.zh-CN.md)
+- [历史品类笔记](archive/product/CATEGORY.zh-CN.md)
 - [定位](POSITIONING.zh-CN.md)
 - [兼容性矩阵](COMPATIBILITY.zh-CN.md)
 
@@ -19,8 +19,8 @@
 
 ## GPU 环境
 
-- [GPU/FSDP 实验卡](GPU-EXPERIMENT.zh-CN.md)
-- [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)
+- [GPU/FSDP 实验卡](research/gpu/GPU-EXPERIMENT.zh-CN.md)
+- [GPU 两小时验收 Runbook](research/gpu/GPU-RUNBOOK.zh-CN.md)
 - 预检：`scripts/gpu_preflight.py`
 
 ## 用户最短路径

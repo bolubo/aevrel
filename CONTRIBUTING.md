@@ -2,9 +2,10 @@
 
 ## Scope
 
-shardferry moves local checkpoint shards across DeviceMeshes and clusters. Keep
-changes focused on correctness, resumability, source immutability, and
-operator/user experience.
+shardferry is a checkpoint readiness and mobility control plane. Keep changes
+focused on observable readiness, safe recovery, source immutability, explicit
+provider boundaries, and operator/user experience. LRS and Kueue are adapters;
+they must not become alternate sources of truth for core status.
 
 ## Development setup
 
@@ -31,14 +32,21 @@ Before opening a pull request:
 python -m pytest -q
 go test ./...
 go vet ./...
-go build ./cmd/controller ./cmd/ctl
+go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
 helm lint deploy/helm/shardferry
-helm template shardferry deploy/helm/shardferry >/tmp/shardferry.yaml
+helm template shardferry deploy/helm/shardferry --include-crds >/tmp/shardferry.yaml
 ```
 
 Use `scripts/product_acceptance.py` for the local product path. Physical
 multi-node and GPU checks are environment-dependent and should be recorded as
-evidence, not silently skipped.
+evidence, not silently skipped. Optional components should also render with
+both enabled:
+
+```bash
+helm template shardferry deploy/helm/shardferry --include-crds \
+  --set liveWorker.enabled=true --set kueueAdapter.enabled=true \
+  >/tmp/shardferry-all-components.yaml
+```
 
 ## Safety rules
 
