@@ -12,3 +12,4 @@ controller
 *.test
 *.out
 coverage.out
+native/shardferry-fast/target/

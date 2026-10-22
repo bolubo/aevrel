@@ -78,6 +78,10 @@ and planned bytes match the plan.
 - `internal/controller/resolver.go`: selector-based agent and local-rank discovery.
 - `examples/k8s/migration.yaml`: minimal selector-based 128 -> 64 migration.
 - `deploy/docker/`: controller and CPU-DCP agent image builds.
+- `cmd/ctl/`: `shardferryctl migrate -f ... --wait`, get/describe, cancel, retry.
+- `internal/controller/resolver.go`: selector-based agent and local-rank discovery.
+- `examples/k8s/migration.yaml`: minimal selector-based 128 -> 64 migration.
+- `deploy/docker/`: controller and CPU-DCP agent image builds.
 - `config/crd/bases/`: controller-gen generated `CheckpointMigration` CRD.
 - `src/shardferry/{mesh,manifest,inspect}.py`: Phase 1 manifest and toy
   inspection path.

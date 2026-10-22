@@ -9,12 +9,15 @@ import sys
 import uuid
 import warnings
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, Callable
 from urllib.parse import quote
 
 import yaml
 
+from . import __version__
 from .defaults import (
     DEFAULT_MIGRATED_SUFFIX,
     DEFAULT_SOURCE_PLACEMENTS,
@@ -32,6 +35,15 @@ from .targets import target_file_path
 
 class DcpError(RuntimeError):
     """Raised when a DCP checkpoint cannot be read or written."""
+
+
+@dataclass(frozen=True)
+class DcpChunkRef:
+    relative_path: str
+    offset: int
+    length: int
+    checksum: str
+    size: int
 
 
 def _torch():
@@ -390,6 +402,165 @@ def inspect_dcp(
     return spec
 
 
+def inventory_dcp(
+    checkpoint: str | Path,
+    rank: int,
+    *,
+    metadata_dir: str | Path | None = None,
+    file_prefix: str = "dcp",
+) -> tuple[dict[str, Any], dict[str, bytes]]:
+    inventory, refs = inventory_dcp_descriptors(
+        checkpoint,
+        rank,
+        metadata_dir=metadata_dir,
+        file_prefix=file_prefix,
+    )
+    return (
+        inventory,
+        {
+            key: read_dcp_chunk(checkpoint, ref)
+            for key, ref in refs.items()
+        },
+    )
+
+
+def inventory_dcp_descriptors(
+    checkpoint: str | Path,
+    rank: int,
+    *,
+    metadata_dir: str | Path | None = None,
+    file_prefix: str = "dcp",
+) -> tuple[dict[str, Any], dict[str, DcpChunkRef]]:
+    """Build an inventory plus lazy chunk descriptors for one local rank."""
+    if rank < 0:
+        raise DcpError("DCP rank must be non-negative")
+    torch = _torch()
+    checkpoint_path = Path(checkpoint).resolve()
+    metadata_path = (
+        Path(metadata_dir).resolve()
+        if metadata_dir is not None
+        else checkpoint_path
+    )
+    metadata = read_dcp_metadata(metadata_path)
+    metadata_file = metadata_path / ".metadata"
+    try:
+        metadata_bytes = metadata_file.read_bytes()
+    except OSError as exc:
+        raise DcpError(
+            f"could not read DCP metadata {metadata_file}: {exc}"
+        ) from exc
+
+    storage_data = metadata.storage_data or {}
+    tensors: list[dict[str, Any]] = []
+    chunks: list[dict[str, Any]] = []
+    refs: dict[str, DcpChunkRef] = {}
+    for fqn, tensor_metadata in metadata.state_dict_metadata.items():
+        if not hasattr(tensor_metadata, "chunks"):
+            raise DcpError(f"DCP entry is not a tensor: {fqn}")
+        tensors.append(
+            {
+                "name": fqn,
+                "shape": [int(value) for value in tensor_metadata.size],
+                "dtype": _dtype_name(
+                    torch,
+                    tensor_metadata.properties.dtype,
+                ),
+            }
+        )
+        for index, chunk in enumerate(tensor_metadata.chunks):
+            candidates = [
+                (metadata_index, info)
+                for metadata_index, info in storage_data.items()
+                if metadata_index.fqn == fqn
+            ]
+            matching = [
+                item for item in candidates if item[0].index == index
+            ]
+            if not matching:
+                matching = [
+                    item
+                    for item in candidates
+                    if tuple(item[0].offset or ()) == tuple(chunk.offsets)
+                ]
+            if not matching:
+                raise DcpError(
+                    f"no storage entry for DCP chunk {fqn}/{index}"
+                )
+            _, info = matching[0]
+            if _rank_from_path(info.relative_path) != rank:
+                continue
+            chunk_tensor = _read_storage_tensor(checkpoint_path, info)
+            if tuple(chunk_tensor.shape) != tuple(chunk.sizes):
+                raise DcpError(
+                    f"DCP chunk shape mismatch for {fqn}/rank{rank}"
+                )
+            raw = _tensor_bytes(chunk_tensor)
+            digest = "sha256:" + _sha256(raw)
+            refs[digest] = DcpChunkRef(
+                relative_path=info.relative_path,
+                offset=int(info.offset),
+                length=int(info.length),
+                checksum=digest,
+                size=len(raw),
+            )
+            chunks.append(
+                {
+                    "tensor": fqn,
+                    "rank": rank,
+                    "file": (
+                        f"{file_prefix.rstrip('/')}/"
+                        f"{quote(digest, safe=':')}"
+                    ),
+                    "tensor_offset": [
+                        int(value) for value in chunk.offsets
+                    ],
+                    "tensor_size": [int(value) for value in chunk.sizes],
+                    "byte_ranges": [[0, len(raw)]],
+                    "checksum": digest,
+                }
+            )
+    return (
+        {
+            "version": "1",
+            "rank": rank,
+            "format": "dcp",
+            "metadata_hash": "sha256:" + _sha256(metadata_bytes),
+            "tensors": tensors,
+            "chunks": chunks,
+            "agent_version": __version__,
+            "torch_version": str(torch.__version__),
+        },
+        refs,
+    )
+
+
+def read_dcp_chunk(
+    checkpoint: str | Path,
+    ref: DcpChunkRef,
+) -> bytes:
+    chunk_tensor = _read_storage_tensor(
+        Path(checkpoint).resolve(),
+        SimpleNamespace(
+            relative_path=ref.relative_path,
+            offset=ref.offset,
+            length=ref.length,
+        ),
+    )
+    raw = _tensor_bytes(chunk_tensor)
+    if len(raw) != ref.size:
+        raise DcpError(
+            f"DCP chunk size changed for {ref.relative_path}: "
+            f"{len(raw)} != {ref.size}"
+        )
+    digest = "sha256:" + _sha256(raw)
+    if digest != ref.checksum:
+        raise DcpError(
+            f"DCP chunk checksum changed for {ref.relative_path}: "
+            f"{digest} != {ref.checksum}"
+        )
+    return raw
+
+
 def export_dcp(
     spec: dict[str, Any],
     output_dir: str | Path,
@@ -501,7 +672,12 @@ def migrate_dcp(
     target_mesh_shape: tuple[int, ...] | None = None,
     target_placements: tuple[str, ...] = DEFAULT_TARGET_PLACEMENTS,
     force: bool = False,
+    progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
+    def notify(message: str) -> None:
+        if progress is not None:
+            progress(message)
+
     checkpoint_path = Path(checkpoint).resolve()
     work_path = (
         Path(work_dir).resolve()
@@ -517,8 +693,30 @@ def migrate_dcp(
             checkpoint_path.name + DEFAULT_MIGRATED_SUFFIX
         )
     )
+    if _is_within(work_path, checkpoint_path):
+        raise DcpError(
+            "work directory must be outside the source checkpoint: "
+            f"{work_path}"
+        )
+    if (
+        _is_within(output_path, checkpoint_path)
+        or _is_within(checkpoint_path, output_path)
+    ):
+        raise DcpError(
+            "output directory must not overlap the source checkpoint: "
+            f"{output_path}"
+        )
+    if (
+        _is_within(output_path, work_path)
+        or _is_within(work_path, output_path)
+    ):
+        raise DcpError(
+            "output and work directories must be separate: "
+            f"{output_path} vs {work_path}"
+        )
     if output_path.exists() and any(output_path.iterdir()) and not force:
         raise DcpError(f"output DCP directory is not empty: {output_path}")
+    notify("reading DCP metadata and indexing local shards")
     spec = inspect_dcp(
         checkpoint_path,
         work_path,
@@ -528,7 +726,14 @@ def migrate_dcp(
         target_mesh_shape=target_mesh_shape,
         target_placements=target_placements,
     )
+    source_world = int(spec["source"]["mesh"]["world_size"])
+    target_world = int(spec["target"]["mesh"]["world_size"])
+    notify(f"planning {source_world} -> {target_world} target ranks")
     plan_payload = build_plan(spec)
+    notify(
+        f"transferring {len(plan_payload['nodes'])} chunks "
+        f"({plan_payload['total_bytes']} bytes)"
+    )
     report = execute_plan(plan_payload, spec)
     (work_path / "plan.json").write_text(
         json.dumps(plan_payload, indent=2),
@@ -538,7 +743,9 @@ def migrate_dcp(
         json.dumps(report, indent=2),
         encoding="utf-8",
     )
+    notify("verification passed; writing target DCP")
     export_dcp(spec, output_path, force=force)
+    notify("migration complete")
     return {
         "spec": spec,
         "plan": plan_payload,
@@ -565,3 +772,7 @@ def _sha256(data: bytes) -> str:
     import hashlib
 
     return hashlib.sha256(data).hexdigest()
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    return path == parent or parent in path.parents

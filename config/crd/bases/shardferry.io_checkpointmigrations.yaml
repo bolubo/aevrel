@@ -109,6 +109,26 @@ spec:
                 description: SourceSpec describes the source checkpoint location and
                   topology.
                 properties:
+                  agentSelector:
+                    description: AgentSelector discovers agent pods for a migration.
+                    properties:
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      namespace:
+                        type: string
+                      port:
+                        format: int32
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                      scheme:
+                        enum:
+                        - http
+                        - https
+                        type: string
+                    type: object
                   checkpointRoot:
                     minLength: 1
                     type: string
@@ -159,12 +179,31 @@ spec:
                 - checkpointRoot
                 - mesh
                 - metadataOwnerRank
-                - rankMap
                 - worldSize
                 type: object
               target:
                 description: TargetSpec describes the target topology and local roots.
                 properties:
+                  agentSelector:
+                    description: AgentSelector discovers agent pods for a migration.
+                    properties:
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      namespace:
+                        type: string
+                      port:
+                        format: int32
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                      scheme:
+                        enum:
+                        - http
+                        - https
+                        type: string
+                    type: object
                   mesh:
                     description: MeshSpec describes a DeviceMesh.
                     properties:
@@ -209,7 +248,6 @@ spec:
                     type: integer
                 required:
                 - mesh
-                - rankMap
                 - rootTemplate
                 - worldSize
                 type: object
@@ -322,6 +360,10 @@ spec:
               planHash:
                 type: string
               planRef:
+                type: string
+              proofHash:
+                type: string
+              proofRef:
                 type: string
               startedAt:
                 type: string

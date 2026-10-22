@@ -471,3 +471,20 @@ Gate:
 - `pytest -q`: 141 passed, 2 skipped.
 - `go test -count=1 ./...`: pass.
 - `go vet ./...` and `go build ./cmd/controller`: pass.
+
+## 2026-10-22 / accidental workspace deletion and recovery
+
+- At 08:59 local time a cleanup script executed `shutil.rmtree('.')` from the
+  repository cwd; `shardferry/` was emptied.
+- Restored from `snapshots/shardferry-v1-go-dispatch-20261021-235900.tar.gz`
+  and replayed successful `apply_patch` operations recorded in the Codex
+  session logs, with UNC-path normalization and duplicate-subparser cleanup.
+- Python/CDP/cutover core is back and passes `234 passed / 17 skipped` in a
+  fresh `.venv`; native release builds. The unverified skips are PyTorch-only
+  DCP tests and distributed opt-in tests.
+- Git was initialized after the incident. Do not use `shutil.rmtree` on
+  computed or empty paths; benchmark cleanup must validate an absolute
+  directory under a dedicated temp root.
+- Go/K8s source recovery is not complete: several files created after the
+  available snapshot are still missing or partial, so `go test ./...` is not
+  a valid green gate yet. Do not overwrite the controller branch's state.

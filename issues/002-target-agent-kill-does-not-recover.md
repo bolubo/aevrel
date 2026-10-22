@@ -1,6 +1,6 @@
 # Target agent kill during transfer does not recover
 
-Status: resolved
+Status: open
 Severity: P1
 Area: controller, target agent, e2e
 Source: kind G3 smoke, 2026-10-22
@@ -50,21 +50,3 @@ Add a regression that:
 3. verifies the affected ranks reattach and the migration reaches
    `succeeded`, or enters a documented repairable state with all target
    bytes still protected by the commit barrier.
-
-## Resolution (2026-10-22)
-
-The target task state machine now permits `transferring -> prepared` so a
-restarted target agent can be prepared again from its durable task state.
-`e2e/run.py --scenario target-kill` restarts target-0 on the same state
-directory and reaches `succeeded` with 8/8 committed ranks and a report
-artifact.
-
-Changed files:
-
-- `src/shardferry/agent.py`
-- `src/shardferry/agent_state.py`
-
-Verified with:
-
-- `e2e/run.py --scenario target-kill` (16→8, success)
-- `pytest -q` (204 passed, 2 skipped)

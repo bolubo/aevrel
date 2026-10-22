@@ -18,6 +18,7 @@ class HttpStorage:
         retries: int = 3,
         backoff: float = 0.1,
         use_proxy: bool = False,
+        rate_controller=None,
     ) -> None:
         self.base_url = base_url.rstrip("/") if base_url else None
         self.token = token
@@ -25,6 +26,7 @@ class HttpStorage:
         self.retries = max(0, retries)
         self.backoff = max(0.0, backoff)
         self.use_proxy = use_proxy
+        self.rate_controller = rate_controller
         self._direct_opener = (
             None if use_proxy else build_opener(ProxyHandler({}))
         )
@@ -117,8 +119,18 @@ class HttpStorage:
         last_error: StorageError | None = None
         for attempt in range(self.retries + 1):
             try:
-                return self._open(method, url)
+                if self.rate_controller is not None:
+                    self.rate_controller.acquire(1.0, timeout=self.timeout)
+                response = self._open(method, url)
+                if self.rate_controller is not None:
+                    self.rate_controller.on_success()
+                return response
             except StorageError as exc:
+                if self.rate_controller is not None:
+                    if "HTTP 429" in str(exc):
+                        self.rate_controller.on_throttle()
+                    elif "HTTP 5" in str(exc):
+                        self.rate_controller.on_error()
                 if "HTTP 404" in str(exc) or "HTTP 416" in str(exc):
                     raise
                 last_error = exc

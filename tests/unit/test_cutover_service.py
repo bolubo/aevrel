@@ -86,7 +86,10 @@ def test_cutover_service_auto_follows_in_background(tmp_path: Path) -> None:
         deadline = time.monotonic() + 2.0
         while time.monotonic() < deadline:
             status = service.status()
-            if status["target_latest"] == "step-100":
+            if (
+                status["target_latest"] == "step-100"
+                and status["follow_state"] == "following"
+            ):
                 break
             time.sleep(0.01)
         else:
@@ -105,7 +108,10 @@ def test_cutover_service_auto_follows_in_background(tmp_path: Path) -> None:
         deadline = time.monotonic() + 2.0
         while time.monotonic() < deadline:
             status = service.status()
-            if status["target_latest"] == "step-200":
+            if (
+                status["target_latest"] == "step-200"
+                and status["follow_state"] == "following"
+            ):
                 break
             time.sleep(0.01)
         else:

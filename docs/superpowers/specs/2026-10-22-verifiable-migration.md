@@ -1,6 +1,6 @@
 # 尖刀 5：可验证迁移（M1）
 
-状态：M1/M2/M3 完成  
+状态：M1 完成，M2/M3 进行中
 日期：2026-10-22  
 前置：布局编译器、DCP runtime、CDP/cutover
 
@@ -27,9 +27,8 @@ source leaf root + target leaf root + coverage root + plan hash
 ## 2. 实现
 
 - `src/shardferry/proof.py`
-  - `build_proof(spec, plan, target_root, source=?, token=?, target_rank=?)`
+  - `build_proof(spec, plan, target_root, source=?, token=?)`
   - `verify_proof(proof, target_root, plan=?, source=?, token=?)`
-  - `combine_proofs(rank_proofs)`
   - canonical JSON + SHA-256 Merkle roots
   - target leaf / source leaf / coverage leaf
 - `spec/proof.schema.json`
@@ -53,33 +52,17 @@ source leaf root + target leaf root + coverage root + plan hash
 
 ### M2：语义覆盖
 
-- [x] source-present reduction 语义验证（copy/sum/avg/max/min/zeros）
-- [x] partial/replicate proof path（source + reduction tests）
-- [x] 目标文件 size 与 plan 的独立对照
+- [ ] reduction 结果 witness（sum/avg/max/min 的 source-to-target 证明）
+- [ ] partial/replicate 交叉证明
+- [ ] 目标文件 size 与 plan 的独立对照
 - [ ] proof 中的 target leaf 大小上限/分块策略参数化
 
 ### M3：规模与传递
 
-- [x] 128-rank / 1GB / 10GB proof build/verify
-- [x] proof size、verify RSS 指标
-- [x] 将 proof 作为 report artifact 的可选附件
-- [x] K8s controller/agent 的 proof ref 生命周期
-
-M3 传递链路：
-
-- target agent `--proof` 在 commit 后生成 rank-scoped proof；
-- `POST /v1/proof/merge` 合并 rank proofs；
-- controller 发布 content-addressed proof artifact，写 `status.proofRef` /
-  `status.proofHash`；
-- report artifact 的每个 rank report 写入匹配的 `proof_ref` / `proof_hash`；
-- proof 仍是 opt-in，不改变未开启 proof 的迁移路径。
-
-实测（128 source → 64 target，zero fill）：
-
-```text
-1GB : proof 92KB,  build 0.79s, target verify 0.43s, source verify 1.61s, RSS 89.6MB
-10GB: proof ~94KB, build 18.8s, target verify 10.4s, source verify 40.8s, RSS 334.8MB
-```
+- [ ] 128-rank / 1GB / 10GB proof build/verify
+- [ ] proof size、verify IO、verify RSS 指标
+- [ ] 将 proof 作为 report artifact 的可选附件
+- [ ] K8s controller/agent 的 proof ref 生命周期
 
 ## 4. 验收
 

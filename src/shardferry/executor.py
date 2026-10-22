@@ -127,6 +127,7 @@ def apply(
     target_rank: int | None = None,
     target_root: str | Path | None = None,
     commit: bool = True,
+    token: str | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     validate_plan(plan, spec)
@@ -138,7 +139,7 @@ def apply(
     ):
         raise ExecutionError("source must be a file or HTTP URI")
 
-    source_storage = StorageRouter(source_base=source)
+    source_storage = StorageRouter(source_base=source, token=token)
     target_storage = FileStorage()
     selected_nodes = _selected_nodes(plan, target_rank)
     selected_bytes = _selected_bytes(spec, selected_nodes)

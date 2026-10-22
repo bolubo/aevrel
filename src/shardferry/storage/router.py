@@ -9,9 +9,18 @@ from .http import HttpStorage
 class StorageRouter:
     """Dispatch source operations to file:// or http(s):// storage."""
 
-    def __init__(self, source_base: str | None = None) -> None:
+    def __init__(
+        self,
+        source_base: str | None = None,
+        token: str | None = None,
+        rate_controller=None,
+    ) -> None:
         self.file = FileStorage()
-        self.http = HttpStorage(base_url=source_base)
+        self.http = HttpStorage(
+            base_url=source_base,
+            token=token,
+            rate_controller=rate_controller,
+        )
 
     def read_range(self, uri: str, offset: int, size: int) -> bytes:
         return self._storage(uri).read_range(uri, offset, size)

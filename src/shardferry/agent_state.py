@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
@@ -35,6 +36,7 @@ class TaskRecord:
     version: str
     task_id: str
     migration_uid: str
+    commit_token: str | None
     rank: int
     task_hash: str
     target_root: str
@@ -46,6 +48,7 @@ class TaskRecord:
     error: str | None
     created_at: str
     updated_at: str
+    report: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -104,6 +107,9 @@ class TaskStore:
         if payload["state"] != TaskPhase.CREATED.value:
             raise AgentStateError("new tasks must start in created state")
         task_id = _task_id(payload)
+        commit_token = payload.get("commit_token")
+        if commit_token is not None and not isinstance(commit_token, str):
+            raise AgentStateError("commit_token must be a string")
         existing = self._tasks.get(task_id)
         if existing is not None:
             if (
@@ -121,6 +127,7 @@ class TaskStore:
             version="1",
             task_id=task_id,
             migration_uid=payload["migration_uid"],
+            commit_token=commit_token,
             rank=payload["rank"],
             task_hash=payload["task_hash"],
             target_root=payload["target_root"],
@@ -178,6 +185,17 @@ class TaskStore:
     def fail(self, task_id: str, error: str) -> TaskRecord:
         return self.transition(task_id, TaskPhase.FAILED, error=error)
 
+    def set_report(self, task_id: str, report: dict[str, Any]) -> TaskRecord:
+        task = self.get(task_id)
+        record = replace(task, report=report, updated_at=_now())
+        self._persist(record)
+        self._tasks[task_id] = record
+        return record
+
+    @contextmanager
+    def commit_guard(self, task_id: str):
+        yield self.get(task_id)
+
     def _persist(self, record: TaskRecord) -> None:
         path = self.tasks_dir / f"{record.task_id}.json"
         temporary = path.with_suffix(".json.tmp")
@@ -211,6 +229,7 @@ class TaskStore:
                 error=payload.get("error"),
                 created_at=payload["created_at"],
                 updated_at=payload["updated_at"],
+                report=payload.get("report"),
             )
         except (KeyError, OSError, ValueError, TypeError) as exc:
             raise AgentStateError(f"could not load task {path}: {exc}") from exc

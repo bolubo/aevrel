@@ -1,6 +1,6 @@
 # Transient target execute failure does not converge
 
-Status: resolved
+Status: open
 Severity: P1
 Area: controller, execution runner, e2e
 Source: kind G3 smoke, 2026-10-22
@@ -60,19 +60,3 @@ Add a regression that injects one execute failure and asserts one of:
 1. retry reaches `succeeded` and all target files are committed;
 2. terminal failure leaves no target task committed and the error is
    reported consistently in the CR and execution snapshot.
-
-## Resolution (2026-10-22)
-
-Target execute failures now return a retryable agent error (`retryable=true`),
-so `Runner.fail` resets the rank within `maxAttemptsPerRank` instead of
-terminating the run immediately. `e2e/run.py --scenario target-fail` reaches
-`succeeded` with 8/8 committed ranks and a report artifact.
-
-Changed files:
-
-- `src/shardferry/agent.py`
-
-Verified with:
-
-- `e2e/run.py --scenario target-fail` (16→8, success)
-- `pytest -q` (204 passed, 2 skipped)

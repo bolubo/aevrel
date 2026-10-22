@@ -12,7 +12,12 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from . import __version__
 from .agent_state import AgentStateError, TaskPhase, TaskRecord, TaskStore
-from .contracts import contract_version, validate_capabilities, validate_error
+from .contracts import (
+    contract_version,
+    validate_capabilities,
+    validate_error,
+    validate_ranks,
+)
 from .layout import DTYPE_BYTES
 from .manifest import ManifestError, load_spec
 from .planner import plan as build_plan
@@ -102,11 +107,83 @@ class AgentApp:
             "torch_version": "runtime",
         }
 
+    def ranks(self) -> dict[str, Any]:
+        if self.spec is None:
+            raise AgentError("rank discovery is not configured")
+        ranks = sorted({
+            int(shard["rank"])
+            for shard in self.spec["source"]["shards"]
+        })
+        payload = {"version": contract_version(), "ranks": ranks}
+        validate_ranks(payload)
+        return payload
+
     def plan(self, spec: dict[str, Any]) -> dict[str, Any]:
         return {
             "version": contract_version(),
             "plan": build_plan(spec),
         }
+
+    def recover_tasks(self) -> None:
+        """Reconcile durable task state after an agent restart."""
+        if self.committer is None:
+            return
+        for task in self.store.list():
+            if task.state is TaskPhase.TRANSFERRING:
+                try:
+                    self.store.transition(
+                        task.task_id,
+                        TaskPhase.PREPARED,
+                    )
+                except AgentStateError:
+                    continue
+                continue
+            if task.state not in {
+                TaskPhase.COMMITTING,
+                TaskPhase.COMMIT_INCOMPLETE,
+            }:
+                continue
+            try:
+                if task.state is TaskPhase.COMMIT_INCOMPLETE:
+                    task = self.store.transition(
+                        task.task_id,
+                        TaskPhase.COMMITTING,
+                    )
+                with self.store.commit_guard(task.task_id):
+                    result = self.committer(task)
+                    if isinstance(result, dict):
+                        self.store.set_report(task.task_id, result)
+                    self.store.transition(task.task_id, TaskPhase.COMMITTED)
+            except AgentStateError as exc:
+                if "stale commit token" in str(exc):
+                    continue
+                if task.state not in {
+                    TaskPhase.COMMITTED,
+                    TaskPhase.FAILED,
+                    TaskPhase.CANCELLED,
+                }:
+                    try:
+                        self.store.transition(
+                            task.task_id,
+                            TaskPhase.COMMIT_INCOMPLETE,
+                            error=str(exc),
+                        )
+                    except AgentStateError:
+                        pass
+            except Exception as exc:
+                if task.state not in {
+                    TaskPhase.COMMITTED,
+                    TaskPhase.FAILED,
+                    TaskPhase.CANCELLED,
+                }:
+                    try:
+                        self.store.transition(
+                            task.task_id,
+                            TaskPhase.COMMIT_INCOMPLETE,
+                            error=str(exc),
+                        )
+                    except AgentStateError:
+                        pass
 
     def authorize(self, header: str | None) -> bool:
         return header == f"Bearer {self.controller_token}"
@@ -127,6 +204,7 @@ def build_agent_server(
         committer=committer,
         spec_path=spec_path,
     )
+    app.recover_tasks()
     host, port = _parse_listen(listen)
     server = ThreadingHTTPServer((host, port), _make_handler(app))
     server.daemon_threads = True
@@ -185,6 +263,20 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                         False,
                         "inventory",
                         rank,
+                        str(exc),
+                    )
+                return
+            if path == "/v1/ranks":
+                try:
+                    self._json(app.ranks())
+                except (AgentError, ManifestError, ValueError) as exc:
+                    self._error(
+                        404,
+                        "SOURCE_NOT_FOUND",
+                        "source",
+                        False,
+                        "inventory",
+                        0,
                         str(exc),
                     )
                 return
