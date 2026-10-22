@@ -16,6 +16,10 @@ docker build -f deploy/docker/Dockerfile.agent \
   -t ghcr.io/shardferry/shardferry-agent:0.1.0 .
 ```
 
+当前源码首发不自动发布 GHCR 镜像；上面的 tag 需要你自己构建并推送，或把
+`image.controller` / `image.agent` 改成你的镜像仓库。不要把未推送的 tag
+当成可拉取的生产镜像。
+
 ```bash
 kubectl -n default create secret generic shardferry-agent-token \
   --from-literal=token='replace-me'

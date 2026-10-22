@@ -2,11 +2,12 @@
 
 Move and reshard local checkpoint shards across DeviceMeshes and clusters.
 
-Status: **active development**. The product path is local `demo`, `doctor`, and
-`migrate`, plus selector-based `shardferryctl migrate -f FILE --wait` for
-Kubernetes local-disk agents. Python capability tests, the Go execution/
-controller path, and Helm packaging are green; physical multi-node/GPU
-acceptance remains environment work.
+Status: **Alpha / preview, not production-ready**. The local `demo`, `doctor`,
+and `migrate` path is usable for supported DCP directories. The
+selector-based `shardferryctl migrate -f FILE --wait` path for Kubernetes
+local-disk agents is experimental: physical multi-node and GPU acceptance are
+still environment work. Python capability tests, the Go execution/controller
+path, and Helm packaging are green.
 
 ## Product path
 

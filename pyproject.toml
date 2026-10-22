@@ -40,6 +40,11 @@ dcp = [
 [project.scripts]
 shardferry = "shardferry.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/bolubo/shardferry"
+Repository = "https://github.com/bolubo/shardferry"
+Issues = "https://github.com/bolubo/shardferry/issues"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
