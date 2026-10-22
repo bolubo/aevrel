@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from shardferry.storage.file import StorageError
-from shardferry.storage.http import HttpStorage
+from shardferry.storage.http import HttpRateLimitError, HttpStorage
 from shardferry.storage.router import StorageRouter
 
 
@@ -53,3 +53,30 @@ def test_storage_router_propagates_source_token() -> None:
         token="controller-token",
     )
     assert router.http.token == "controller-token"
+
+
+def test_http_storage_honors_retry_after_hint(monkeypatch) -> None:
+    from shardferry.adaptive import AdaptiveRateController
+
+    limiter = AdaptiveRateController(rate=10, burst=10)
+    storage = HttpStorage(retries=1, backoff=0, rate_controller=limiter)
+    sleeps: list[float] = []
+    calls = {"count": 0}
+
+    def throttled_then_ok(method, url):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise HttpRateLimitError(
+                "HTTP 429: too many requests",
+                retry_after=0.75,
+            )
+        return _Response(b"ok")
+
+    monkeypatch.setattr(storage, "_open", throttled_then_ok)
+    monkeypatch.setattr(
+        "shardferry.storage.http.time.sleep",
+        lambda seconds: sleeps.append(seconds),
+    )
+    assert storage.read_range("http://example.test/shard/w/0", 0, 2) == b"ok"
+    assert sleeps == [0.75]
+    assert limiter.snapshot().throttles == 1

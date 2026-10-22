@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from math import prod
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 from urllib.parse import quote
 
 import yaml
@@ -715,6 +715,116 @@ def export_dcp(
         )
         planner_data[fqn] = (fqn,)
 
+    metadata = Metadata(
+        state_dict_metadata=state_dict_metadata,
+        planner_data=planner_data,
+        storage_data=storage_data,
+        storage_meta=StorageMeta(
+            checkpoint_id=output,
+            save_id=uuid.uuid4().hex,
+        ),
+        version="1.0.0",
+    )
+    with (output / ".metadata").open("wb") as stream:
+        pickle.dump(metadata, stream)
+    return output
+
+
+def export_dcp_local(
+    spec: dict[str, Any],
+    output_dir: str | Path,
+    *,
+    raw_root: str | Path | None = None,
+    ranks: Iterable[int] | None = None,
+    force: bool = False,
+) -> Path:
+    """Export a loadable DCP directory for a subset of target ranks.
+
+    This is the local-disk target-agent variant: each node owns a subset of
+    target ranks, so its metadata intentionally contains only the chunks that
+    are present under that node's target root.
+    """
+    torch = _torch()
+    from torch.distributed.checkpoint.filesystem import _StorageInfo
+    from torch.distributed.checkpoint.metadata import (
+        ChunkStorageMetadata,
+        Metadata,
+        MetadataIndex,
+        StorageMeta,
+        TensorProperties,
+        TensorStorageMetadata,
+    )
+
+    validate_spec(spec)
+    output = Path(output_dir).resolve()
+    raw = Path(raw_root).resolve() if raw_root is not None else output
+    if output.exists() and any(output.iterdir()) and not force:
+        raise DcpError(f"output DCP directory is not empty: {output}")
+    output.mkdir(parents=True, exist_ok=True)
+    target_mesh = parse_mesh(spec["target"]["mesh"])
+    selected = sorted(set(ranks or range(target_mesh.world_size)))
+    for rank in selected:
+        if not 0 <= rank < target_mesh.world_size:
+            raise DcpError(f"target rank {rank} is out of range")
+    tensors = {
+        tensor["name"]: tensor for tensor in spec["checkpoint"]["tensors"]
+    }
+    storage_data = {}
+    state_dict_metadata = {}
+    planner_data = {}
+    for fqn, tensor in tensors.items():
+        torch_dtype = _torch_dtype(torch, tensor["dtype"])
+        chunks = []
+        for rank in selected:
+            region = local_region(
+                target_mesh,
+                target_mesh.placements,
+                tuple(tensor["shape"]),
+                rank,
+                allow_partial=True,
+            )
+            raw_path = target_file_path(spec, fqn, rank, root=raw)
+            if not raw_path.is_file():
+                raise DcpError(f"target shard not found: {raw_path}")
+            expected = region.element_count * DTYPE_BYTES[tensor["dtype"]]
+            actual = raw_path.stat().st_size
+            if actual != expected:
+                raise DcpError(
+                    f"target shard size mismatch for {fqn}/rank{rank}: "
+                    f"{actual} != {expected}"
+                )
+            tensor_index = list(tensors).index(fqn)
+            file_name = f"__{rank}_{tensor_index}.distcp"
+            chunk_path = output / file_name
+            _save_mmap_tensor(
+                raw_path,
+                chunk_path,
+                torch_dtype,
+                region.size,
+            )
+            storage_data[
+                MetadataIndex(
+                    fqn=fqn,
+                    offset=torch.Size(region.offset),
+                    index=rank,
+                )
+            ] = _StorageInfo(
+                relative_path=file_name,
+                offset=0,
+                length=chunk_path.stat().st_size,
+            )
+            chunks.append(
+                ChunkStorageMetadata(
+                    offsets=torch.Size(region.offset),
+                    sizes=torch.Size(region.size),
+                )
+            )
+        state_dict_metadata[fqn] = TensorStorageMetadata(
+            properties=TensorProperties(dtype=torch_dtype),
+            size=torch.Size(tensor["shape"]),
+            chunks=chunks,
+        )
+        planner_data[fqn] = (fqn,)
     metadata = Metadata(
         state_dict_metadata=state_dict_metadata,
         planner_data=planner_data,

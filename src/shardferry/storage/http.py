@@ -10,6 +10,19 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 from .file import StorageError
 
 
+class HttpRateLimitError(StorageError):
+    """HTTP 429 with an optional Retry-After hint."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after: float | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 class HttpStorage:
     def __init__(
         self,
@@ -114,6 +127,13 @@ class HttpStorage:
                 return self._direct_opener.open(request, timeout=self.timeout)
             return urlopen(request, timeout=self.timeout)
         except HTTPError as exc:
+            if exc.code == 429:
+                raise HttpRateLimitError(
+                    f"HTTP 429: {url}",
+                    retry_after=_parse_retry_after(
+                        exc.headers.get("Retry-After")
+                    ),
+                ) from exc
             raise StorageError(f"HTTP {exc.code}: {url}") from exc
         except URLError as exc:
             raise StorageError(f"HTTP request failed: {url}: {exc.reason}") from exc
@@ -163,6 +183,9 @@ class HttpStorage:
             raise StorageError(f"HTTP request failed: {url}: {exc}") from exc
         if response.status >= 400:
             status = response.status
+            retry_after = _parse_retry_after(
+                response.getheader("Retry-After")
+            )
             response.read()
             response.close()
             self._connections.pop(key, None)
@@ -170,11 +193,17 @@ class HttpStorage:
                 connection.close()
             except OSError:
                 pass
+            if status == 429:
+                raise HttpRateLimitError(
+                    f"HTTP 429: {url}",
+                    retry_after=retry_after,
+                )
             raise StorageError(f"HTTP {status}: {url}")
         return response
 
     def _request(self, method: str, url: str):
         last_error: StorageError | None = None
+        retry_delay = 0.0
         for attempt in range(self.retries + 1):
             try:
                 if self.rate_controller is not None:
@@ -186,7 +215,13 @@ class HttpStorage:
             except StorageError as exc:
                 if self.rate_controller is not None:
                     if "HTTP 429" in str(exc):
-                        self.rate_controller.on_throttle()
+                        retry_after = (
+                            exc.retry_after
+                            if isinstance(exc, HttpRateLimitError)
+                            else None
+                        )
+                        self.rate_controller.on_throttle(retry_after)
+                        retry_delay = min(30.0, retry_after or 0.0)
                     elif "HTTP 5" in str(exc):
                         self.rate_controller.on_error()
                 if "HTTP 404" in str(exc) or "HTTP 416" in str(exc):
@@ -194,7 +229,17 @@ class HttpStorage:
                 last_error = exc
                 if attempt == self.retries:
                     break
-                time.sleep(self.backoff * (2**attempt))
+                time.sleep(max(self.backoff * (2**attempt), retry_delay))
+                retry_delay = 0.0
         if last_error is not None:
             raise last_error
         raise StorageError(f"HTTP request failed: {url}")
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        return None
