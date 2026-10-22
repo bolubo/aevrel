@@ -27,6 +27,7 @@
 ## 架构与运维
 
 - [架构概览](ARCHITECTURE.zh-CN.md)
+- [代码结构约定](STRUCTURE.zh-CN.md)
 - [排障与 support bundle](SUPPORT.zh-CN.md)
 - [错误目录](ERROR-CATALOG.zh-CN.md)
 - [目标 Agent 任务卡](AGENT-TARGET-PROMPT.zh-CN.md)

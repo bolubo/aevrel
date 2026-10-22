@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import gpu_acceptance  # noqa: E402
-from shardferry import support_bundle, target_load  # noqa: E402
+from shardferry.commands import support_bundle, target_load  # noqa: E402
 
 
 def test_redact_text_removes_common_credentials() -> None:

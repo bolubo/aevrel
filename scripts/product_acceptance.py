@@ -119,7 +119,7 @@ def main() -> int:
                 [
                     sys.executable,
                     "-m",
-                    "shardferry.target_load",
+                    "shardferry.commands.target_load",
                     "--checkpoint",
                     payload["output"],
                     "--json",
@@ -141,7 +141,12 @@ def main() -> int:
                 "ok": json.loads(release.stdout)["status"] == "ok",
             }
             support_help = run(
-                [sys.executable, "-m", "shardferry.support_bundle", "--help"],
+                [
+                    sys.executable,
+                    "-m",
+                    "shardferry.commands.support_bundle",
+                    "--help",
+                ],
                 env=env,
             )
             results["support_bundle"] = {

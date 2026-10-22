@@ -89,6 +89,7 @@ def check(image_prefix: str) -> dict[str, Any]:
         "docs/TARGET-LOAD.zh-CN.md",
         "docs/SUPPORT.zh-CN.md",
         "docs/ERROR-CATALOG.zh-CN.md",
+        "docs/STRUCTURE.zh-CN.md",
         "docs/UPGRADE.zh-CN.md",
         "docs/USER-ENABLEMENT.zh-CN.md",
         "docs/RELEASE.zh-CN.md",
