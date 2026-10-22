@@ -24,4 +24,5 @@
 - [架构概览](ARCHITECTURE.zh-CN.md)
 - [目标 Agent 任务卡](AGENT-TARGET-PROMPT.zh-CN.md)
 - [GPU/FSDP 实验卡](GPU-EXPERIMENT.zh-CN.md)
+- [控制器 GPU 实验卡](CONTROLLER-GPU-EXPERIMENT.zh-CN.md)
 - [Benchmark](BENCHMARK.zh-CN.md)
