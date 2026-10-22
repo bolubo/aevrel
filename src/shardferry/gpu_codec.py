@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import struct
 import threading
@@ -53,6 +54,8 @@ def nvcomp_status() -> dict[str, Any]:
     status: dict[str, Any] = {
         "importable": False,
         "cuda_available": False,
+        "driver_available": False,
+        "driver_devices": 0,
         "version": None,
         "error": None,
     }
@@ -74,6 +77,19 @@ def nvcomp_status() -> dict[str, Any]:
         ]
     except Exception as exc:
         status["torch_error"] = str(exc)
+    try:
+        cuda = ctypes.CDLL("libcuda.so.1")
+        cuda.cuInit.argtypes = [ctypes.c_uint]
+        cuda.cuInit.restype = ctypes.c_int
+        cuda.cuDeviceGetCount.argtypes = [ctypes.POINTER(ctypes.c_int)]
+        cuda.cuDeviceGetCount.restype = ctypes.c_int
+        if cuda.cuInit(0) == 0:
+            count = ctypes.c_int()
+            if cuda.cuDeviceGetCount(ctypes.byref(count)) == 0:
+                status["driver_devices"] = max(0, int(count.value))
+                status["driver_available"] = status["driver_devices"] > 0
+    except Exception as exc:
+        status["driver_error"] = str(exc)
     return status
 
 
@@ -97,7 +113,13 @@ class NvcompCodec:
 
     def available(self) -> bool:
         status = nvcomp_status()
-        return bool(status["importable"] and status["cuda_available"])
+        return bool(
+            status["importable"]
+            and (
+                status["cuda_available"]
+                or status.get("driver_available", False)
+            )
+        )
 
     def _load(self):
         try:
@@ -107,7 +129,11 @@ class NvcompCodec:
                 "nvidia-nvcomp-cu12 is not installed; "
                 "install the optional gpu dependency"
             ) from exc
-        if not nvcomp_status()["cuda_available"]:
+        status = nvcomp_status()
+        if not (
+            status["cuda_available"]
+            or status.get("driver_available", False)
+        ):
             raise CodecError("nvcomp requires a CUDA device")
         return nvcomp
 
@@ -146,9 +172,12 @@ class NvcompCodec:
     def synchronize(self) -> None:
         if not self.available():
             return
-        import torch
-
-        torch.cuda.synchronize(self.device_id)
+        try:
+            import torch
+        except Exception:
+            return
+        if torch.cuda.is_available():
+            torch.cuda.synchronize(self.device_id)
 
 
 FRAME_MAGIC = b"SFG1"

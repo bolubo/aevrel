@@ -80,7 +80,14 @@ def test_make_codec_names_are_explicit() -> None:
 
 def test_nvcomp_status_is_read_only_on_cpu() -> None:
     status = nvcomp_status()
-    assert {"importable", "cuda_available", "version", "error"} <= set(status)
+    assert {
+        "importable",
+        "cuda_available",
+        "driver_available",
+        "driver_devices",
+        "version",
+        "error",
+    } <= set(status)
     if not status["importable"]:
         assert status["error"]
 
@@ -93,12 +100,32 @@ def test_nvcomp_codec_does_not_claim_gpu_when_cuda_is_unavailable(
         lambda: {
             "importable": True,
             "cuda_available": False,
+            "driver_available": False,
+            "driver_devices": 0,
             "version": "6.0.0",
             "error": None,
         },
     )
     codec = NvcompCodec("Zstd")
     assert codec.available() is False
+
+
+def test_nvcomp_codec_can_use_cuda_driver_without_torch_cuda(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "shardferry.gpu_codec.nvcomp_status",
+        lambda: {
+            "importable": True,
+            "cuda_available": False,
+            "driver_available": True,
+            "driver_devices": 1,
+            "version": "6.0.0",
+            "error": None,
+        },
+    )
+    codec = NvcompCodec("Zstd")
+    assert codec.available() is True
 
 
 def test_frame_contains_raw_sha256() -> None:

@@ -17,6 +17,8 @@
   - `identity`、`zlib`、`nvcomp-zstd/lz4/gdeflate`；
   - `SFG1` 帧：原始长度、原始 SHA256、codec 名称和压缩 payload；
   - `NvcompCodec` 延迟导入 CUDA/nvCOMP，无 GPU 不会在 import 时失败。
+- CUDA 可用性同时检查 `libcuda.so.1` 和 torch；CPU torch 不会把真实 GPU
+  误判成不可用。
 - `scripts/gpu_codec_probe.py`：测量压缩比、压缩/解压时间、网络投影；
   支持真实文件/目录或 zero/repeat/random/sparse 模式。
 - `nvidia-nvcomp-cu12>=6.0.0.12` 作为 optional `gpu` 依赖；基础安装不变。
