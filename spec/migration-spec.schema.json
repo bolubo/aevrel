@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/migration-spec-v1.json",
+  "title": "MigrationSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "checkpoint", "source", "target"],
+  "properties": {
+    "version": { "type": "string", "const": "1" },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "tensors"],
+      "properties": {
+        "format": { "type": "string", "enum": ["dcp", "toy"] },
+        "format_version": { "type": "string" },
+        "tensors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "shape", "dtype"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "shape": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "integer", "minimum": 0 }
+              },
+              "dtype": {
+                "type": "string",
+                "enum": ["float32", "float16", "bfloat16", "int64", "int32", "uint8"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "source": { "$ref": "#/$defs/endpoint" },
+    "target": { "$ref": "#/$defs/endpoint" }
+  },
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mesh", "storage"],
+      "properties": {
+        "mesh": { "$ref": "#/$defs/mesh" },
+        "storage": { "$ref": "#/$defs/storage" },
+        "shards": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/shard" }
+        }
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "world_size", "placements"],
+      "properties": {
+        "shape": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "world_size": { "type": "integer", "minimum": 1 },
+        "placements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(Shard\\([0-9]+\\)|Replicate\\(\\)|Partial\\([a-z]+\\))$"
+          }
+        },
+        "rank_map": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rank", "endpoint"],
+            "properties": {
+              "rank": { "type": "integer", "minimum": 0 },
+              "endpoint": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1 },
+        "options": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "shard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tensor", "rank", "uri", "offset", "size", "checksum"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "tensor": { "type": "string", "minLength": 1 },
+        "rank": { "type": "integer", "minimum": 0 },
+        "uri": { "type": "string", "minLength": 1 },
+        "offset": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "size": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "checksum": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    }
+  }
+}

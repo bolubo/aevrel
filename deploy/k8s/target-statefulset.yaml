@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shardferry-target
+spec:
+  serviceName: shardferry-target
+  replicas: 3
+  selector:
+    matchLabels:
+      app: shardferry-target
+  template:
+    metadata:
+      labels:
+        app: shardferry-target
+    spec:
+      containers:
+        - name: writer
+          image: ghcr.io/example/shardferry:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              rank="${HOSTNAME##*-}"
+              exec shardferry apply \
+                --spec /config/client.yaml \
+                --plan /config/plan.json \
+                --target-rank "$rank" \
+                --target-root /checkpoints
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: checkpoint
+              mountPath: /checkpoints
+      volumes:
+        - name: config
+          configMap:
+            name: shardferry-target-spec
+  volumeClaimTemplates:
+    - metadata:
+        name: checkpoint
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 100Gi

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/proof-v1.json",
+  "title": "MigrationProof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version", "plan_id", "plan_hash", "target_root", "target_files_root",
+    "source_root",
+    "coverage_root", "root", "target_files", "target_leaves",
+    "source_leaves", "coverage"
+  ],
+  "properties": {
+    "version": { "type": "string", "const": "1" },
+    "plan_id": { "type": "string", "minLength": 1 },
+    "plan_hash": { "$ref": "#/$defs/hash" },
+    "target_root": { "$ref": "#/$defs/hash" },
+    "target_files_root": { "$ref": "#/$defs/hash" },
+    "source_root": { "$ref": "#/$defs/hash" },
+    "coverage_root": { "$ref": "#/$defs/hash" },
+    "root": { "$ref": "#/$defs/hash" },
+    "target_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "size"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1 },
+          "size": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "target_leaves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "offset", "length", "digest"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1 },
+          "offset": { "type": "integer", "minimum": 0 },
+          "length": { "type": "integer", "minimum": 0 },
+          "digest": { "$ref": "#/$defs/hash" }
+        }
+      }
+    },
+    "source_leaves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id", "tensor", "rank", "uri", "offset", "length", "digest"
+        ],
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1 },
+          "tensor": { "type": "string", "minLength": 1 },
+          "rank": { "type": "integer", "minimum": 0 },
+          "uri": { "type": "string", "minLength": 1 },
+          "offset": { "type": "integer", "minimum": 0 },
+          "length": { "type": "integer", "minimum": 0 },
+          "digest": { "$ref": "#/$defs/hash" }
+        }
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "tensor", "target_rank", "op", "dtype", "target", "sources"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "tensor": { "type": "string", "minLength": 1 },
+          "target_rank": { "type": "integer", "minimum": 0 },
+          "op": {
+            "type": "string",
+            "enum": ["copy", "sum", "avg", "max", "min", "zeros"]
+          },
+          "dtype": {
+            "type": "string",
+            "enum": ["float32", "float16", "bfloat16", "int64", "int32", "uint8"]
+          },
+          "target": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": { "type": ["string", "integer"] }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

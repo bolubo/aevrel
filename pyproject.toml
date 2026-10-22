@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shardferry"
+version = "0.1.0"
+description = "Move and reshard local checkpoint shards across DeviceMeshes and clusters."
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "PyYAML>=6.0",
+  "jsonschema>=4.20",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "hypothesis>=6.100",
+  "pytest-cov>=5.0",
+]
+dcp = [
+  "torch>=2.9",
+]
+
+[project.scripts]
+shardferry = "shardferry.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "phase0: scaffolding checks",
+  "xfail_until: documented placeholder for a later phase",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shardferry"]

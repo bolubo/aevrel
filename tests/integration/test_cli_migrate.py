@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from shardferry.cli import main
+from shardferry.dcp import export_dcp
+from shardferry.executor import apply
+from shardferry.planner import plan
+from tests.fixtures.generated import (
+    generate_sharded_spec,
+    materialize_source_files,
+)
+
+
+def _source_dcp(tmp_path: Path) -> Path:
+    spec, arrays, _ = generate_sharded_spec(
+        (8, 4),
+        (4,),
+        ("Shard(0)",),
+        (4,),
+        ("Shard(0)",),
+    )
+    materialize_source_files(spec, arrays, tmp_path)
+    apply(plan(spec), spec)
+    output = tmp_path / "source.dcp"
+    export_dcp(spec, output)
+    return output
+
+
+def test_migrate_cli_4to3_json(tmp_path, capsys) -> None:
+    pytest.importorskip("torch")
+    source = _source_dcp(tmp_path)
+    output = tmp_path / "target.dcp"
+    work = tmp_path / "work"
+
+    result = main(
+        [
+            "migrate",
+            "--checkpoint",
+            str(source),
+            "--target-world",
+            "3",
+            "--output",
+            str(output),
+            "--work-dir",
+            str(work),
+            "--json",
+        ]
+    )
+
+    assert result == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert captured.err == ""
+    assert payload["status"] == "success"
+    assert payload["output"] == str(output.resolve())
+    assert payload["topology"]["source_world_size"] == 4
+    assert payload["topology"]["target_world_size"] == 3
+    assert payload["verification"]["passed"] is True
+    assert (output / ".metadata").is_file()
+    assert len(list(output.glob("*.distcp"))) == 3
+    assert (work / "plan.json").is_file()
+    assert (work / "report.json").is_file()
+
+
+def test_doctor_cli_checks_real_dcp(tmp_path, capsys) -> None:
+    pytest.importorskip("torch")
+    source = _source_dcp(tmp_path)
+    output = tmp_path / "target.dcp"
+
+    result = main(
+        [
+            "doctor",
+            "--checkpoint",
+            str(source),
+            "--output",
+            str(output),
+            "--json",
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    assert {check["name"] for check in payload["checks"]} >= {
+        "python",
+        "dcp-runtime",
+        "checkpoint",
+        "dcp-metadata",
+        "dcp-storage",
+        "output",
+        "work-dir",
+    }
+    assert not output.exists()

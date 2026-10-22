@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/error-v1.json",
+  "title": "ShardferryError",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version", "code", "category", "retryable", "phase", "rank", "details"
+  ],
+  "properties": {
+    "version": { "type": "string", "const": "1" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_SPEC",
+        "UNSUPPORTED_FORMAT",
+        "VERSION_MISMATCH",
+        "SOURCE_UNREACHABLE",
+        "SOURCE_NOT_FOUND",
+        "INVENTORY_INCOMPLETE",
+        "PLAN_INVALID",
+        "TARGET_CONFLICT",
+        "TARGET_LOCKED",
+        "DISK_FULL",
+        "PERMISSION_DENIED",
+        "NETWORK_TRANSIENT",
+        "CHECKSUM_MISMATCH",
+        "VERIFY_FAILED",
+        "COMMIT_INCOMPLETE",
+        "TIMEOUT",
+        "CANCELLED",
+        "INTERNAL"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "input", "source", "target", "network", "integrity", "control", "internal"
+      ]
+    },
+    "retryable": { "type": "boolean" },
+    "phase": { "type": "string", "minLength": 1 },
+    "rank": { "type": "integer", "minimum": 0 },
+    "details": { "type": "string" },
+    "migration_uid": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string", "minLength": 1 }
+  }
+}

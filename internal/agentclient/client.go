@@ -1,0 +1,295 @@
+package agentclient
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type Tensor struct {
+	Name  string  `json:"name"`
+	Shape []int32 `json:"shape"`
+	Dtype string  `json:"dtype"`
+}
+
+type Chunk struct {
+	ID           string    `json:"id,omitempty"`
+	Tensor       string    `json:"tensor"`
+	Rank         int32     `json:"rank"`
+	File         string    `json:"file"`
+	TensorOffset []int32   `json:"tensor_offset"`
+	TensorSize   []int32   `json:"tensor_size"`
+	ByteRanges   [][]int64 `json:"byte_ranges"`
+	Checksum     string    `json:"checksum"`
+}
+
+type Inventory struct {
+	Version      string   `json:"version"`
+	Rank         int32    `json:"rank"`
+	Format       string   `json:"format"`
+	MetadataHash string   `json:"metadata_hash"`
+	Tensors      []Tensor `json:"tensors"`
+	Chunks       []Chunk  `json:"chunks"`
+	AgentVersion string   `json:"agent_version"`
+	TorchVersion string   `json:"torch_version"`
+}
+
+type RanksResponse struct {
+	Version string  `json:"version"`
+	Ranks   []int32 `json:"ranks"`
+}
+
+type PlanResponse struct {
+	Version string         `json:"version"`
+	Plan    map[string]any `json:"plan"`
+}
+
+type ProofResponse struct {
+	Version string         `json:"version"`
+	Proof   map[string]any `json:"proof"`
+}
+
+type Task struct {
+	TaskID       string         `json:"task_id,omitempty"`
+	Version      string         `json:"version"`
+	MigrationUID string         `json:"migration_uid"`
+	CommitToken  string         `json:"commit_token,omitempty"`
+	Rank         int32          `json:"rank"`
+	TaskHash     string         `json:"task_hash"`
+	TargetRoot   string         `json:"target_root"`
+	SpecRef      string         `json:"spec_ref"`
+	PlanRef      string         `json:"plan_ref"`
+	PlanSlice    map[string]any `json:"plan_slice"`
+	State        string         `json:"state"`
+}
+
+type AgentError struct {
+	StatusCode int
+	Code       string
+	Category   string
+	Phase      string
+	Rank       int32
+	Details    string
+	Retryable  *bool
+}
+
+func (e *AgentError) Error() string {
+	return fmt.Sprintf("agent error %d (%s): %s", e.StatusCode, e.Code, e.Details)
+}
+
+func (e *AgentError) IsRetryable() bool {
+	if e.Retryable != nil {
+		return *e.Retryable
+	}
+	switch e.StatusCode {
+	case http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests:
+		return true
+	case http.StatusConflict:
+		return true
+	}
+	return e.StatusCode >= http.StatusInternalServerError
+}
+
+func Retryable(err error) bool {
+	var agentErr *AgentError
+	if errors.As(err, &agentErr) {
+		return agentErr.IsRetryable()
+	}
+	return errors.Is(err, context.DeadlineExceeded)
+}
+
+type Client struct {
+	HTTP  *http.Client
+	Token string
+}
+
+func New(token string) *Client {
+	return &Client{
+		HTTP:  &http.Client{Timeout: 30 * time.Second},
+		Token: token,
+	}
+}
+
+func (c *Client) Inventory(
+	ctx context.Context,
+	endpoint string,
+	rank int32,
+) (Inventory, error) {
+	var inventory Inventory
+	path := "/v1/inventory?rank=" + strconv.Itoa(int(rank))
+	if err := c.do(ctx, http.MethodGet, endpoint+path, nil, &inventory); err != nil {
+		return Inventory{}, err
+	}
+	return inventory, nil
+}
+
+func (c *Client) Ranks(
+	ctx context.Context,
+	endpoint string,
+) ([]int32, error) {
+	var response RanksResponse
+	if err := c.do(
+		ctx,
+		http.MethodGet,
+		endpoint+"/v1/ranks",
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response.Ranks, nil
+}
+
+func (c *Client) Plan(
+	ctx context.Context,
+	endpoint string,
+	spec map[string]any,
+) (PlanResponse, error) {
+	var response PlanResponse
+	body := map[string]any{"version": "1", "spec": spec}
+	if err := c.do(ctx, http.MethodPost, endpoint+"/v1/plan", body, &response); err != nil {
+		return PlanResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *Client) MergeProof(
+	ctx context.Context,
+	endpoint string,
+	proofs []map[string]any,
+) (map[string]any, error) {
+	var response ProofResponse
+	body := map[string]any{"proofs": proofs}
+	if err := c.do(ctx, http.MethodPost, endpoint+"/v1/proof/merge", body, &response); err != nil {
+		return nil, err
+	}
+	if response.Proof == nil {
+		return nil, fmt.Errorf("proof merge returned an empty proof")
+	}
+	return response.Proof, nil
+}
+
+func (c *Client) CreateTask(
+	ctx context.Context,
+	endpoint string,
+	task Task,
+) (Task, error) {
+	var response Task
+	if err := c.do(ctx, http.MethodPost, endpoint+"/v1/tasks", task, &response); err != nil {
+		return Task{}, err
+	}
+	return response, nil
+}
+
+func (c *Client) PrepareTask(ctx context.Context, endpoint, taskID string) (Task, error) {
+	return c.taskAction(ctx, endpoint, taskID, "prepare")
+}
+
+func (c *Client) ExecuteTask(ctx context.Context, endpoint, taskID string) (Task, error) {
+	return c.taskAction(ctx, endpoint, taskID, "execute")
+}
+
+func (c *Client) CommitTask(ctx context.Context, endpoint, taskID string) (Task, error) {
+	return c.taskAction(ctx, endpoint, taskID, "commit")
+}
+
+func (c *Client) CancelTask(ctx context.Context, endpoint, taskID string) (Task, error) {
+	return c.taskAction(ctx, endpoint, taskID, "cancel")
+}
+
+func (c *Client) GetTask(ctx context.Context, endpoint, taskID string) (Task, error) {
+	var task Task
+	path := endpoint + "/v1/tasks/" + url.PathEscape(taskID)
+	if err := c.do(ctx, http.MethodGet, path, nil, &task); err != nil {
+		return Task{}, err
+	}
+	return task, nil
+}
+
+func (c *Client) taskAction(
+	ctx context.Context,
+	endpoint string,
+	taskID string,
+	action string,
+) (Task, error) {
+	var task Task
+	path := endpoint + "/v1/tasks/" + url.PathEscape(taskID) + "/" + action
+	if err := c.do(ctx, http.MethodPost, path, map[string]any{}, &task); err != nil {
+		return Task{}, err
+	}
+	return task, nil
+}
+
+func (c *Client) do(
+	ctx context.Context,
+	method string,
+	endpoint string,
+	body any,
+	out any,
+) error {
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("encode request: %w", err)
+		}
+		reader = bytes.NewReader(data)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.Token)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := c.HTTP.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		return err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		var envelope struct {
+			Code      string `json:"code"`
+			Category  string `json:"category"`
+			Phase     string `json:"phase"`
+			Rank      int32  `json:"rank"`
+			Details   string `json:"details"`
+			Retryable *bool  `json:"retryable"`
+		}
+		if json.Unmarshal(data, &envelope) == nil && envelope.Code != "" {
+			return &AgentError{
+				StatusCode: response.StatusCode,
+				Code:       envelope.Code,
+				Category:   envelope.Category,
+				Phase:      envelope.Phase,
+				Rank:       envelope.Rank,
+				Details:    envelope.Details,
+				Retryable:  envelope.Retryable,
+			}
+		}
+		return &AgentError{
+			StatusCode: response.StatusCode,
+			Code:       fmt.Sprintf("HTTP_%d", response.StatusCode),
+			Details:    strings.TrimSpace(string(data)),
+		}
+	}
+	if out != nil {
+		if err := json.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
+	}
+	return nil
+}

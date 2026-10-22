@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/task-v1.json",
+  "title": "ShardferryTask",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version", "migration_uid", "rank", "task_hash",
+    "target_root", "spec_ref", "plan_ref", "plan_slice", "state"
+  ],
+  "properties": {
+    "version": { "type": "string", "const": "1" },
+    "migration_uid": { "type": "string", "minLength": 1 },
+    "rank": { "type": "integer", "minimum": 0 },
+    "task_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "target_root": { "type": "string", "minLength": 1 },
+    "spec_ref": { "type": "string", "minLength": 1 },
+    "plan_ref": { "type": "string", "minLength": 1 },
+    "plan_slice": { "type": "object" },
+    "state": {
+      "type": "string",
+      "enum": [
+        "created", "preparing", "prepared", "transferring", "staged",
+        "commit-ready", "committing", "committed", "failed", "cancelled",
+        "commit-incomplete"
+      ]
+    },
+    "commit_token": { "type": "string", "minLength": 1 }
+  }
+}

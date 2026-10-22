@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shardferry-source
+spec:
+  serviceName: shardferry-source
+  replicas: 4
+  selector:
+    matchLabels:
+      app: shardferry-source
+  template:
+    metadata:
+      labels:
+        app: shardferry-source
+    spec:
+      containers:
+        - name: agent
+          image: ghcr.io/example/shardferry:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              rank="${HOSTNAME##*-}"
+              exec shardferry serve \
+                --manifest /config/migration.yaml \
+                --rank "$rank" \
+                --listen 0.0.0.0:9000
+          ports:
+            - name: http
+              containerPort: 9000
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: checkpoint
+              mountPath: /checkpoints
+      volumes:
+        - name: config
+          configMap:
+            name: shardferry-source-spec
+  volumeClaimTemplates:
+    - metadata:
+        name: checkpoint
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 100Gi

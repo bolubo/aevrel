@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN groupadd --gid 10001 shardferry \
+    && useradd --uid 10001 --gid 10001 --create-home shardferry
+
+WORKDIR /app
+COPY pyproject.toml ./
+COPY src ./src
+COPY spec ./spec
+
+RUN pip install --no-cache-dir \
+      --index-url https://download.pytorch.org/whl/cpu \
+      torch \
+    && pip install --no-cache-dir .
+
+USER 10001:10001
+EXPOSE 9443 9444
+ENTRYPOINT ["shardferry"]

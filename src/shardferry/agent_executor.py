@@ -1,0 +1,111 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
+
+from .agent_state import TaskRecord
+from .executor import apply, commit_staged
+from .manifest import load_payload
+
+
+class ArtifactError(ValueError):
+    """Raised when a task artifact reference cannot be resolved."""
+
+
+class ArtifactResolver(Protocol):
+    def resolve(self, ref: str) -> dict[str, Any]:
+        ...
+
+
+class LocalArtifactResolver:
+    def __init__(self, root: str | Path) -> None:
+        self.root = Path(root).resolve()
+
+    def resolve(self, ref: str) -> dict[str, Any]:
+        candidate = Path(ref)
+        if not candidate.is_absolute():
+            candidate = self.root / candidate
+        candidate = candidate.resolve()
+        try:
+            candidate.relative_to(self.root)
+        except ValueError as exc:
+            raise ArtifactError(f"artifact escapes root: {ref}") from exc
+        return load_payload(candidate)
+
+
+class HttpArtifactResolver:
+    def __init__(
+        self,
+        base_url: str,
+        token: str,
+        timeout: float = 30.0,
+        use_proxy: bool = False,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+        self.timeout = timeout
+        self._opener = None if use_proxy else build_opener(ProxyHandler({}))
+
+    def resolve(self, ref: str) -> dict[str, Any]:
+        url = (
+            ref
+            if ref.startswith(("http://", "https://"))
+            else self.base_url + "/v1/artifacts/" + quote(ref, safe=":")
+        )
+        if not (
+            url == self.base_url
+            or url.startswith(self.base_url + "/")
+        ):
+            raise ArtifactError(f"artifact URL escapes base: {ref}")
+        request = Request(url)
+        if self.token:
+            request.add_header("Authorization", f"Bearer {self.token}")
+        try:
+            response = (
+                self._opener.open(request, timeout=self.timeout)
+                if self._opener is not None
+                else urlopen(request, timeout=self.timeout)
+            )
+            with response:
+                data = response.read()
+        except HTTPError as exc:
+            raise ArtifactError(f"artifact HTTP {exc.code}: {url}") from exc
+        except (URLError, OSError) as exc:
+            raise ArtifactError(f"artifact request failed: {url}: {exc}") from exc
+        try:
+            payload = json.loads(data)
+        except ValueError as exc:
+            raise ArtifactError(f"artifact is not valid JSON: {url}") from exc
+        if not isinstance(payload, dict):
+            raise ArtifactError(f"artifact must be a JSON object: {url}")
+        return payload
+
+
+class TargetTaskExecutor:
+    def __init__(self, resolver: ArtifactResolver) -> None:
+        self.resolver = resolver
+
+    def __call__(self, task: TaskRecord) -> None:
+        spec = self.resolver.resolve(task.spec_ref)
+        plan = self.resolver.resolve(task.plan_ref)
+        apply(
+            plan,
+            spec,
+            target_rank=task.rank,
+            target_root=task.target_root,
+            commit=False,
+        )
+
+    def commit(self, task: TaskRecord) -> None:
+        spec = self.resolver.resolve(task.spec_ref)
+        plan = self.resolver.resolve(task.plan_ref)
+        commit_staged(
+            plan,
+            spec,
+            target_rank=task.rank,
+            target_root=task.target_root,
+        )

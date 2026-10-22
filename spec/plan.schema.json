@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/plan-v1.json",
+  "title": "MigrationPlan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "migration_id", "strategy", "nodes", "total_bytes", "theoretical_min_bytes"],
+  "properties": {
+    "version": { "type": "string", "const": "1" },
+    "migration_id": { "type": "string", "minLength": 1 },
+    "strategy": { "type": "string", "enum": ["direct", "relay"] },
+    "full_gather": { "type": "boolean", "const": false },
+    "total_bytes": { "type": "integer", "minimum": 0 },
+    "theoretical_min_bytes": { "type": "integer", "minimum": 0 },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes", "range_reads", "local_reads", "remote_reads",
+        "max_fan_in", "nodes"
+      ],
+      "properties": {
+        "bytes": { "type": "integer", "minimum": 0 },
+        "range_reads": { "type": "integer", "minimum": 0 },
+        "local_reads": { "type": "integer", "minimum": 0 },
+        "remote_reads": { "type": "integer", "minimum": 0 },
+        "max_fan_in": { "type": "integer", "minimum": 0 },
+        "nodes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "tensor", "target_rank", "op",
+          "target_offset", "size", "inputs"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "tensor": { "type": "string", "minLength": 1 },
+          "target_rank": { "type": "integer", "minimum": 0 },
+          "op": {
+            "type": "string",
+            "enum": ["copy", "sum", "avg", "max", "min", "zeros"]
+          },
+          "target_offset": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 0 }
+          },
+          "size": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 1 }
+          },
+          "inputs": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source_rank", "source_offset", "checksum"],
+              "properties": {
+                "source_rank": { "type": "integer", "minimum": 0 },
+                "source_id": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "source_offset": {
+                  "type": "array",
+                  "items": { "type": "integer", "minimum": 0 }
+                },
+                "checksum": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/report-v1.json",
+  "title": "MigrationReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version", "plan_id", "status", "meshes", "tensors", "chunks",
+    "bytes_planned", "bytes_moved", "duration_seconds", "retries", "verification"
+  ],
+  "properties": {
+    "version": { "type": "string", "const": "1" },
+    "plan_id": { "type": "string", "minLength": 1 },
+    "target_rank": { "type": "integer", "minimum": 0 },
+    "meshes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target"],
+      "properties": {
+        "source": { "$ref": "#/$defs/mesh" },
+        "target": { "$ref": "#/$defs/mesh" }
+      }
+    },
+    "tensors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "shape", "dtype", "chunks"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "shape": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 0 }
+          },
+          "dtype": { "type": "string" },
+          "chunks": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "chunks": { "type": "integer", "minimum": 0 },
+    "status": {
+      "type": "string",
+      "enum": ["success", "staged", "failed", "partial"]
+    },
+    "bytes_planned": { "type": "integer", "minimum": 0 },
+    "bytes_moved": { "type": "integer", "minimum": 0 },
+    "duration_seconds": { "type": "number", "minimum": 0 },
+    "retries": { "type": "integer", "minimum": 0 },
+    "proof_ref": { "type": "string", "minLength": 1 },
+    "proof_hash": { "$ref": "#/$defs/hash" },
+    "proof": { "type": "object" },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "method"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "method": { "type": "string", "enum": ["checksum", "bitwise", "model_load", "output"] },
+        "details": { "type": "string" }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "mesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "world_size", "placements"],
+      "properties": {
+        "shape": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "world_size": { "type": "integer", "minimum": 1 },
+        "placements": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "rank_map": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rank", "endpoint"],
+            "properties": {
+              "rank": { "type": "integer", "minimum": 0 },
+              "endpoint": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

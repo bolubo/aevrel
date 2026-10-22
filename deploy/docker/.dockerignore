@@ -1,0 +1,7 @@
+.venv
+.git
+.pytest_cache
+.hypothesis
+__pycache__
+*.pyc
+controller

@@ -1,0 +1,23 @@
+apiVersion: shardferry.io/v1
+kind: CheckpointMigration
+metadata:
+  name: job42-128-to-64
+spec:
+  source:
+    worldSize: 128
+    checkpointRoot: /checkpoints
+    agentSelector:
+      matchLabels:
+        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/component: source
+      port: 9443
+      scheme: http
+  target:
+    worldSize: 64
+    rootTemplate: /targets/job42/rank{rank}
+    agentSelector:
+      matchLabels:
+        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/component: target
+      port: 9444
+      scheme: http

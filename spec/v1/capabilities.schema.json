@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shardferry.dev/schemas/capabilities-v1.json",
+  "title": "ShardferryCapabilities",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version", "apiVersion", "agentVersion", "roles", "features"
+  ],
+  "properties": {
+    "version": { "type": "string", "const": "1" },
+    "apiVersion": { "type": "string", "const": "shardferry.io/v1" },
+    "agentVersion": { "type": "string", "minLength": 1 },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["source", "target"] }
+    },
+    "features": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

@@ -1,0 +1,567 @@
+from __future__ import annotations
+
+import io
+import json
+import mmap
+import pickle
+import re
+import sys
+import uuid
+import warnings
+import zipfile
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote
+
+import yaml
+
+from .defaults import (
+    DEFAULT_MIGRATED_SUFFIX,
+    DEFAULT_SOURCE_PLACEMENTS,
+    DEFAULT_TARGET_PLACEMENTS,
+    DEFAULT_WORK_SUFFIX,
+)
+from .executor import apply as execute_plan
+from .layout import DTYPE_BYTES, local_region
+from .manifest import validate_spec
+from .mesh import parse_mesh
+from .planner import plan as build_plan
+from .storage.file import FileStorage
+from .targets import target_file_path
+
+
+class DcpError(RuntimeError):
+    """Raised when a DCP checkpoint cannot be read or written."""
+
+
+def _torch():
+    try:
+        import torch
+    except ImportError as exc:
+        raise DcpError(
+            "PyTorch is required for DCP support; install with: "
+            'pip install "shardferry[dcp]"'
+        ) from exc
+    return torch
+
+
+def _dtype_name(torch_module, dtype) -> str:
+    mapping = {
+        torch_module.float32: "float32",
+        torch_module.float16: "float16",
+        torch_module.bfloat16: "bfloat16",
+        torch_module.int64: "int64",
+        torch_module.int32: "int32",
+        torch_module.uint8: "uint8",
+    }
+    try:
+        return mapping[dtype]
+    except KeyError as exc:
+        raise DcpError(f"unsupported DCP dtype: {dtype}") from exc
+
+
+def _torch_dtype(torch_module, name: str):
+    mapping = {
+        "float32": torch_module.float32,
+        "float16": torch_module.float16,
+        "bfloat16": torch_module.bfloat16,
+        "int64": torch_module.int64,
+        "int32": torch_module.int32,
+        "uint8": torch_module.uint8,
+    }
+    try:
+        return mapping[name]
+    except KeyError as exc:
+        raise DcpError(f"unsupported DCP dtype: {name}") from exc
+
+
+def _tensor_bytes(tensor) -> bytes:
+    torch = _torch()
+    contiguous = tensor.detach().cpu().contiguous()
+    return contiguous.view(torch.uint8).numpy().tobytes()
+
+
+def _save_mmap_tensor(
+    source_path: Path,
+    output_path: Path,
+    dtype,
+    shape: tuple[int, ...],
+) -> None:
+    torch = _torch()
+    tensor = None
+    mapped = None
+    stream = None
+    try:
+        if prod(shape) == 0:
+            tensor = torch.empty(shape, dtype=dtype)
+            data_pkl = _pickle_tensor(torch, tensor)
+        else:
+            stream = source_path.open("rb")
+            mapped = mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_COPY)
+            tensor = torch.frombuffer(mapped, dtype=dtype).reshape(shape)
+            data_pkl = _pickle_tensor(torch, tensor)
+        _write_dcp_zip(
+            output_path,
+            prefix=output_path.stem,
+            data_pkl=data_pkl,
+            source_path=source_path,
+            size=prod(shape) * tensor.element_size(),
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise DcpError(f"could not stream DCP tensor {source_path}: {exc}") from exc
+    finally:
+        del tensor
+        if mapped is not None:
+            mapped.close()
+        if stream is not None:
+            stream.close()
+
+
+def _pickle_tensor(torch, tensor) -> bytes:
+    storage_classes = {
+        torch.float32: torch.FloatStorage,
+        torch.float16: torch.HalfStorage,
+        torch.bfloat16: torch.BFloat16Storage,
+        torch.int64: torch.LongStorage,
+        torch.int32: torch.IntStorage,
+        torch.uint8: torch.ByteStorage,
+    }
+
+    class _StoragePickler(pickle.Pickler):
+        def persistent_id(self, obj):
+            if isinstance(obj, torch.storage.TypedStorage):
+                storage_class = storage_classes.get(obj.dtype)
+                if storage_class is None:
+                    raise DcpError(f"unsupported DCP storage dtype: {obj.dtype}")
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    storage_elements = obj.nbytes() // obj.element_size()
+                return (
+                    "storage",
+                    storage_class,
+                    "0",
+                    "cpu",
+                    storage_elements,
+                )
+            return None
+
+    output = io.BytesIO()
+    _StoragePickler(output, protocol=2).dump(tensor)
+    return output.getvalue()
+
+
+def _write_dcp_zip(
+    output_path: Path,
+    *,
+    prefix: str,
+    data_pkl: bytes,
+    source_path: Path,
+    size: int,
+) -> None:
+    serialization_id = str(uuid.uuid4().int)[:40].ljust(40, "0")
+    with zipfile.ZipFile(
+        output_path,
+        "w",
+        compression=zipfile.ZIP_STORED,
+        allowZip64=True,
+    ) as archive:
+        archive.writestr(f"{prefix}/data.pkl", data_pkl)
+        archive.writestr(f"{prefix}/.format_version", "1")
+        archive.writestr(f"{prefix}/.storage_alignment", "64")
+        archive.writestr(f"{prefix}/byteorder", sys.byteorder)
+        archive.writestr(f"{prefix}/version", "3\n")
+        archive.writestr(f"{prefix}/.data/serialization_id", serialization_id)
+        with archive.open(
+            f"{prefix}/data/0",
+            "w",
+            force_zip64=True,
+        ) as target:
+            remaining = size
+            if remaining == 0:
+                return
+            with source_path.open("rb") as source:
+                while remaining:
+                    chunk = source.read(min(4 * 1024 * 1024, remaining))
+                    if not chunk:
+                        raise DcpError(
+                            f"short source read for {source_path}: "
+                            f"{remaining} bytes missing"
+                        )
+                    target.write(chunk)
+                    remaining -= len(chunk)
+
+
+def _read_storage_tensor(checkpoint: Path, info) -> Any:
+    torch = _torch()
+    path = checkpoint / info.relative_path
+    try:
+        with path.open("rb") as stream:
+            stream.seek(info.offset)
+            data = stream.read(info.length)
+    except OSError as exc:
+        raise DcpError(f"could not read DCP storage {path}: {exc}") from exc
+    if len(data) != info.length:
+        raise DcpError(f"short DCP storage read: {path}")
+    try:
+        return torch.load(
+            io.BytesIO(data),
+            map_location="cpu",
+            weights_only=False,
+        )
+    except Exception as exc:
+        raise DcpError(f"could not deserialize DCP chunk {path}: {exc}") from exc
+
+
+def _rank_from_path(relative_path: str) -> int:
+    name = Path(relative_path).name
+    match = re.match(r"__(\d+)_", name)
+    if not match:
+        raise DcpError(f"cannot infer rank from DCP file: {relative_path}")
+    return int(match.group(1))
+
+
+def read_dcp_metadata(checkpoint: str | Path):
+    torch = _torch()
+    from torch.distributed.checkpoint import FileSystemReader
+
+    del torch
+    path = Path(checkpoint).resolve()
+    if not path.is_dir():
+        raise DcpError(f"DCP checkpoint directory not found: {path}")
+    try:
+        return FileSystemReader(str(path)).read_metadata()
+    except Exception as exc:
+        raise DcpError(f"could not read DCP metadata from {path}: {exc}") from exc
+
+
+def local_dcp_ranks(
+    checkpoint: str | Path,
+    *,
+    metadata_dir: str | Path | None = None,
+) -> list[int]:
+    """Return ranks whose DCP storage files exist under this checkpoint root."""
+    checkpoint_path = Path(checkpoint).resolve()
+    metadata = read_dcp_metadata(metadata_dir or checkpoint_path)
+    ranks: set[int] = set()
+    for info in (metadata.storage_data or {}).values():
+        relative = getattr(info, "relative_path", "")
+        if not relative:
+            continue
+        if not (checkpoint_path / relative).is_file():
+            continue
+        try:
+            ranks.add(_rank_from_path(relative))
+        except DcpError:
+            continue
+    if not ranks:
+        raise DcpError(
+            f"no local DCP rank files found under {checkpoint_path}"
+        )
+    return sorted(ranks)
+
+
+def inspect_dcp(
+    checkpoint: str | Path,
+    work_dir: str | Path | None = None,
+    *,
+    source_mesh_shape: tuple[int, ...] | None = None,
+    source_placements: tuple[str, ...] = DEFAULT_SOURCE_PLACEMENTS,
+    target_world_size: int | None = None,
+    target_mesh_shape: tuple[int, ...] | None = None,
+    target_placements: tuple[str, ...] = DEFAULT_TARGET_PLACEMENTS,
+) -> dict[str, Any]:
+    torch = _torch()
+    checkpoint_path = Path(checkpoint).resolve()
+    work_path = (
+        Path(work_dir).resolve()
+        if work_dir is not None
+        else checkpoint_path.with_name(
+            checkpoint_path.name + DEFAULT_WORK_SUFFIX
+        )
+    )
+    source_dir = work_path / "source"
+    target_dir = work_path / "target"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    metadata = read_dcp_metadata(checkpoint_path)
+    storage_data = metadata.storage_data or {}
+    tensor_rows: dict[str, dict[str, Any]] = {}
+    source_shards: list[dict[str, Any]] = []
+    ranks: set[int] = set()
+
+    for fqn, tensor_metadata in metadata.state_dict_metadata.items():
+        if not hasattr(tensor_metadata, "chunks"):
+            raise DcpError(f"DCP entry is not a tensor: {fqn}")
+        dtype = _dtype_name(torch, tensor_metadata.properties.dtype)
+        global_shape = tuple(int(value) for value in tensor_metadata.size)
+        tensor_rows[fqn] = {
+            "name": fqn,
+            "shape": list(global_shape),
+            "dtype": dtype,
+        }
+        seen_chunks: set[int] = set()
+        for index, chunk in enumerate(tensor_metadata.chunks):
+            candidates = [
+                (metadata_index, info)
+                for metadata_index, info in storage_data.items()
+                if metadata_index.fqn == fqn
+            ]
+            matching = [
+                item for item in candidates if item[0].index == index
+            ]
+            if not matching:
+                matching = [
+                    item
+                    for item in candidates
+                    if tuple(item[0].offset or ()) == tuple(chunk.offsets)
+                ]
+            if not matching:
+                raise DcpError(f"no storage entry for DCP chunk {fqn}/{index}")
+            metadata_index, info = matching[0]
+            rank = _rank_from_path(info.relative_path)
+            key = (fqn, rank)
+            if rank in seen_chunks:
+                raise DcpError(
+                    f"multiple DCP chunks for {fqn}/rank{rank} are not supported"
+                )
+            seen_chunks.add(rank)
+            ranks.add(rank)
+            chunk_tensor = _read_storage_tensor(checkpoint_path, info)
+            if tuple(chunk_tensor.shape) != tuple(chunk.sizes):
+                raise DcpError(
+                    f"DCP chunk shape mismatch for {fqn}/{rank}: "
+                    f"{chunk_tensor.shape} != {chunk.sizes}"
+                )
+            raw_path = (
+                source_dir
+                / quote(fqn, safe="")
+                / f"rank{rank}.bin"
+            )
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_bytes = _tensor_bytes(chunk_tensor)
+            raw_path.write_bytes(raw_bytes)
+            source_shards.append(
+                {
+                    "tensor": fqn,
+                    "rank": rank,
+                    "uri": raw_path.as_uri(),
+                    "offset": [int(value) for value in chunk.offsets],
+                    "size": [int(value) for value in chunk.sizes],
+                    "checksum": "sha256:" + _sha256(raw_bytes),
+                }
+            )
+
+    if not source_shards:
+        raise DcpError("DCP checkpoint has no tensor chunks")
+    source_world = max(ranks) + 1
+    if source_mesh_shape is None:
+        source_mesh_shape = (source_world,)
+    if len(source_mesh_shape) != len(source_placements):
+        raise DcpError("source mesh shape and placements have different ranks")
+    if target_world_size is None:
+        target_world_size = source_world
+    if target_mesh_shape is None:
+        target_mesh_shape = (target_world_size,)
+    if len(target_mesh_shape) != len(target_placements):
+        raise DcpError("target mesh shape and placements have different ranks")
+
+    spec = {
+        "version": "1",
+        "checkpoint": {
+            "format": "dcp",
+            "tensors": list(tensor_rows.values()),
+        },
+        "source": {
+            "mesh": _mesh_payload(source_mesh_shape, source_placements),
+            "storage": {"uri": source_dir.as_uri()},
+            "shards": sorted(source_shards, key=lambda row: (row["tensor"], row["rank"])),
+        },
+        "target": {
+            "mesh": _mesh_payload(target_mesh_shape, target_placements),
+            "storage": {"uri": target_dir.as_uri()},
+        },
+    }
+    validate_spec(spec)
+    (work_path / "migration.yaml").write_text(
+        yaml.safe_dump(spec, sort_keys=False),
+        encoding="utf-8",
+    )
+    return spec
+
+
+def export_dcp(
+    spec: dict[str, Any],
+    output_dir: str | Path,
+    *,
+    force: bool = False,
+) -> Path:
+    torch = _torch()
+    from torch.distributed.checkpoint.filesystem import _StorageInfo
+    from torch.distributed.checkpoint.metadata import (
+        ChunkStorageMetadata,
+        Metadata,
+        MetadataIndex,
+        StorageMeta,
+        TensorProperties,
+        TensorStorageMetadata,
+    )
+
+    validate_spec(spec)
+    output = Path(output_dir).resolve()
+    if output.exists() and any(output.iterdir()) and not force:
+        raise DcpError(f"output DCP directory is not empty: {output}")
+    output.mkdir(parents=True, exist_ok=True)
+    target_storage = FileStorage().path(spec["target"]["storage"]["uri"])
+    target_mesh = parse_mesh(spec["target"]["mesh"])
+    tensors = {
+        tensor["name"]: tensor for tensor in spec["checkpoint"]["tensors"]
+    }
+    storage_data = {}
+    state_dict_metadata = {}
+    planner_data = {}
+
+    for tensor_index, (fqn, tensor) in enumerate(tensors.items()):
+        torch_dtype = _torch_dtype(torch, tensor["dtype"])
+        shape = tuple(tensor["shape"])
+        chunks = []
+        for rank in range(target_mesh.world_size):
+            region = local_region(
+                target_mesh,
+                target_mesh.placements,
+                shape,
+                rank,
+                allow_partial=True,
+            )
+            raw_path = target_file_path(spec, fqn, rank)
+            if not raw_path.is_file():
+                raise DcpError(f"target shard not found: {raw_path}")
+            expected = region.element_count * DTYPE_BYTES[tensor["dtype"]]
+            actual_size = raw_path.stat().st_size
+            if actual_size != expected:
+                raise DcpError(
+                    f"target shard size mismatch for {fqn}/rank{rank}: "
+                    f"{actual_size} != {expected}"
+                )
+            file_name = f"__{rank}_{tensor_index}.distcp"
+            chunk_path = output / file_name
+            _save_mmap_tensor(
+                raw_path,
+                chunk_path,
+                torch_dtype,
+                region.size,
+            )
+            storage_data[
+                MetadataIndex(
+                    fqn=fqn,
+                    offset=torch.Size(region.offset),
+                    index=rank,
+                )
+            ] = _StorageInfo(
+                relative_path=file_name,
+                offset=0,
+                length=chunk_path.stat().st_size,
+            )
+            chunks.append(
+                ChunkStorageMetadata(
+                    offsets=torch.Size(region.offset),
+                    sizes=torch.Size(region.size),
+                )
+            )
+        state_dict_metadata[fqn] = TensorStorageMetadata(
+            properties=TensorProperties(dtype=torch_dtype),
+            size=torch.Size(shape),
+            chunks=chunks,
+        )
+        planner_data[fqn] = (fqn,)
+
+    metadata = Metadata(
+        state_dict_metadata=state_dict_metadata,
+        planner_data=planner_data,
+        storage_data=storage_data,
+        storage_meta=StorageMeta(
+            checkpoint_id=output,
+            save_id=uuid.uuid4().hex,
+        ),
+        version="1.0.0",
+    )
+    with (output / ".metadata").open("wb") as stream:
+        pickle.dump(metadata, stream)
+    return output
+
+
+def migrate_dcp(
+    checkpoint: str | Path,
+    output: str | Path | None = None,
+    work_dir: str | Path | None = None,
+    *,
+    source_mesh_shape: tuple[int, ...] | None = None,
+    source_placements: tuple[str, ...] = DEFAULT_SOURCE_PLACEMENTS,
+    target_world_size: int | None = None,
+    target_mesh_shape: tuple[int, ...] | None = None,
+    target_placements: tuple[str, ...] = DEFAULT_TARGET_PLACEMENTS,
+    force: bool = False,
+) -> dict[str, Any]:
+    checkpoint_path = Path(checkpoint).resolve()
+    work_path = (
+        Path(work_dir).resolve()
+        if work_dir is not None
+        else checkpoint_path.with_name(
+            checkpoint_path.name + DEFAULT_WORK_SUFFIX
+        )
+    )
+    output_path = (
+        Path(output).resolve()
+        if output is not None
+        else checkpoint_path.with_name(
+            checkpoint_path.name + DEFAULT_MIGRATED_SUFFIX
+        )
+    )
+    if output_path.exists() and any(output_path.iterdir()) and not force:
+        raise DcpError(f"output DCP directory is not empty: {output_path}")
+    spec = inspect_dcp(
+        checkpoint_path,
+        work_path,
+        source_mesh_shape=source_mesh_shape,
+        source_placements=source_placements,
+        target_world_size=target_world_size,
+        target_mesh_shape=target_mesh_shape,
+        target_placements=target_placements,
+    )
+    plan_payload = build_plan(spec)
+    report = execute_plan(plan_payload, spec)
+    (work_path / "plan.json").write_text(
+        json.dumps(plan_payload, indent=2),
+        encoding="utf-8",
+    )
+    (work_path / "report.json").write_text(
+        json.dumps(report, indent=2),
+        encoding="utf-8",
+    )
+    export_dcp(spec, output_path, force=force)
+    return {
+        "spec": spec,
+        "plan": plan_payload,
+        "report": report,
+        "output": str(output_path),
+        "work_dir": str(work_path),
+    }
+
+
+def _mesh_payload(
+    shape: tuple[int, ...],
+    placements: tuple[str, ...],
+) -> dict[str, Any]:
+    from math import prod
+
+    return {
+        "shape": list(shape),
+        "world_size": prod(shape),
+        "placements": list(placements),
+    }
+
+
+def _sha256(data: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha256(data).hexdigest()
