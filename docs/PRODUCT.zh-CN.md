@@ -62,6 +62,24 @@ shardferryctl migrate -f migration.yaml --dry-run
 shardferryctl migrate -f migration.yaml --wait
 ```
 
+### live-rank-split（实验入口）
+
+同一个 `CheckpointMigration` 增加 `spec.mode: live-rank-split`，由外部
+LRS 执行器在稳定 step 边界做 per-rank handoff。Go controller 负责校验、
+quorum/coverage、fencing 门禁、target-ready 和状态；不把 LRS 内部 journal
+塞进 CR。
+
+```bash
+shardferryctl plan -f examples/live-rank-split/migration.yaml
+shardferryctl migrate -f examples/live-rank-split/migration.yaml --wait
+shardferryctl describe migration live-rank-split-demo --ranks
+```
+
+该入口要求 controller 配置 `--live-url`（Helm:
+`controller.liveURL`）。没有执行器时 live CR 失败关闭；不会退回静态全量
+停机路径。协议与边界见
+[Live Rank Split Go 产品面](LIVE-RANK-SPLIT-GO.zh-CN.md)。
+
 ## 3. 输出契约
 
 - 默认输出人类可读摘要到 stdout；

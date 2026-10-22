@@ -700,6 +700,20 @@ func (r *Reconciler) finishTargetReady(
 			target.Ranks = targetReadyRankStatuses(evaluation.Reports)
 			current.Status.Phase = phase
 			current.Status.CompletedAt = now
+			if current.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit {
+				if current.Status.Live == nil {
+					current.Status.Live = &shardferryv1.LiveRankSplitStatus{}
+				}
+				if ready {
+					current.Status.Live.CutoverPhase = "succeeded"
+				} else {
+					current.Status.Live.CutoverPhase = "failed"
+				}
+				if current.Status.Live.Message == "" {
+					current.Status.Live.Message = message
+				}
+				current.Status.Live.CompletedAt = now
+			}
 			conditionStatus := metav1.ConditionFalse
 			if ready {
 				conditionStatus = metav1.ConditionTrue

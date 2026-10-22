@@ -289,6 +289,7 @@ type LiveRankSplitStatus struct {
 	StateRoot     string           `json:"stateRoot,omitempty"`
 	ProofRef      string           `json:"proofRef,omitempty"`
 	Message       string           `json:"message,omitempty"`
+	CompletedAt   string           `json:"completedAt,omitempty"`
 	Ranks         []LiveRankStatus `json:"ranks,omitempty"`
 }
 

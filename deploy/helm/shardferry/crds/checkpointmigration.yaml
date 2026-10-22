@@ -486,6 +486,8 @@ spec:
               live:
                 description: LiveRankSplitStatus is the observed live rank split state.
                 properties:
+                  completedAt:
+                    type: string
                   coverage:
                     items:
                       format: int32

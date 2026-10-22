@@ -195,6 +195,9 @@ func (r *Reconciler) persistLiveRankSplitObservation(
 				if latest.Status.CompletedAt == "" {
 					latest.Status.CompletedAt = time.Now().UTC().Format(time.RFC3339)
 				}
+				if latest.Status.Live.CompletedAt == "" {
+					latest.Status.Live.CompletedAt = latest.Status.CompletedAt
+				}
 			}
 			meta.SetStatusCondition(&latest.Status.Conditions, metav1.Condition{
 				Type:               "LiveReady",

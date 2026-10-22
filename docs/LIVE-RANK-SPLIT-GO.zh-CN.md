@@ -43,6 +43,11 @@ shardferryctl describe migration live-rank-split-demo --ranks
 Live: phase=following inFlight=[2] coverage=[0 1 2 3] quorum=3 stateComplete=false
 ```
 
+如果使用 L4，target validation Job 必须能访问 `live.stateRoot` 指向的
+rank-local state bundle；示例挂载了 `/state`。Go controller 会向 Job 注入
+`SHARDFERRY_STATE_TEMPLATE`、`SHARDFERRY_STATE_PROVIDERS` 和
+`SHARDFERRY_REQUIRE_STATE=1`。
+
 ## 2. 控制器配置
 
 Controller 新增一个可选外部执行器：

@@ -78,10 +78,16 @@ spec:
                   volumeMounts:
                     - name: target-local
                       mountPath: /targets
+                    - name: live-state
+                      mountPath: /state
               volumes:
                 - name: target-local
                   hostPath:
                     path: /var/lib/shardferry/target
+                    type: Directory
+                - name: live-state
+                  hostPath:
+                    path: /var/lib/shardferry/live-state
                     type: Directory
   live:
     maxInFlight: 1

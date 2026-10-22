@@ -434,18 +434,21 @@ func TestFinishTargetReadyEnforcesL4StateClosure(t *testing.T) {
 		stateComplete bool
 		wantPhase     string
 		wantCondition string
+		wantLivePhase string
 	}{
 		{
 			name:          "incomplete state fails closed",
 			stateComplete: false,
 			wantPhase:     shardferryv1.MigrationPhaseTargetFailed,
 			wantCondition: "StateIncomplete",
+			wantLivePhase: "failed",
 		},
 		{
 			name:          "complete state succeeds",
 			stateComplete: true,
 			wantPhase:     shardferryv1.MigrationPhaseSucceeded,
 			wantCondition: "Ready",
+			wantLivePhase: "succeeded",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -481,6 +484,11 @@ func TestFinishTargetReadyEnforcesL4StateClosure(t *testing.T) {
 			if got.Status.TargetReady == nil ||
 				got.Status.TargetReady.Condition != test.wantCondition {
 				t.Fatalf("targetReady = %+v", got.Status.TargetReady)
+			}
+			if got.Status.Live == nil ||
+				got.Status.Live.CutoverPhase != test.wantLivePhase ||
+				got.Status.Live.CompletedAt == "" {
+				t.Fatalf("live = %+v", got.Status.Live)
 			}
 		})
 	}
