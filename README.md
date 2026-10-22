@@ -35,6 +35,10 @@ global remote checkpoint.
 
 Apache-2.0. See [`LICENSE`](LICENSE).
 
+Contributions use the workflow in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Report security-sensitive issues through GitHub's private vulnerability
+reporting; see [`SECURITY.md`](SECURITY.md).
+
 ## Physical A/B quick path
 
 The local demo and the cross-machine test are intentionally separate:

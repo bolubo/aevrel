@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a reproducible correctness or runtime problem
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include tokens, private keys, checkpoints, or customer data.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the command, expected result, and actual result.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python/Go/PyTorch versions, storage type, and relevant deployment mode.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs / report
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets and checkpoint contents from this report.
+          required: true
