@@ -37,8 +37,11 @@ helm upgrade --install shardferry deploy/helm/shardferry \
   --set target.checkpointHostPath=/data/shardferry/target
 ```
 
-source agent 使用 9443，target agent 使用 9444，可以同节点共存。source 的
-`metadataHostPath` 必须在所有 source 节点可见；target 数据写入 `/targets`。
+source agent 使用 9443，target agent 使用 9444，可以同节点共存。只有
+`metadataOwnerRank` 对应的 source 节点需要看到 `.metadata`；controller 会
+把这份小文件分发给没有共享目录的 peer agents。若所有 source 节点本来就挂载
+同一个 metadata 路径，也可以继续使用 `metadataHostPath`。target 数据写入
+`/targets`。
 
 用户入口：
 

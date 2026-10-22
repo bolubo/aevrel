@@ -2,8 +2,11 @@ package agentclient
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -86,6 +89,60 @@ func TestInventoryUsesBearerTokenAndDecodesContract(t *testing.T) {
 		inventory.Chunks[0].Checksum == "" ||
 		inventory.Chunks[0].ID == "" {
 		t.Fatalf("contract decode failed: %+v", inventory)
+	}
+}
+
+func TestMetadataTransferUsesBearerTokenAndDigest(t *testing.T) {
+	const metadata = "small-dcp-metadata"
+	sum := sha256.Sum256([]byte(metadata))
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	var installed []byte
+	server := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer secret" {
+			t.Errorf("authorization = %q", got)
+			http.Error(w, "bad auth", http.StatusUnauthorized)
+			return
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/metadata":
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("X-Metadata-SHA256", digest)
+			_, _ = w.Write([]byte(metadata))
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/metadata":
+			data, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			installed = data
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(
+				`{"ok":true,"metadata_hash":"` + digest + `","bytes":18}`,
+			))
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected request", http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+
+	client := New("secret")
+	data, gotDigest, err := client.Metadata(context.Background(), server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != metadata || gotDigest != digest {
+		t.Fatalf("metadata = %q digest=%q", data, gotDigest)
+	}
+	installedDigest, err := client.PutMetadata(context.Background(), server.URL, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installedDigest != digest || string(installed) != metadata {
+		t.Fatalf(
+			"installed digest=%q bytes=%q",
+			installedDigest,
+			installed,
+		)
 	}
 }
 

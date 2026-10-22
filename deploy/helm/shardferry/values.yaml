@@ -74,6 +74,8 @@ source:
   tolerations: []
   affinity: {}
   checkpointHostPath: /var/lib/shardferry/source
+  # Required on metadataOwnerRank. Other peers can receive the small
+  # .metadata file through the agent metadata-transfer API.
   metadataHostPath: /var/lib/shardferry/metadata
   stateHostPath: /var/lib/shardferry/source-state
   port: 9443

@@ -258,10 +258,14 @@ def local_dcp_ranks(
     checkpoint: str | Path,
     *,
     metadata_dir: str | Path | None = None,
+    allow_missing_metadata: bool = False,
 ) -> list[int]:
     """Return ranks whose DCP storage files exist under this checkpoint root."""
     checkpoint_path = Path(checkpoint).resolve()
-    metadata = read_dcp_metadata(metadata_dir or checkpoint_path)
+    metadata_path = Path(metadata_dir or checkpoint_path).resolve()
+    if allow_missing_metadata and not (metadata_path / ".metadata").is_file():
+        return _local_dcp_ranks_from_files(checkpoint_path)
+    metadata = read_dcp_metadata(metadata_path)
     ranks: set[int] = set()
     for info in (metadata.storage_data or {}).values():
         relative = getattr(info, "relative_path", "")
@@ -273,6 +277,21 @@ def local_dcp_ranks(
             ranks.add(_rank_from_path(relative))
         except DcpError:
             continue
+    if not ranks:
+        raise DcpError(
+            f"no local DCP rank files found under {checkpoint_path}"
+        )
+    return sorted(ranks)
+
+
+def _local_dcp_ranks_from_files(checkpoint: str | Path) -> list[int]:
+    """Best-effort rank discovery before the metadata owner is available."""
+    checkpoint_path = Path(checkpoint).resolve()
+    ranks: set[int] = set()
+    for path in checkpoint_path.rglob("*.distcp"):
+        match = re.match(r"__(\d+)_", path.name)
+        if match:
+            ranks.add(int(match.group(1)))
     if not ranks:
         raise DcpError(
             f"no local DCP rank files found under {checkpoint_path}"

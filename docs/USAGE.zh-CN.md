@@ -171,7 +171,8 @@ node-127:/local/ckpt/job42/...
 1. 构建并推送 controller/agent 镜像；
 2. 创建 agent token Secret；
 3. 用 Helm 在同一批节点启用 source/target agent；
-4. 把 source 的 `.metadata` 放在所有 source 节点都能看到的独立路径；
+4. 让 `metadataOwnerRank` 对应的 source 节点能看到 `.metadata`；controller 会
+   把这份小文件分发给其他 source agents，不需要共享 checkpoint 目录；
 5. target 节点提供 `/targets` hostPath。
 
 示意：
@@ -200,6 +201,7 @@ metadata:
   name: job42-128-to-64
 spec:
   source:
+    metadataOwnerRank: 0
     worldSize: 128
     checkpointRoot: /checkpoints
     agentSelector:
@@ -258,7 +260,7 @@ local-disk 场景把所有 rank 汇总到一台机器。完整目标任务的 `l
 ### 还没验证的部分
 
 - 真实 128 节点、1GB/10GB 数据面的 selector 端到端；
-- metadata 共享路径的部署自动化；
+- 真实 128 节点上的 metadata transfer 端到端；
 - 多租户 selector 隔离；
 - 镜像仍需自行构建/推送，Python 也还没有公开发布 wheel。
 
@@ -350,6 +352,7 @@ local-disk target 每个 rank 只持有自己的分片时，加 `--dcp-rank N`�
 按“一个人处理真实 128 卡 local-disk 集群”看：
 
 - selector、rank 发现、rankMap 自动生成和 `shardferryctl migrate --wait` 已补齐；
-- Dockerfile/Helm 入口已补齐，但公开发布镜像、metadata 分布自动化和真实多节点验收
-  仍未完成；
+- Dockerfile/Helm 入口已补齐；metadata 可由 `metadataOwnerRank` 通过
+  source-agent metadata transfer 分发，不再要求所有 source 节点共享目录；
+  公开发布镜像和真实多节点验收仍未完成；
 - 因此现在可以给内部平台用户试用，还不能宣称生产级完成。

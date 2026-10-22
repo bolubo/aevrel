@@ -120,6 +120,10 @@
 
 三个功能共享 `CheckpointState + MobilityPlan + Transaction + Proof` 内核。
 
+当前分支状态：Feature 2 的本地 DCP 跨 mesh 数据面、metadata-owner 分发和
+CPU/CLI 回归已完成；真实 4×L20 与 128 节点 selector 验收仍待执行。
+Feature 1/3 不在这个分支内。
+
 ### 0.2 必须交付
 
 - Kueue `PreemptionConfig` 可消费 checkpoint freshness/cost；

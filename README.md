@@ -35,6 +35,8 @@ on 64 ranks. shardferry:
 
 - discovers source and target ranks instead of requiring 128 hand-written
   mappings;
+- transfers the small DCP metadata from one owner rank to peer source agents,
+  so source nodes do not need a shared checkpoint directory;
 - reads tensor ranges directly from `.distcp` files;
 - reshards across target world sizes and DeviceMeshes;
 - resumes after interrupted transfers;

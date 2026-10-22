@@ -15,11 +15,15 @@ from tests.fixtures.generated import (
 )
 
 
-def _source_dcp(tmp_path: Path) -> Path:
+def _source_dcp(
+    tmp_path: Path,
+    source_shape: tuple[int, ...] = (4,),
+    source_placements: tuple[str, ...] = ("Shard(0)",),
+) -> Path:
     spec, arrays, _ = generate_sharded_spec(
         (8, 4),
-        (4,),
-        ("Shard(0)",),
+        source_shape,
+        source_placements,
         (4,),
         ("Shard(0)",),
     )
@@ -65,6 +69,48 @@ def test_migrate_cli_4to3_json(tmp_path, capsys) -> None:
     assert (work / "plan.json").is_file()
     assert (work / "report.json").is_file()
     assert not (work / "source").exists()
+
+
+def test_migrate_cli_2d_mesh_to_1d_target(tmp_path, capsys) -> None:
+    pytest.importorskip("torch")
+    source = _source_dcp(
+        tmp_path,
+        source_shape=(2, 2),
+        source_placements=("Shard(0)", "Shard(1)"),
+    )
+    output = tmp_path / "target.dcp"
+    work = tmp_path / "work"
+
+    result = main(
+        [
+            "migrate",
+            "--checkpoint",
+            str(source),
+            "--source-mesh-shape",
+            "2,2",
+            "--source-placements",
+            "Shard(0),Shard(1)",
+            "--target-world",
+            "3",
+            "--target-mesh-shape",
+            "3",
+            "--target-placements",
+            "Shard(0)",
+            "--output",
+            str(output),
+            "--work-dir",
+            str(work),
+            "--json",
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "success"
+    assert payload["topology"]["source_mesh_shape"] == [2, 2]
+    assert payload["topology"]["target_mesh_shape"] == [3]
+    assert payload["verification"]["passed"] is True
+    assert len(list(output.glob("*.distcp"))) == 3
 
 
 def test_doctor_cli_checks_real_dcp(tmp_path, capsys) -> None:

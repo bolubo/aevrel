@@ -4,6 +4,7 @@ metadata:
   name: job42-128-to-64
 spec:
   source:
+    metadataOwnerRank: 0
     worldSize: 128
     checkpointRoot: /checkpoints
     agentSelector:
