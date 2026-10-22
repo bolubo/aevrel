@@ -97,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target-root", required=False)
     parser.add_argument("--dcp-checkpoint", required=False)
     parser.add_argument("--dcp-metadata", required=False)
+    parser.add_argument("--dcp-rank", type=int, required=False)
     parser.add_argument("--version-id", required=True)
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--poll-interval", type=float, default=0.1)
@@ -104,16 +105,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.target_root and not args.dcp_checkpoint:
         parser.error("one of --target-root or --dcp-checkpoint is required")
+    if args.dcp_rank is not None and not args.dcp_checkpoint:
+        parser.error("--dcp-rank requires --dcp-checkpoint")
     try:
         if args.dcp_checkpoint:
             DcpTargetReady(
                 args.dcp_checkpoint,
                 metadata_dir=args.dcp_metadata or None,
+                rank=args.dcp_rank,
             )(args.version_id)
             result = {
                 "version_id": args.version_id,
-                "mode": "dcp-load",
+                "mode": (
+                    "dcp-rank-load"
+                    if args.dcp_rank is not None
+                    else "dcp-load"
+                ),
                 "checkpoint": str(Path(args.dcp_checkpoint).resolve()),
+                "rank": args.dcp_rank,
             }
         else:
             result = wait_for_target(
@@ -128,8 +137,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
-        if result.get("mode") == "dcp-load":
-            print(f"target ready: {result['version_id']} (DCP load)")
+        if result.get("mode") in {"dcp-load", "dcp-rank-load"}:
+            suffix = (
+                f" rank {result['rank']}"
+                if result.get("rank") is not None
+                else ""
+            )
+            print(
+                f"target ready: {result['version_id']} "
+                f"(DCP load{suffix})"
+            )
         else:
             print(
                 f"target ready: {result['version_id']} "

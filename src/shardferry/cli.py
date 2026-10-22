@@ -202,6 +202,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     cutover.add_argument("--target-ready-dcp-checkpoint", default="")
     cutover.add_argument("--target-ready-dcp-metadata", default="")
+    cutover.add_argument("--target-ready-dcp-rank", type=int, default=None)
     cutover.add_argument(
         "--target-ready-token",
         default=os.environ.get("SHARDFERRY_TARGET_READY_TOKEN", ""),
@@ -628,6 +629,7 @@ def main(argv: list[str] | None = None) -> int:
                     DcpTargetReady(
                         args.target_ready_dcp_checkpoint,
                         metadata_dir=args.target_ready_dcp_metadata or None,
+                        rank=args.target_ready_dcp_rank,
                     )
                 )
             if args.target_ready_url:
