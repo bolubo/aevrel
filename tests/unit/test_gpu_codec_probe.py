@@ -67,3 +67,35 @@ def test_gpu_codec_probe_reports_missing_nvcomp_cleanly() -> None:
         return
     assert result.returncode == 2
     assert "nvcomp" in result.stderr.lower() or "cuda" in result.stderr.lower()
+
+
+def test_gpu_codec_probe_adaptive_mode_reports_range_decisions() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "gpu_codec_probe.py"),
+            "--codec",
+            "zlib",
+            "--pattern",
+            "repeat",
+            "--size",
+            str(1024 * 1024),
+            "--range-bytes",
+            str(256 * 1024),
+            "--max-ranges",
+            "4",
+            "--network-gbps",
+            "0.01",
+            "--adaptive",
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["adaptive"]["enabled_ranges"] == 4
+    assert report["adaptive"]["skipped_ranges"] == 0
+    assert report["roundtrip_ok"] is True

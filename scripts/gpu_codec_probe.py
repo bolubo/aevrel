@@ -21,6 +21,7 @@ from shardferry.gpu_codec import (  # noqa: E402
     make_codec,
     nvcomp_status,
 )
+from shardferry.gpu_adaptive import AdaptiveRangeCodec  # noqa: E402
 from shardferry.gpu_policy import decide_codec  # noqa: E402
 
 
@@ -93,6 +94,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default="zlib",
     )
     parser.add_argument("--network-gbps", type=float, default=10.0)
+    parser.add_argument("--adaptive", action="store_true")
     parser.add_argument("--json", action="store_true", dest="json_output")
     return parser
 
@@ -144,7 +146,38 @@ def _run(args) -> dict:
     if not chunks:
         raise ValueError("no input ranges found")
 
-    codecs = {codec.name: codec}
+    codecs = {codec.name: codec, "identity": make_codec("identity")}
+    adaptive_codec = None
+    if args.adaptive:
+        warm = codec.encode(b"adaptive-warmup" * 1024)
+        codec.decode(warm)
+        calibration = next(
+            (chunk for chunk in chunks if len(chunk) >= 1024 * 1024),
+            chunks[0],
+        )
+        started = time.perf_counter()
+        encoded = codec.encode(calibration)
+        encode_seconds = time.perf_counter() - started
+        started = time.perf_counter()
+        decoded = codec.decode(encoded)
+        decode_seconds = time.perf_counter() - started
+        if decoded != calibration:
+            raise CodecError("codec calibration round-trip failed")
+        adaptive_codec = AdaptiveRangeCodec(
+            codec,
+            network_gbps=args.network_gbps,
+            min_bytes=min(args.range_bytes, 1024 * 1024),
+            compress_mib_s=(
+                len(calibration) / (1024**2) / encode_seconds
+                if encode_seconds > 0
+                else None
+            ),
+            decompress_mib_s=(
+                len(calibration) / (1024**2) / decode_seconds
+                if decode_seconds > 0
+                else None
+            ),
+        )
     if hasattr(codec, "synchronize"):
         codec.synchronize()
     warmup = encode_frame(codec, chunks[0])
@@ -157,14 +190,28 @@ def _run(args) -> dict:
     compress_seconds = 0.0
     decompress_seconds = 0.0
     roundtrip_ok = True
+    adaptive_enabled = 0
+    adaptive_skipped = 0
+    adaptive_decisions = []
     for chunk in chunks:
-        if hasattr(codec, "synchronize"):
-            codec.synchronize()
-        started = time.perf_counter()
-        frame = encode_frame(codec, chunk)
-        if hasattr(codec, "synchronize"):
-            codec.synchronize()
-        compress_seconds += time.perf_counter() - started
+        if adaptive_codec is not None:
+            started = time.perf_counter()
+            adaptive_result = adaptive_codec.encode(chunk)
+            compress_seconds += time.perf_counter() - started
+            frame = adaptive_result.frame
+            adaptive_decisions.append(adaptive_result.decision.to_dict())
+            if adaptive_result.compressed:
+                adaptive_enabled += 1
+            else:
+                adaptive_skipped += 1
+        else:
+            if hasattr(codec, "synchronize"):
+                codec.synchronize()
+            started = time.perf_counter()
+            frame = encode_frame(codec, chunk)
+            if hasattr(codec, "synchronize"):
+                codec.synchronize()
+            compress_seconds += time.perf_counter() - started
 
         started = time.perf_counter()
         decoded = decode_frame(frame, codecs)
@@ -216,6 +263,15 @@ def _run(args) -> dict:
             else None
         ),
         "roundtrip_ok": roundtrip_ok,
+        "adaptive": (
+            {
+                "enabled_ranges": adaptive_enabled,
+                "skipped_ranges": adaptive_skipped,
+                "decisions": adaptive_decisions,
+            }
+            if adaptive_codec is not None
+            else None
+        ),
         "network": {
             "gbps": args.network_gbps,
             "raw_transfer_seconds": raw_transfer_seconds,

@@ -23,6 +23,9 @@
   支持真实文件/目录或 zero/repeat/random/sparse 模式。
 - `src/shardferry/gpu_policy.py`：只有在网络带宽已知、压缩比和端到端
   预计收益同时过线时才启用 codec；未知网络默认关闭。
+- `src/shardferry/gpu_adaptive.py`：从 range 的 head/middle/tail 采样，
+  用采样压缩时间和校准吞吐估算完整 range 收益；不满足相对收益门槛就走
+  identity。
 - `nvidia-nvcomp-cu12>=6.0.0.12` 作为 optional `gpu` 依赖；基础安装不变。
 
 ## 使用
@@ -64,6 +67,22 @@ RTX 5070 Ti Laptop 12GB，32 个 4MiB range：
 
 因此 **GPU 压缩不能作为默认路径**。它只适合已知慢 WAN + 可压 checkpoint；
 随机权重 checkpoint 走 identity，避免为了“用了 GPU”制造负优化。
+
+### 自适应 range 采样
+
+`--adaptive` 会先采样再决定每个 range：
+
+- 默认采样 1MiB，取 head/middle/tail；
+- range 小于 1MiB 不压；
+- 用一次同尺寸 calibration 得到 codec 吞吐，避免小样本的 CUDA/PCIe 固定
+  开销被线性放大；
+- per-range 门槛是 `max(绝对门槛, raw transfer * 10%)`，不是固定 50ms。
+
+本机 RTX 5070 Ti 的验证结果：
+
+- 4MiB range / 1Gbps：可压 range 也全部跳过；采样和 GPU 固定开销不划算。
+- 8MiB range / 100Mbps：可压 fixture 8 个中启用 3 个；随机 DCP 8 个中启用 0 个。
+- 首次 `.metadata` 小 range 全部走 identity。
 
 ## 后续接入（未做）
 
