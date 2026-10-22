@@ -235,6 +235,11 @@ CAS chunk 和 shadow；报告新增 `target_probe=true`、`target_ready_seconds`
 
 这证明 target probe 已进入可重复 benchmark，而不是只存在于单测。
 
+`--target-dcp-rank N` 会启动一个 warm target-job 子进程，触发该 rank 的
+local DCP load，再通过 `/readyz` 等待完成。4MB 本地试跑的 target-ready
+约 `0.514s`，其中包含 WSL 本机 HTTP/进程调度开销；当前它是诊断路径，
+不能直接把 128MiB/1GiB 的 P1 阈值套上去。更大规模需要物理 target job。
+
 1GiB x 3、128→64、file-level 的同口径验收：
 
 - full CDP wall `21.92s`

@@ -549,6 +549,11 @@ Gate:
   `cutover-incomplete`.
 - Added per-endpoint adaptive rate buckets: one throttled source no longer
   lowers the rate for unrelated source agents.
+- Layout compiler now uses an exact axis-filtered `_SourceIndex` for target
+  overlap candidates, caches the plan schema validator, and avoids validating
+  the same spec twice inside `plan()`.
+- Added `scripts/planner_benchmark.py`; 1024→512 planning is about `0.27s`
+  best-of-3, with 1024 nodes and 1024 coalesced range reads.
 - Direct target proof smoke passed: rank proof generated, combined proof root
   produced. Physical kind/e2e is not available in this environment.
 
@@ -565,3 +570,22 @@ Gate:
   regression verifies no global tensor allocation.
 - Gate: Python `265 passed / 2 skipped`; Go tests/vet/build and Helm
   lint/template pass.
+
+## 2026-10-22 / Zero-materialization migration path
+
+- `shardferry migrate` now builds source shards from DCP descriptors and reads
+  tensor ranges directly from `.distcp` ZIPs; no raw source extraction into the
+  work directory.
+- Added the `dcpzip` storage adapter and local range-spec builder.
+- Product `migrate` work space now contains target staging/output plus
+  plan/report, not a second raw source copy.
+
+## 2026-10-22 / Warm target job DCP probe
+
+- Added `scripts/target_job_probe.py`: a persistent target job loads only its
+  local rank DCP when a version control file changes, then serves `/readyz`.
+- Added benchmark `--target-dcp-rank N`; export and torch load run in
+  subprocesses so parent RSS does not include target runtime memory.
+- 4MB local diagnostic: cutover `paused_seconds=0.524`, target-ready `0.514`;
+  WSL HTTP/process overhead dominates. Treat this as a diagnostic until a
+  physical target job is available, not as a P1 target-load claim.

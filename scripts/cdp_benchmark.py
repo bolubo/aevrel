@@ -5,6 +5,8 @@ import hashlib
 import json
 import random
 import resource
+import socket
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -21,10 +23,23 @@ from shardferry.cutover import CutoverPolicy, CutoverSession
 from shardferry.planner import plan
 from shardferry.policy import AdaptiveChunkingPolicy
 from shardferry.target_layout import DirectIncrementalApplyFileProvider
-from shardferry.target_ready import CommandTargetReady
+from shardferry.target_ready import (
+    CommandTargetReady,
+    HttpTargetReady,
+    TargetReadyChain,
+)
 
 
 MiB = 1024 * 1024
+
+
+def local_ip() -> str:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("1.1.1.1", 80))
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
 
 
 def zero_checksum(size: int) -> str:
@@ -150,6 +165,12 @@ def main(argv: list[str] | None = None) -> dict:
         "--no-target-probe",
         action="store_true",
         help="do not run the promoted target checkpoint readiness probe",
+    )
+    parser.add_argument(
+        "--target-dcp-rank",
+        type=int,
+        default=None,
+        help="also load this target rank's local DCP as a readiness check",
     )
     parser.add_argument(
         "--assert-p1",
@@ -292,38 +313,131 @@ def main(argv: list[str] | None = None) -> dict:
 
     cutover = None
     if args.mode == "cdp" and not args.skip_cutover:
-        target_ready = None
+        target_job = None
+        checks = []
         if not args.no_target_probe:
-            target_ready = CommandTargetReady(
+            checks.append(
+                CommandTargetReady(
+                    [
+                        sys.executable,
+                        "-m",
+                        "shardferry.target_probe",
+                        "--target-root",
+                        str(target.root),
+                        "--version-id",
+                        "{version_id}",
+                        "--timeout",
+                        "30",
+                    ]
+                )
+            )
+        if args.target_dcp_rank is not None:
+            rank = args.target_dcp_rank
+            spec, _plan = registry[previous_id or "step-1000"]
+            local_dcp = root / f"target-dcp-rank{rank}"
+            shadow = target.shadow / (previous_id or "step-1000")
+            spec_path = root / f"target-spec-{previous_id or 'step-1000'}.json"
+            spec_path.write_text(
+                json.dumps(spec, sort_keys=True),
+                encoding="utf-8",
+            )
+            subprocess.run(
                 [
                     sys.executable,
-                    "-m",
-                    "shardferry.target_probe",
-                    "--target-root",
-                    str(target.root),
-                    "--version-id",
+                    str(Path(__file__).with_name("export_dcp_local.py")),
+                    "--spec",
+                    str(spec_path),
+                    "--output",
+                    str(local_dcp),
+                    "--raw-root",
+                    str(shadow),
+                    "--rank",
+                    str(rank),
+                ],
+                check=True,
+            )
+            control_file = root / f"target-job-rank{rank}.version"
+            target_job = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-u",
+                    str(Path(__file__).with_name("target_job_probe.py")),
+                    "--checkpoint",
+                    str(local_dcp),
+                    "--rank",
+                    str(rank),
+                    "--control-file",
+                    str(control_file),
+                    "--listen",
+                    "0.0.0.0:0",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            listening = target_job.stdout.readline().strip()
+            if "listening on" not in listening:
+                raise RuntimeError(
+                    f"target job startup failed: {listening}; "
+                    f"{target_job.stderr.read()}"
+                )
+            port = int(listening.rsplit(":", 1)[1])
+            trigger = CommandTargetReady(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from pathlib import Path; "
+                        "import sys; Path(sys.argv[1]).write_text(sys.argv[2])"
+                    ),
+                    str(control_file),
                     "{version_id}",
-                    "--timeout",
-                    "30",
                 ]
             )
-        session = CutoverSession(
-            versions_root,
-            target,
-            policy=CutoverPolicy(max_pause_seconds=120, max_lag_versions=10),
-            chunking=chunking,
-            target_ready=target_ready,
-        )
-        cutover_started = time.perf_counter()
-        result = session.cutover(previous_id or "step-1000")
-        cutover = {
-            "state": result.state,
-            "version_id": result.version_id,
-            "paused_seconds": result.paused_seconds,
-            "target_ready_seconds": result.target_ready_seconds,
-            "rto_seconds": result.paused_seconds,
-            "wall_seconds": time.perf_counter() - cutover_started,
-        }
+            checks.append(
+                TargetReadyChain(
+                    trigger,
+                    HttpTargetReady(
+                        f"http://{local_ip()}:{port}/readyz?version="
+                        "{version_id}",
+                        timeout=30,
+                        interval=0.02,
+                    ),
+                )
+            )
+        if len(checks) == 1:
+            target_ready = checks[0]
+        elif checks:
+            target_ready = TargetReadyChain(*checks)
+        else:
+            target_ready = None
+        try:
+            session = CutoverSession(
+                versions_root,
+                target,
+                policy=CutoverPolicy(max_pause_seconds=120, max_lag_versions=10),
+                chunking=chunking,
+                target_ready=target_ready,
+            )
+            cutover_started = time.perf_counter()
+            result = session.cutover(previous_id or "step-1000")
+            cutover = {
+                "state": result.state,
+                "version_id": result.version_id,
+                "paused_seconds": result.paused_seconds,
+                "target_ready_seconds": result.target_ready_seconds,
+                "rto_seconds": result.paused_seconds,
+                "wall_seconds": time.perf_counter() - cutover_started,
+            }
+        finally:
+            if target_job is not None:
+                target_job.terminate()
+                try:
+                    target_job.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    target_job.kill()
+                    target_job.wait(timeout=5)
 
     rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     report = {
@@ -334,6 +448,7 @@ def main(argv: list[str] | None = None) -> dict:
         "source_world": args.source_world,
         "target_world": args.target_world,
         "target_probe": not args.no_target_probe,
+        "target_dcp_rank": args.target_dcp_rank,
         "versions": rows,
         "cutover": cutover,
         "wall_seconds": time.perf_counter() - started_all,
