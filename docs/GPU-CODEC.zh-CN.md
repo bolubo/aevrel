@@ -101,6 +101,13 @@ RTX 5070 Ti Laptop 12GB，32 个 4MiB range：
 - 随机高熵数据：ratio `1.000`，identity，投影收益 `-0.131s`。
 - 硬件吞吐不同，但启用/禁用边界与本地一致。
 
+本地完整 `apply` 闭环（4-rank 128MB DCP → 3-rank target，batch HTTP）：
+
+- 随机 DCP：off `0.436s`，`nvcomp-gdeflate` `1.316s`，均 verify 成功。
+- 零值可压 DCP：off `0.481s`，`nvcomp-gdeflate` `1.226s`，均 verify 成功。
+- 本地 loopback 没有 WAN 延迟，GPU 压缩的固定开销占主导，因此不能默认开启；
+  当前只保留显式 `gpuCodec` opt-in，真实 WAN 收益再用部署侧网络测量决定。
+
 `gpu_codec_probe.py --adaptive --batch-ranges N` 可复现；接入路径默认关闭。
 
 ## 接入现状
