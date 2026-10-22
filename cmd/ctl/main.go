@@ -10,12 +10,14 @@ import (
 	"text/tabwriter"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	"github.com/shardferry/shardferry/internal/clusterclient"
 )
 
 func main() {
@@ -90,7 +92,9 @@ func printUsage(out io.Writer) {
 	fmt.Fprintln(out, "usage: shardferryctl migrate -f FILE [--wait|--dry-run]")
 	fmt.Fprintln(out, "       shardferryctl preflight -f FILE")
 	fmt.Fprintln(out, "       shardferryctl get migrations|migration NAME")
+	fmt.Fprintln(out, "       shardferryctl get clusters|cluster NAME")
 	fmt.Fprintln(out, "       shardferryctl describe migration NAME")
+	fmt.Fprintln(out, "       shardferryctl describe cluster NAME")
 	fmt.Fprintln(out, "       shardferryctl cancel|retry migration NAME")
 	fmt.Fprintln(out, "global: -n/--namespace NAMESPACE, --json")
 }
@@ -133,7 +137,7 @@ func executeGet(
 	out io.Writer,
 ) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: shardferryctl get migrations|migration NAME")
+		return fmt.Errorf("usage: shardferryctl get migrations|migration NAME|clusters|cluster NAME")
 	}
 	switch args[0] {
 	case "migrations":
@@ -164,6 +168,13 @@ func executeGet(
 			return writeJSON(out, migration)
 		}
 		return writeTable(out, []shardferryv1.CheckpointMigration{*migration})
+	case "clusters":
+		return executeGetClusters(ctx, kubeClient, namespace, jsonOut, out)
+	case "cluster":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: shardferryctl get cluster NAME")
+		}
+		return executeGetCluster(ctx, kubeClient, namespace, args[1], jsonOut, out)
 	default:
 		return fmt.Errorf("unknown resource: %s", args[0])
 	}
@@ -177,17 +188,227 @@ func executeDescribe(
 	args []string,
 	out io.Writer,
 ) error {
-	if len(args) < 2 || args[0] != "migration" {
-		return fmt.Errorf("usage: shardferryctl describe migration NAME")
+	showRanks := false
+	positional := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == "--ranks" {
+			showRanks = true
+			continue
+		}
+		positional = append(positional, arg)
 	}
-	migration, err := getMigration(ctx, kubeClient, namespace, args[1])
+	if len(positional) < 2 {
+		return fmt.Errorf("usage: shardferryctl describe migration|cluster NAME [--ranks]")
+	}
+	if positional[0] == "cluster" {
+		return executeDescribeCluster(ctx, kubeClient, namespace, positional[1], jsonOut, out)
+	}
+	if positional[0] != "migration" {
+		return fmt.Errorf("usage: shardferryctl describe migration|cluster NAME [--ranks]")
+	}
+	migration, err := getMigration(ctx, kubeClient, namespace, positional[1])
 	if err != nil {
 		return err
 	}
 	if jsonOut {
 		return writeJSON(out, migration)
 	}
-	return writeDescribe(out, migration)
+	return writeDescribe(out, migration, showRanks)
+}
+
+func executeGetClusters(
+	ctx context.Context,
+	kubeClient client.Client,
+	namespace string,
+	jsonOut bool,
+	out io.Writer,
+) error {
+	var list shardferryv1.ShardferryClusterList
+	if err := kubeClient.List(ctx, &list, client.InNamespace(namespace)); err != nil {
+		return err
+	}
+	sort.Slice(list.Items, func(i, j int) bool {
+		return list.Items[i].Name < list.Items[j].Name
+	})
+	views := make([]clusterView, 0, len(list.Items))
+	for index := range list.Items {
+		views = append(views, inspectCluster(ctx, kubeClient, &list.Items[index]))
+	}
+	if jsonOut {
+		return writeJSON(out, views)
+	}
+	return writeClusterTable(out, views)
+}
+
+func executeGetCluster(
+	ctx context.Context,
+	kubeClient client.Client,
+	namespace string,
+	name string,
+	jsonOut bool,
+	out io.Writer,
+) error {
+	cluster, err := getCluster(ctx, kubeClient, namespace, name)
+	if err != nil {
+		return err
+	}
+	view := inspectCluster(ctx, kubeClient, cluster)
+	if jsonOut {
+		return writeJSON(out, view)
+	}
+	return writeClusterTable(out, []clusterView{view})
+}
+
+func executeDescribeCluster(
+	ctx context.Context,
+	kubeClient client.Client,
+	namespace string,
+	name string,
+	jsonOut bool,
+	out io.Writer,
+) error {
+	cluster, err := getCluster(ctx, kubeClient, namespace, name)
+	if err != nil {
+		return err
+	}
+	view := inspectCluster(ctx, kubeClient, cluster)
+	if jsonOut {
+		return writeJSON(out, view)
+	}
+	return writeClusterDescribe(out, view)
+}
+
+type clusterView struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Role      string `json:"role,omitempty"`
+	Endpoint  string `json:"endpoint"`
+	Ready     bool   `json:"ready"`
+	Version   string `json:"version,omitempty"`
+	Cluster   string `json:"cluster,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+func inspectCluster(
+	ctx context.Context,
+	kubeClient client.Client,
+	cluster *shardferryv1.ShardferryCluster,
+) clusterView {
+	view := clusterView{
+		Name:      cluster.Name,
+		Namespace: cluster.Namespace,
+		Role:      cluster.Spec.Role,
+		Endpoint:  cluster.Spec.Endpoint,
+	}
+	token, err := clusterToken(ctx, kubeClient, cluster.Namespace, cluster.Spec.SecretRef)
+	if err != nil {
+		view.Error = err.Error()
+		return view
+	}
+	client := newClusterClient()
+	health, err := client.Health(ctx, cluster.Spec.Endpoint, token)
+	if err != nil {
+		view.Error = err.Error()
+		return view
+	}
+	view.Ready = true
+	view.Version = health.Version
+	view.Cluster = health.Cluster
+	return view
+}
+
+func newClusterClient() *clusterclient.Client {
+	ca := os.Getenv("SHARDFERRY_TLS_CA")
+	cert := os.Getenv("SHARDFERRY_TLS_CERT")
+	key := os.Getenv("SHARDFERRY_TLS_KEY")
+	if ca != "" || cert != "" || key != "" {
+		if client, err := clusterclient.NewWithTLS("", ca, cert, key); err == nil {
+			return client
+		}
+	}
+	return clusterclient.New("")
+}
+
+func getCluster(
+	ctx context.Context,
+	kubeClient client.Client,
+	namespace string,
+	name string,
+) (*shardferryv1.ShardferryCluster, error) {
+	var cluster shardferryv1.ShardferryCluster
+	if err := kubeClient.Get(
+		ctx,
+		client.ObjectKey{Namespace: namespace, Name: name},
+		&cluster,
+	); err != nil {
+		return nil, err
+	}
+	return &cluster, nil
+}
+
+func clusterToken(
+	ctx context.Context,
+	kubeClient client.Client,
+	namespace string,
+	ref shardferryv1.ClusterSecretRef,
+) (string, error) {
+	if ref.Name == "" {
+		return "", fmt.Errorf("cluster secretRef.name is required")
+	}
+	key := ref.Key
+	if key == "" {
+		key = "token"
+	}
+	var secret corev1.Secret
+	if err := kubeClient.Get(
+		ctx,
+		client.ObjectKey{Namespace: namespace, Name: ref.Name},
+		&secret,
+	); err != nil {
+		return "", err
+	}
+	value := secret.Data[key]
+	if len(value) == 0 {
+		return "", fmt.Errorf("secret %s/%s key %s is empty", namespace, ref.Name, key)
+	}
+	return string(value), nil
+}
+
+func writeClusterTable(out io.Writer, views []clusterView) error {
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	defer writer.Flush()
+	fmt.Fprintln(writer, "NAME\tROLE\tENDPOINT\tREADY\tVERSION\tERROR")
+	for _, view := range views {
+		ready := "false"
+		if view.Ready {
+			ready = "true"
+		}
+		fmt.Fprintf(
+			writer,
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			view.Name,
+			emptyDash(view.Role),
+			view.Endpoint,
+			ready,
+			emptyDash(view.Version),
+			emptyDash(view.Error),
+		)
+	}
+	return nil
+}
+
+func writeClusterDescribe(out io.Writer, view clusterView) error {
+	fmt.Fprintf(out, "Name:       %s\n", view.Name)
+	fmt.Fprintf(out, "Namespace:  %s\n", view.Namespace)
+	fmt.Fprintf(out, "Role:       %s\n", emptyDash(view.Role))
+	fmt.Fprintf(out, "Endpoint:   %s\n", view.Endpoint)
+	fmt.Fprintf(out, "Ready:      %t\n", view.Ready)
+	fmt.Fprintf(out, "Cluster:    %s\n", emptyDash(view.Cluster))
+	fmt.Fprintf(out, "Version:    %s\n", emptyDash(view.Version))
+	if view.Error != "" {
+		fmt.Fprintf(out, "Error:      %s\n", view.Error)
+	}
+	return nil
 }
 
 func executeCancel(
@@ -284,6 +505,7 @@ func writeTable(
 func writeDescribe(
 	out io.Writer,
 	migration *shardferryv1.CheckpointMigration,
+	showRanks bool,
 ) error {
 	fmt.Fprintf(out, "Name:       %s\n", migration.Name)
 	fmt.Fprintf(out, "Namespace:  %s\n", migration.Namespace)
@@ -317,6 +539,11 @@ func writeDescribe(
 	if len(migration.Status.FailedRanks) > 0 {
 		fmt.Fprintf(out, "FailedRanks: %v\n", migration.Status.FailedRanks)
 	}
+	if showRanks {
+		if err := writeRankTable(out, migration.Status.Ranks); err != nil {
+			return err
+		}
+	}
 	for _, condition := range migration.Status.Conditions {
 		fmt.Fprintf(
 			out,
@@ -325,6 +552,24 @@ func writeDescribe(
 			condition.Status,
 			condition.Reason,
 			condition.Message,
+		)
+	}
+	return nil
+}
+
+func writeRankTable(out io.Writer, ranks []shardferryv1.RankStatus) error {
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	defer writer.Flush()
+	fmt.Fprintln(writer, "RANK\tPHASE\tTASK\tRETRIES\tERROR")
+	for _, rank := range ranks {
+		fmt.Fprintf(
+			writer,
+			"%d\t%s\t%s\t%d\t%s\n",
+			rank.Rank,
+			rank.Phase,
+			emptyDash(rank.TaskID),
+			rank.Attempts,
+			emptyDash(rank.Error),
 		)
 	}
 	return nil

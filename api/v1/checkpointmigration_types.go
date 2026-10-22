@@ -151,6 +151,15 @@ type RankCounts struct {
 	Failed    int32 `json:"failed"`
 }
 
+// RankStatus is the observed state of one target rank.
+type RankStatus struct {
+	Rank     int32  `json:"rank"`
+	Phase    string `json:"phase"`
+	TaskID   string `json:"taskID,omitempty"`
+	Attempts int32  `json:"attempts,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
 // CheckpointMigrationStatus is the observed migration state.
 type CheckpointMigrationStatus struct {
 	// +kubebuilder:validation:Enum=pending;preparing;transferring;commit-pending;committing;succeeded;failed;cancelled;commit-incomplete
@@ -165,6 +174,7 @@ type CheckpointMigrationStatus struct {
 	ProofHash    string             `json:"proofHash,omitempty"`
 	CommitToken  string             `json:"commitToken,omitempty"`
 	Counts       RankCounts         `json:"counts,omitempty"`
+	Ranks        []RankStatus       `json:"ranks,omitempty"`
 	FailedRanks  []int32            `json:"failedRanks,omitempty"`
 	StartedAt    string             `json:"startedAt,omitempty"`
 	CompletedAt  string             `json:"completedAt,omitempty"`

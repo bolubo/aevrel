@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -305,6 +306,20 @@ func (r *Reconciler) setExecutionStatus(
 			Staged:    int32(summary.Staged),
 			Committed: int32(summary.Committed),
 			Failed:    int32(summary.Failed),
+		}
+		rankStatuses := make([]shardferryv1.RankStatus, 0, len(run.Ranks()))
+		for _, state := range run.Ranks() {
+			rankStatuses = append(rankStatuses, shardferryv1.RankStatus{
+				Rank:     state.Rank,
+				Phase:    string(state.Phase),
+				TaskID:   state.TaskID,
+				Attempts: int32(state.Attempts),
+				Error:    state.Error,
+			})
+		}
+		if !reflect.DeepEqual(latest.Status.Ranks, rankStatuses) {
+			latest.Status.Ranks = rankStatuses
+			changed = true
 		}
 		if phase != shardferryv1.MigrationPhasePending &&
 			latest.Status.StartedAt == "" {

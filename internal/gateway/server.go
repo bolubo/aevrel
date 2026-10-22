@@ -66,6 +66,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.health)
 	mux.HandleFunc("/readyz", s.health)
+	mux.HandleFunc("/v1/cluster", s.authorized(s.clusterInfo, false))
 	mux.HandleFunc("/v1/resolve", s.authorized(s.resolve, false))
 	mux.HandleFunc("/v1/agents/", s.authorized(s.proxy, true))
 	return mux
@@ -74,6 +75,14 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok\n"))
+}
+
+func (s *Server) clusterInfo(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]any{
+		"version": "1",
+		"cluster": s.config.ClusterName,
+		"ready":   true,
+	})
 }
 
 func (s *Server) authorized(next http.HandlerFunc, allowAgentToken bool) http.HandlerFunc {

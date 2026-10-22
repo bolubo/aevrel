@@ -70,8 +70,11 @@ export SHARDFERRY_TLS_CA=/path/to/ca.crt
 export SHARDFERRY_TLS_CERT=/path/to/tls.crt
 export SHARDFERRY_TLS_KEY=/path/to/tls.key
 kubectl --context management apply -f clusters.yaml
+shardferryctl get clusters -n shardferry-control
+shardferryctl describe cluster source -n shardferry-control
 shardferryctl preflight -f migration.yaml --json
 shardferryctl migrate -f migration.yaml --wait
+shardferryctl describe migration job42-16-to-8 -n shardferry-control --ranks
 ```
 
 `preflight` 会通过 gateway 实际读取 source inventory，并探测 target
@@ -105,6 +108,10 @@ agent capabilities；不是只检查 YAML。
   最终 `commit-pending → succeeded`，64/64 load，report/proof 完整。
 - per-cluster token：source/target 使用各自 gateway token，16→8 和 1GiB
   controller 重启路径均通过；不再是单一全局 gateway token。
+- cluster health：`get clusters` / `describe cluster` 已实测显示 gateway
+  ready、endpoint、version 和错误信息。
+- rank observability：`describe migration --ranks` 显示每个 target rank 的
+  phase、task、retries 和 error。
 - mTLS：controller/gateway/agent 使用同一 CA；16→8 全链路成功，target
   8/8 load；无客户端证书访问受保护 resolve 返回 401，health 保持 200。
 

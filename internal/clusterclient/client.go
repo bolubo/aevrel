@@ -33,6 +33,12 @@ type ResolveResponse struct {
 	Ranks   []RankEndpoint `json:"ranks"`
 }
 
+type HealthResponse struct {
+	Version string `json:"version"`
+	Cluster string `json:"cluster,omitempty"`
+	Ready   bool   `json:"ready"`
+}
+
 type Client struct {
 	HTTP  *http.Client
 	Token string
@@ -95,6 +101,51 @@ func (c *Client) Resolve(
 	}
 	if len(result.Ranks) == 0 {
 		return ResolveResponse{}, fmt.Errorf("resolve agents via %s returned no ranks", endpoint)
+	}
+	return result, nil
+}
+
+func (c *Client) Health(
+	ctx context.Context,
+	endpoint string,
+	token string,
+) (HealthResponse, error) {
+	httpRequest, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		strings.TrimRight(endpoint, "/")+"/v1/cluster",
+		nil,
+	)
+	if err != nil {
+		return HealthResponse{}, err
+	}
+	if token == "" {
+		token = c.Token
+	}
+	httpRequest.Header.Set("Authorization", "Bearer "+token)
+	response, err := c.HTTP.Do(httpRequest)
+	if err != nil {
+		return HealthResponse{}, fmt.Errorf("gateway health via %s: %w", endpoint, err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return HealthResponse{}, fmt.Errorf("read gateway health: %w", err)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return HealthResponse{}, fmt.Errorf(
+			"gateway health via %s: HTTP %d: %s",
+			endpoint,
+			response.StatusCode,
+			strings.TrimSpace(string(body)),
+		)
+	}
+	var result HealthResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return HealthResponse{}, fmt.Errorf("decode gateway health: %w", err)
+	}
+	if !result.Ready {
+		return HealthResponse{}, fmt.Errorf("gateway %s is not ready", endpoint)
 	}
 	return result, nil
 }
