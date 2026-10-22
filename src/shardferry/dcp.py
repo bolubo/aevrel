@@ -311,8 +311,11 @@ def inspect_dcp(
     ranks: set[int] = set()
 
     for fqn, tensor_metadata in metadata.state_dict_metadata.items():
-        if not hasattr(tensor_metadata, "chunks"):
-            raise DcpError(f"DCP entry is not a tensor: {fqn}")
+        if (
+            not hasattr(tensor_metadata, "chunks")
+            or len(tensor_metadata.size) == 0
+        ):
+            continue
         dtype = _dtype_name(torch, tensor_metadata.properties.dtype)
         global_shape = tuple(int(value) for value in tensor_metadata.size)
         tensor_rows[fqn] = {
@@ -463,8 +466,11 @@ def inventory_dcp_descriptors(
     chunks: list[dict[str, Any]] = []
     refs: dict[str, DcpChunkRef] = {}
     for fqn, tensor_metadata in metadata.state_dict_metadata.items():
-        if not hasattr(tensor_metadata, "chunks"):
-            raise DcpError(f"DCP entry is not a tensor: {fqn}")
+        if (
+            not hasattr(tensor_metadata, "chunks")
+            or len(tensor_metadata.size) == 0
+        ):
+            continue
         tensors.append(
             {
                 "name": fqn,
@@ -499,7 +505,11 @@ def inventory_dcp_descriptors(
                 continue
             storage_path = checkpoint_path / info.relative_path
             try:
-                tensor_range = inspect_zip_tensor(storage_path)
+                tensor_range = inspect_zip_tensor(
+                    storage_path,
+                    base_offset=int(info.offset),
+                    length=int(info.length),
+                )
             except DcpRangeError as exc:
                 raise DcpError(
                     f"could not inspect DCP zip {storage_path}: {exc}"
@@ -510,20 +520,21 @@ def inventory_dcp_descriptors(
                     _dtype_name(torch, tensor_metadata.properties.dtype)
                 ]
             )
-            if tensor_range.size != expected_size:
+            if tensor_range.size < expected_size:
                 raise DcpError(
                     f"DCP chunk size mismatch for {fqn}/rank{rank}: "
                     f"{tensor_range.size} != {expected_size}"
                 )
-            digest = tensor_range.checksum(storage_path)
+            raw = tensor_range.read(storage_path, 0, expected_size)
+            digest = "sha256:" + _sha256(raw)
             refs[digest] = DcpChunkRef(
                 relative_path=info.relative_path,
                 offset=int(info.offset),
                 length=int(info.length),
                 checksum=digest,
-                size=tensor_range.size,
+                size=expected_size,
                 data_offset=tensor_range.data_offset,
-                data_size=tensor_range.size,
+                data_size=expected_size,
                 data_compression=tensor_range.compression,
                 data_name=tensor_range.name,
             )
