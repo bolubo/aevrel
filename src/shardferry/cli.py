@@ -22,16 +22,9 @@ from .cutover_service import (
     CutoverServiceError,
     build_cutover_server,
 )
-from .cdp import ChunkingPolicy
-from .cutover import CutoverPolicy
-from .cutover_service import (
-    CutoverService,
-    CutoverServiceError,
-    build_cutover_server,
-)
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
-from .target_ready import CommandTargetReady
+from .target_ready import CommandTargetReady, HttpTargetReady, TargetReadyChain
 from .defaults import (
     DEFAULT_LISTEN,
     DEFAULT_PUBLIC_LISTEN,
@@ -197,6 +190,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="shell-like command run after promote; {version_id} is substituted",
     )
+    cutover.add_argument(
+        "--target-ready-url",
+        default="",
+        help="readiness endpoint polled after promote; {version_id} is substituted",
+    )
+    cutover.add_argument(
+        "--target-ready-token",
+        default=os.environ.get("SHARDFERRY_TARGET_READY_TOKEN", ""),
+    )
+    cutover.add_argument("--target-ready-interval", type=float, default=0.5)
     cutover.add_argument("--target-ready-timeout", type=float, default=300.0)
     cutover.add_argument(
         "--max-pause-seconds",
@@ -535,44 +538,6 @@ def main(argv: list[str] | None = None) -> int:
         except (ManifestError, ProofError, OSError, ValueError) as exc:
             print(f"shardferry proof-verify: {exc}", file=sys.stderr)
             return 2
-    if args.command == "proof-build":
-        try:
-            spec = load_spec(args.spec)
-            plan_payload = _load_json_object(args.plan)
-            proof = build_proof(
-                spec,
-                plan_payload,
-                args.target_root,
-                source=args.source,
-                token=args.token,
-                target_rank=args.target_rank,
-            )
-            Path(args.out).write_text(
-                json.dumps(proof, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-            return 0
-        except (ManifestError, PlannerError, ProofError, OSError, ValueError) as exc:
-            print(f"shardferry proof-build: {exc}", file=sys.stderr)
-            return 2
-    if args.command == "proof-verify":
-        try:
-            proof = _load_json_object(args.proof)
-            plan_payload = (
-                _load_json_object(args.plan) if args.plan else None
-            )
-            result = verify_proof(
-                proof,
-                args.target_root,
-                plan=plan_payload,
-                source=args.source,
-                token=args.token,
-            )
-            print(json.dumps(result, indent=2, sort_keys=True))
-            return 0
-        except (ManifestError, ProofError, OSError, ValueError) as exc:
-            print(f"shardferry proof-verify: {exc}", file=sys.stderr)
-            return 2
     if args.command == "proof-merge":
         try:
             proofs = [_load_json_object(path) for path in args.proof]
@@ -643,55 +608,29 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         try:
-            service = CutoverService(
-                args.source,
-                args.target,
-                owner=args.owner,
-                epoch=args.epoch,
-                chunking=ChunkingPolicy.fixed(args.chunk_bytes),
-                policy=CutoverPolicy(
-                    max_pause_seconds=60,
-                    max_lag_versions=10,
-                ),
-            )
-            server = build_cutover_server(
-                args.listen,
-                service,
-                token,
-                tls_cert=args.tls_cert or None,
-                tls_key=args.tls_key or None,
-                tls_ca=args.tls_ca or None,
-            )
-            print(
-                f"shardferry cutover-serve listening on "
-                f"{server.server_address[0]}:{server.server_address[1]}"
-            )
-            try:
-                server.serve_forever()
-            except KeyboardInterrupt:
-                pass
-            finally:
-                server.server_close()
-            return 0
-        except (CutoverServiceError, OSError, ValueError) as exc:
-            print(f"shardferry cutover-serve: {exc}", file=sys.stderr)
-            return 2
-    if args.command == "cutover-serve":
-        token = args.token or os.environ.get("SHARDFERRY_CUTOVER_TOKEN", "")
-        if not token:
-            print(
-                "shardferry cutover-serve: --token or "
-                "SHARDFERRY_CUTOVER_TOKEN is required",
-                file=sys.stderr,
-            )
-            return 2
-        try:
-            target_ready = None
+            checks = []
             if args.target_ready_command:
-                target_ready = CommandTargetReady(
-                    shlex.split(args.target_ready_command),
-                    timeout=args.target_ready_timeout,
+                checks.append(
+                    CommandTargetReady(
+                        shlex.split(args.target_ready_command),
+                        timeout=args.target_ready_timeout,
+                    )
                 )
+            if args.target_ready_url:
+                checks.append(
+                    HttpTargetReady(
+                        args.target_ready_url,
+                        timeout=args.target_ready_timeout,
+                        interval=args.target_ready_interval,
+                        token=args.target_ready_token or None,
+                    )
+                )
+            if len(checks) == 1:
+                target_ready = checks[0]
+            elif checks:
+                target_ready = TargetReadyChain(*checks)
+            else:
+                target_ready = None
             service = CutoverService(
                 args.source,
                 args.target,

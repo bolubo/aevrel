@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -20,6 +21,7 @@ from .cutover import (
     CutoverPolicy,
     CutoverSession,
 )
+from .follower import FollowerLoop
 from .tls import server_context
 
 
@@ -43,26 +45,43 @@ class CutoverService:
         follow_interval: float | None = None,
         max_versions_per_cycle: int = 8,
     ) -> None:
+        if follow_interval is not None and follow_interval <= 0:
+            raise ValueError("follow_interval must be positive")
         self.source_root = Path(source_root).resolve()
         self.target = VersionTarget(target_root)
         self.owner = owner
         self.epoch = epoch
-        self.chunking = chunking or ChunkingPolicy.fixed()
+        self.chunking = chunking or ChunkingPolicy.file()
         self.policy = policy or CutoverPolicy()
-        self.session = CutoverSession(
-            self.source_root,
-            self.target,
-            policy=self.policy,
-            chunking=self.chunking,
-            target_ready=target_ready,
-        )
+        self._sync_lock = threading.RLock()
+        self._lifecycle_lock = threading.RLock()
         self.follower = CheckpointFollower(
             self.source_root,
             self.target,
             chunking=self.chunking,
         )
-        self._lock = threading.Lock()
-        self._last_cutover: dict[str, Any] | None = None
+        self.follow_loop = FollowerLoop(
+            self.source_root,
+            self.target,
+            follower=self.follower,
+            lock=self._sync_lock,
+            poll_interval=follow_interval or 0.0,
+            max_versions_per_cycle=max_versions_per_cycle,
+        )
+        self.session = CutoverSession(
+            self.source_root,
+            self.target,
+            policy=self.policy,
+            chunking=self.chunking,
+            follower=self.follower,
+            target_ready=target_ready,
+        )
+        self._follow_thread: threading.Thread | None = None
+        self._follow_stop: threading.Event | None = None
+        self._last_cutover_path = (
+            self.target.root / ".shardferry" / "last-cutover.json"
+        )
+        self._last_cutover = self._read_last_cutover()
 
     def status(self) -> dict[str, Any]:
         descriptors = scan_versions(self.source_root)
@@ -72,7 +91,10 @@ class CutoverService:
             for index, descriptor in enumerate(descriptors)
         }
         target_index = max(
-            (positions.get(manifest.version_id, -1) for manifest in manifests),
+            (
+                positions.get(manifest.version_id, -1)
+                for manifest in manifests
+            ),
             default=-1,
         )
         current = self.target.current()
@@ -95,6 +117,7 @@ class CutoverService:
             and current.version_id == fence.version_id
         ):
             state = "promoted"
+        follower = self.follow_loop.status()
         return {
             "state": state,
             "source_latest": (
@@ -109,12 +132,17 @@ class CutoverService:
             "current": current.to_dict() if current else None,
             "fence": fence.to_dict() if fence else None,
             "versions": [descriptor.version_id for descriptor in descriptors],
+            "follow_state": follower.state,
+            "follow_error": follower.last_error,
+            "follow_last_success_at": follower.last_success_at,
+            "follow_synced_versions": follower.synced_versions,
+            "follow_last_missing_bytes": follower.last_missing_bytes,
+            "follow_total_missing_bytes": follower.total_missing_bytes,
             "last_cutover": self._last_cutover,
         }
 
     def follow_once(self) -> list[dict[str, Any]]:
-        with self._lock:
-            results = self.follower.sync_once()
+        results = self.follow_loop.sync_once()
         return [
             {
                 "version_id": result.version_id,
@@ -127,6 +155,41 @@ class CutoverService:
             }
             for result in results
         ]
+
+    def start_following(self) -> None:
+        """Start background catch-up, keeping a warm target shadow."""
+        if self.follow_loop.poll_interval <= 0:
+            raise ValueError("background following is disabled")
+        with self._lifecycle_lock:
+            if (
+                self._follow_thread is not None
+                and self._follow_thread.is_alive()
+            ):
+                return
+            stop = threading.Event()
+            thread = threading.Thread(
+                target=self.follow_loop.run,
+                args=(stop,),
+                name="shardferry-follower",
+                daemon=True,
+            )
+            self._follow_stop = stop
+            self._follow_thread = thread
+            thread.start()
+
+    def stop_following(self, timeout: float = 5.0) -> None:
+        with self._lifecycle_lock:
+            stop = self._follow_stop
+            thread = self._follow_thread
+            self._follow_stop = None
+            self._follow_thread = None
+            if stop is not None:
+                stop.set()
+        if thread is not None:
+            thread.join(timeout=timeout)
+
+    def close(self) -> None:
+        self.stop_following()
 
     def cutover(
         self,
@@ -141,20 +204,13 @@ class CutoverService:
         )
         if selected is None:
             raise CutoverServiceError("no complete source version is available")
-        with self._lock:
+        with self._sync_lock:
             result = self.session.cutover(
                 selected,
                 owner=owner or self.owner,
                 epoch=epoch if epoch is not None else self.epoch,
             )
-            self._last_cutover = {
-                "version_id": result.version_id,
-                "previous_version": result.previous_version,
-                "state": result.state,
-                "paused_seconds": result.paused_seconds,
-                "target_ready_seconds": result.target_ready_seconds,
-            }
-        return {
+        payload = {
             "state": result.state,
             "version_id": result.version_id,
             "previous_version": result.previous_version,
@@ -163,9 +219,12 @@ class CutoverService:
             "target_ready_seconds": result.target_ready_seconds,
             "fence": result.fence.to_dict(),
         }
+        self._last_cutover = payload
+        self._write_last_cutover(payload)
+        return payload
 
     def recover(self, *, owner: str | None = None) -> dict[str, Any]:
-        with self._lock:
+        with self._sync_lock:
             result = self.session.recover(owner=owner or self.owner)
         return {
             "state": result.state,
@@ -174,6 +233,33 @@ class CutoverService:
             "resumed": result.resumed,
             "fence": result.fence.to_dict() if result.fence else None,
         }
+
+    def _read_last_cutover(self) -> dict[str, Any] | None:
+        if not self._last_cutover_path.is_file():
+            return None
+        try:
+            payload = json.loads(
+                self._last_cutover_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def _write_last_cutover(self, payload: dict[str, Any]) -> None:
+        path = self._last_cutover_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        try:
+            with temporary.open("w", encoding="utf-8") as stream:
+                json.dump(payload, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        except OSError as exc:
+            raise CutoverServiceError(
+                f"could not persist cutover result: {exc}"
+            ) from exc
 
 
 def build_cutover_server(

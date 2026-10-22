@@ -74,4 +74,10 @@ def check_report(
                     f"cutover pause {pause:.3f} > "
                     f"{thresholds.max_cutover_pause_seconds:.3f}"
                 )
+            ready = float(cutover.get("target_ready_seconds", 0.0))
+            if ready > thresholds.max_cutover_pause_seconds:
+                failures.append(
+                    f"target-ready {ready:.3f} > "
+                    f"{thresholds.max_cutover_pause_seconds:.3f}"
+                )
     return failures

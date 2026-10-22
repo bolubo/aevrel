@@ -489,14 +489,35 @@ Gate:
   available snapshot are still missing or partial, so `go test ./...` is not
   a valid green gate yet. Do not overwrite the controller branch's state.
 
-## 2026-10-22 / Product recovery closure
+## 2026-10-22 / target-ready RTO probe
 
-- Restored `cmd/ctl/main.go`, `shardferryctl migrate`, DCP source-agent
-  inventory/range serving, `/v1/ranks`, and DCP range reads lost in the mixed
-  recovery.
-- Rebuilt the missing Helm chart with source/target agents, selector-compatible
-  labels, controller RBAC for Pod discovery, and `/targets` persistence.
-- Removed duplicate Python subparsers that made `shardferry --help` crash.
-- Gate after CPU torch installation: Python `251 passed / 2 skipped`;
-  `go test ./...` passes; `go test ./cmd/ctl`, `go vet ./...`, and Helm
-  lint/template pass. The two skips are distributed/HTTP opt-in tests.
+- Added `shardferry.target_probe`: waits for target `current`, checks the
+  manifest root, CAS chunks and shadow files, and fails closed on mismatch.
+- `CutoverService.status()` now exposes `last_cutover`, including
+  `paused_seconds` and `target_ready_seconds`.
+- Integration tests run the probe as a real target-ready subprocess and verify
+  rollback when the probe rejects the target.
+- Real `cutover-serve` HTTP smoke: promoted step-100 with
+  `paused_seconds=0.0368`, `target_ready_seconds=0.0362`.
+- Benchmark target probe now defaults on: 128MiB x3 8→4 passed with wall
+  2.68s, RSS 94.3MiB, target-ready 0.035s; 1GiB x3 128→64 passed with wall
+  21.92s, RSS 73.9MiB, target-ready 0.062s. 1GiB 16→8 reached RSS 237.8MiB
+  and correctly failed the P1 150MiB gate.
+- Last cutover RTO evidence is atomically persisted at
+  `<target>/.shardferry/last-cutover.json`, so a CutoverService restart keeps
+  `paused_seconds` / `target_ready_seconds` visible in `/v1/status`.
+- Added `HttpTargetReady` and `cutover-serve --target-ready-url` for target
+  job readiness endpoints. 2xx succeeds; 404/409/425/429/5xx retry until the
+  deadline; other 4xx fail closed. CLI smoke promoted with one readiness call.
+- Restored DCP range inventory and agent range serving in the isolated branch;
+  `verify()` now propagates source bearer tokens. With local CPU PyTorch and
+  native release built, the full Python gate is `255 passed / 2 skipped`
+  (only distributed/HTTP DCP opt-in tests remain).
+- Added `TargetReadyChain`; `cutover-serve` can now run checkpoint probe and
+  target-job HTTP readiness in one ordered check. Real CLI smoke promoted
+  with both checks and one target readiness call.
+- Final gate after chain: `256 passed / 2 skipped`.
+- Gate: `238 passed / 19 skipped` (PyTorch/native optional skips), compileall
+  and `cutover-serve --help` pass. This work is on branch `python-rto` in
+  worktree `shardferry-rto`; do not merge into the shared checkout while the
+  parallel Go/K8s session is active.

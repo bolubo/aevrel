@@ -10,6 +10,7 @@ from shardferry.storage.router import StorageRouter
 class _Response:
     def __init__(self, data: bytes = b"") -> None:
         self.data = data
+        self.headers = {}
 
     def read(self) -> bytes:
         return self.data

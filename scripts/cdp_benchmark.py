@@ -21,6 +21,7 @@ from shardferry.cutover import CutoverPolicy, CutoverSession
 from shardferry.planner import plan
 from shardferry.policy import AdaptiveChunkingPolicy
 from shardferry.target_layout import DirectIncrementalApplyFileProvider
+from shardferry.target_ready import CommandTargetReady
 
 
 MiB = 1024 * 1024
@@ -145,6 +146,11 @@ def main(argv: list[str] | None = None) -> dict:
     )
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--skip-cutover", action="store_true")
+    parser.add_argument(
+        "--no-target-probe",
+        action="store_true",
+        help="do not run the promoted target checkpoint readiness probe",
+    )
     parser.add_argument(
         "--assert-p1",
         action="store_true",
@@ -286,11 +292,27 @@ def main(argv: list[str] | None = None) -> dict:
 
     cutover = None
     if args.mode == "cdp" and not args.skip_cutover:
+        target_ready = None
+        if not args.no_target_probe:
+            target_ready = CommandTargetReady(
+                [
+                    sys.executable,
+                    "-m",
+                    "shardferry.target_probe",
+                    "--target-root",
+                    str(target.root),
+                    "--version-id",
+                    "{version_id}",
+                    "--timeout",
+                    "30",
+                ]
+            )
         session = CutoverSession(
             versions_root,
             target,
             policy=CutoverPolicy(max_pause_seconds=120, max_lag_versions=10),
             chunking=chunking,
+            target_ready=target_ready,
         )
         cutover_started = time.perf_counter()
         result = session.cutover(previous_id or "step-1000")
@@ -299,6 +321,7 @@ def main(argv: list[str] | None = None) -> dict:
             "version_id": result.version_id,
             "paused_seconds": result.paused_seconds,
             "target_ready_seconds": result.target_ready_seconds,
+            "rto_seconds": result.paused_seconds,
             "wall_seconds": time.perf_counter() - cutover_started,
         }
 
@@ -310,6 +333,7 @@ def main(argv: list[str] | None = None) -> dict:
         "fill": args.fill,
         "source_world": args.source_world,
         "target_world": args.target_world,
+        "target_probe": not args.no_target_probe,
         "versions": rows,
         "cutover": cutover,
         "wall_seconds": time.perf_counter() - started_all,
