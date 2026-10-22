@@ -1,0 +1,24 @@
+{
+  "schema": "shardferry.lrs.a4.proof.v1",
+  "device": "cpu",
+  "checks": {
+    "parameter trajectory": true,
+    "loss trajectory": true,
+    "step continuity": true,
+    "source exited before load": true
+  },
+  "parameter_max_abs_delta": 0.0,
+  "loss_max_abs_delta": 0.0,
+  "handoff_pause_seconds": 1.04941162099567,
+  "baseline_losses": [
+    2.1756041049957275,
+    1.0468790531158447,
+    0.73312908411026,
+    0.3414711058139801,
+    1.8919461965560913
+  ],
+  "target_losses": [
+    0.3414711058139801,
+    1.8919461965560913
+  ]
+}

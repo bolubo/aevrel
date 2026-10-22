@@ -26,6 +26,9 @@ class TargetJobConfig:
     steps: int
     job_id: str
     checkpoint_template: str
+    state_template: str | None = None
+    state_providers: str = "python.random,numpy.random,torch.cpu.rng"
+    require_state: bool = False
     timeout: float = 900.0
     kubectl: str = "kubectl"
 
@@ -40,6 +43,10 @@ class TargetJobConfig:
             raise ValueError("target job timeout must be positive")
         if not self.job_id:
             raise ValueError("handoff job id must not be empty")
+        if self.require_state and not self.state_template:
+            raise ValueError("require_state needs state_template")
+        if not self.state_providers.strip():
+            raise ValueError("state_providers must not be empty")
 
 
 class KubernetesTargetReady:
@@ -75,6 +82,7 @@ class KubernetesTargetReady:
             version=version_id,
             job_id=self.config.job_id,
             steps=self.config.steps,
+            require_state=self.config.require_state,
         )
 
     def render(self, version_id: str) -> dict[str, Any]:
@@ -136,6 +144,28 @@ class KubernetesTargetReady:
                 "value": checkpoint_template,
             },
         ]
+        if self.config.state_template:
+            env.extend(
+                [
+                    {
+                        "name": "SHARDFERRY_STATE_TEMPLATE",
+                        "value": self.config.state_template.replace(
+                            "{version_id}",
+                            version_id,
+                        ),
+                    },
+                    {
+                        "name": "SHARDFERRY_STATE_PROVIDERS",
+                        "value": self.config.state_providers,
+                    },
+                    {
+                        "name": "SHARDFERRY_REQUIRE_STATE",
+                        "value": (
+                            "1" if self.config.require_state else "0"
+                        ),
+                    },
+                ]
+            )
         for container in containers:
             if not isinstance(container, dict):
                 raise TargetReadyError("target Job container must be an object")
@@ -259,6 +289,7 @@ def evaluate_target_reports(
     version: str,
     job_id: str,
     steps: int,
+    require_state: bool = False,
 ) -> None:
     expected = set(range(world_size))
     seen: dict[int, dict[str, Any]] = {}
@@ -284,6 +315,10 @@ def evaluate_target_reports(
         if not isinstance(ran, int) or isinstance(ran, bool) or ran < steps:
             raise TargetReadyError(
                 f"rank {rank} ran {ran!r} steps, need {steps}"
+            )
+        if require_state and not report.get("stateComplete"):
+            raise TargetReadyError(
+                f"rank {rank} did not restore rank-local state"
             )
         if rank in seen and seen[rank] != report:
             raise TargetReadyError(f"conflicting reports for rank {rank}")

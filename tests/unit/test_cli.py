@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -114,8 +115,9 @@ def test_help_only_exposes_product_commands(capsys) -> None:
     output = capsys.readouterr().out
     for command in ("demo", "migrate", "doctor", "capabilities"):
         assert command in output
-    for command in ("inspect", "dcp-migrate", "serve", "apply", "verify"):
+    for command in ("inspect", "dcp-migrate", "serve", "apply"):
         assert command not in output
+    assert not re.search(r"^\s{2,}verify\b", output, re.MULTILINE)
 
 
 def test_unknown_command_does_not_expose_internal_commands(capsys) -> None:

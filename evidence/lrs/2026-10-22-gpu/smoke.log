@@ -1,0 +1,5 @@
+torch=2.14.1+cu130 cuda=True device=NVIDIA GeForce RTX 5070 Ti Laptop GPU
+full_grad_diffs={'loss': 8.881784197001252e-16, 'dw1': 2.7755575615628914e-17, 'dw2': 0.0}
+tp_pp_shard_diffs={'dw1_0': 2.7755575615628914e-17, 'dw1_1': 2.7755575615628914e-17, 'dw2_0': 0.0, 'dw2_1': 0.0}
+SINGLE GPU SMOKE PASSED
+note: 4-rank TP=2/PP=2 NCCL still needs 4 GPUs

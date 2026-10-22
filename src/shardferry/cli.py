@@ -23,6 +23,14 @@ from .cutover_service import (
     build_cutover_server,
 )
 from .handoff import CommandPauseHook
+from .state import (
+    StateBundle,
+    StateBundleError,
+    builtin_providers,
+    capture_state,
+    restore_state,
+    verify_state,
+)
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
 from .target_ready import (
@@ -52,7 +60,14 @@ from .tensor_io import TensorIOError
 from .verify import VerificationError, verify
 
 
-_PUBLIC_COMMANDS = ("demo", "migrate", "doctor", "capabilities", "handoff")
+_PUBLIC_COMMANDS = (
+    "demo",
+    "migrate",
+    "doctor",
+    "capabilities",
+    "handoff",
+    "state",
+)
 _INTERNAL_COMMANDS = (
     "inspect",
     "plan",
@@ -463,6 +478,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="print machine-readable agent capabilities",
     )
     capabilities.add_argument("--json", action="store_true")
+
+    state = sub.add_parser(
+        "state",
+        help="capture, verify, or restore rank-local resume state",
+    )
+    state_sub = state.add_subparsers(dest="state_command", required=True)
+    state_capture = state_sub.add_parser("capture")
+    state_capture.add_argument("--root", required=True)
+    state_capture.add_argument("--checkpoint-id", required=True)
+    state_capture.add_argument("--checkpoint-version", required=True)
+    state_capture.add_argument("--rank", type=int, required=True)
+    state_capture.add_argument("--source-world", type=int, required=True)
+    state_capture.add_argument("--target-world", type=int, default=None)
+    state_capture.add_argument("--rank-map", default="")
+    state_capture.add_argument(
+        "--providers",
+        default="python.random,numpy.random",
+    )
+    state_verify = state_sub.add_parser("verify")
+    state_verify.add_argument("--root", required=True)
+    state_verify.add_argument("--require-complete", action="store_true")
+    state_restore = state_sub.add_parser("restore")
+    state_restore.add_argument("--root", required=True)
+    state_restore.add_argument("--target-rank", type=int, required=True)
+    state_restore.add_argument(
+        "--providers",
+        default="python.random,numpy.random",
+    )
 
     return parser
 
@@ -1009,6 +1052,60 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(f"shardferry capabilities: {exc}", file=sys.stderr)
             return 2
+    if args.command == "state":
+        try:
+            if args.state_command == "capture":
+                rank_map = _parse_rank_map(args.rank_map)
+                bundle = capture_state(
+                    root=Path(args.root),
+                    checkpoint_id=args.checkpoint_id,
+                    version=args.checkpoint_version,
+                    rank=args.rank,
+                    source_world_size=args.source_world,
+                    target_world_size=args.target_world,
+                    rank_map=rank_map,
+                    providers=builtin_providers(
+                        args.providers.split(",")
+                    ),
+                )
+                _write_json(bundle.manifest.to_dict(), None)
+                return 0
+            if args.state_command == "verify":
+                bundle = StateBundle.read(args.root)
+                verify_state(
+                    bundle,
+                    require_complete=args.require_complete,
+                )
+                _write_json(
+                    {
+                        "root": str(bundle.root),
+                        "complete": bundle.manifest.complete,
+                        "entries": len(bundle.manifest.entries),
+                    },
+                    None,
+                )
+                return 0
+            if args.state_command == "restore":
+                bundle = StateBundle.read(args.root)
+                restore_state(
+                    bundle,
+                    target_rank=args.target_rank,
+                    providers=builtin_providers(
+                        args.providers.split(",")
+                    ),
+                )
+                _write_json(
+                    {
+                        "root": str(bundle.root),
+                        "targetRank": args.target_rank,
+                        "version": bundle.manifest.version,
+                    },
+                    None,
+                )
+                return 0
+        except (OSError, StateBundleError, ValueError) as exc:
+            print(f"shardferry state: {exc}", file=sys.stderr)
+            return 2
     if args.command == "doctor":
         if args.spec and (
             args.checkpoint or args.output or args.work_dir
@@ -1179,6 +1276,21 @@ def _write_json(payload: dict, path: str | None) -> None:
 
 def _parse_csv(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def _parse_rank_map(value: str) -> dict[int, int] | None:
+    if not value.strip():
+        return None
+    result: dict[int, int] = {}
+    for item in _parse_csv(value):
+        try:
+            source, target = item.split(":", 1)
+            result[int(source)] = int(target)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid rank map entry {item!r}; expected SOURCE:TARGET"
+            ) from exc
+    return result
 
 
 def _parse_shape(value: str | None) -> tuple[int, ...] | None:
