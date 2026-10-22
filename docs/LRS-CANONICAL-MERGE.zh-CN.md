@@ -1,13 +1,14 @@
 # LRS Canonical Merge / Gap Matrix
 
-状态：盘点完成，integration merge 已完成（2026-10-22）；未 commit/push
+状态：盘点完成；A5/CPU4 + GPU reconfigure 前置已合并到
+`feature/lrs-integration`（2026-10-22）；4 卡实机待测
 
 ## 1. Worktree 盘点
 
 | worktree | branch / base | 状态 | 独有内容 |
 |---|---|---|---|
 | `shardferry` | `main` @ `14a6909` | clean | canonical 产品树；0.1/0.2/0.3、target-ready、GPU codec 都已合入 |
-| `shardferry-lrs` | `feature/lrs-m1` @ `c6f6b56` | 全部未提交/untracked | 我们的 LRS/RANK/A3.2；A1–A3/A4 会话的 layout/VPS/state/memory/rng/snapshot |
+| `shardferry-lrs` | `feature/lrs-m1` @ `b6ffbcf` | 已提交 | LRS/RANK/A3.2/A5 + GPU 前置；A1–A3/A4 的 layout/VPS/state/memory/rng/snapshot |
 | `shardferry-resume-closure` | `feature/resume-closure` @ `9a3b996` | 5 个 modified + 4 个 untracked | canonical `state/` bundle、state CLI、L4 target-load/target-job |
 | `shardferry-handoff` | `feature/0.3-online-handoff` @ `c6f6b56` | pushed/clean | 0.3 online handoff；内容已在 main |
 | `shardferry-target-ready` | `feature/0.2-target-ready` @ `cdf84ae` | clean | 0.2 target-ready；已在 main |
@@ -78,7 +79,7 @@
 | RANK → 真实训练 | LRS toy 已有 `RankSampler`/`ShardBlob.aux`；真实 DCP/FSDP sampler provider 未接 | 我们做接口，训练侧提供 provider |
 | Go controller `stateMode` | Python target job 有 require_state；Go CRD/controller 未接 | target-ready 会话 |
 | NCCL rank handoff / 4 卡 / 2 节点 | probe/TP-PP baseline 脚本已就绪；communicator rebuild、RoCE/IB 未做 | GPU 会话 + 我们做验收 |
-| Canonical merge | 未做；关键改动都未提交 | 我们 |
+| Canonical merge | A5/CPU4 + GPU 前置已合并；4 卡实机待测 | 我们 |
 
 ## 6. 不重复边界
 

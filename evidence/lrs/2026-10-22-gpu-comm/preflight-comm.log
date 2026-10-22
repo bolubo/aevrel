@@ -1,0 +1,5 @@
+torch=2.15.0.dev20260824+cu130 cuda=13.0 devices=1
+nccl=(2, 30, 7) socket_ifname=enP28624p0s0
+nccl_world1_all_reduce=1.0
+torchcomms=0.3.0.dev20260824+cu130 path=/root/lines/oss/aicluster/.venvs/lrs-gpu-comm/lib/python3.12/site-packages/torchcomms/__init__.py
+GPU PREFLIGHT PASSED

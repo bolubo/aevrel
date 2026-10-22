@@ -63,6 +63,7 @@
 - [LRS A2 VPS-lite 布局代数](LRS-A2-VPS.zh-CN.md)
 - [LRS A3.1/A3.2 训练状态闭包](LRS-A3-STATE.zh-CN.md)
 - [LRS A4 双进程训练状态 handoff](LRS-A4-HANDOFF.zh-CN.md)
+- [LRS A5 CPU 4-rank 真实训练迁移前置](LRS-A5-CPU4.zh-CN.md)
 - [LRS M6 8+4/16+8 与故障矩阵](LRS-M6.zh-CN.md)
 - [LRS 4-GPU runbook](LRS-4GPU-RUNBOOK.zh-CN.md)
 - [LRS RANK state closure](LRS-RANK-STATE.zh-CN.md)

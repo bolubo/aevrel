@@ -1,6 +1,7 @@
 # LRS 全局整合
 
-状态：A3.2 / RANK / L4 / Go 产品契约已接；A2 VPS、真实 DCP/FSDP、NCCL 待接
+状态：A3.2 / RANK / L4 / Go 产品契约 / A5 CPU4 已接；A2 VPS、
+真实 DCP/FSDP、NCCL 4 卡待接
 日期：2026-10-22
 
 ## 1. 分层
@@ -12,6 +13,7 @@
 | A3.1 | TrainingState：model/Adam/RNG/generator/scaler/extra | 4 tests |
 | A3.2 | TrainingStateProvider ↔ state bundle ↔ RankSampler | 1 integration test |
 | A4 | 双进程 state handoff（`handoff.py`，CPU/CUDA 0.0） | A4 会话完成；已合入 |
+| A5 | CPU 4-rank 真实 gloo 4→3→4 + state handoff | 20-step proof；`global_stop=true`，非最终 live collective |
 | RANK | RankSampler/ShardBlob.aux 进入 LRS 迁移/takeover | 4 tests |
 | L4 | target-load restore/verify + target job requireState | 7 tests |
 | GO | CRD `mode=live-rank-split`、执行器 HTTP 契约、fail-closed 门禁 | 已接；Python 服务待实现 |
@@ -30,6 +32,8 @@
 - target-load 支持 `--state-root/--state-providers/--require-state-complete`；
 - target job 注入 state env，`evaluate_target_reports(require_state=True)`
   强制每个 rank `stateComplete=true`。
+- A5 CPU4：rank1 退出后由 0/2/3 接管样本，target 恢复 rank1 状态；
+  `param_diff=1.388e-17`、`loss_diff=0`、sampler 一致。
 
 ## 3. 还没接
 
@@ -48,8 +52,8 @@
 
 ## 4. Worktree 边界
 
-- `shardferry-lrs`：A1/A2/A3.1/A3.2/RANK，LRS toy + state closure +
-  `TrainingStateProvider`；全仓 `449 passed / 4 skipped`。
+- `shardferry-lrs`：A1/A2/A3.1/A3.2/RANK/A5，LRS toy + state closure +
+  `TrainingStateProvider` + CPU4/GPU 前置；全仓 `450 passed / 4 skipped`。
 - `shardferry-resume-closure`：target-load/target-job L4、state bundle；
   L4 定向 `26 passed / 1 skipped`，全仓 `368 passed / 5 skipped`。
 - `shardferry-integration`：canonical merge 已完成；

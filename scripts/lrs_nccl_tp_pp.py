@@ -4,14 +4,22 @@
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from shardferry.lrs.backends import ensure_nccl_backend  # noqa: E402
 
 
 def main() -> int:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     torch.cuda.set_device(local_rank)
+    ensure_nccl_backend()
     dist.init_process_group("nccl")
     rank = dist.get_rank()
     world = dist.get_world_size()
