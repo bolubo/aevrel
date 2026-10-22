@@ -9,6 +9,43 @@ local-disk agents is experimental: physical multi-node and GPU acceptance are
 still environment work. Python capability tests, the Go execution/controller
 path, and Helm packaging are green.
 
+## What it is
+
+shardferry is a **DCP-native checkpoint migration layer for local-disk training
+clusters**. It moves and reshapes checkpoint bytes across world sizes and
+DeviceMeshes without requiring a global gather into S3 or a shared checkpoint
+directory.
+
+The core contract is:
+
+```text
+source shards stay read-only
+        -> topology-aware plan
+        -> direct range transfer
+        -> staging + bitwise verification
+        -> all-or-nothing commit
+        -> loadable target DCP
+```
+
+It is for AI platform engineers and training-cluster operators who already have
+PyTorch DCP shards on local disks and need recovery, cluster replacement, or a
+smaller/larger target topology.
+
+## What it is not
+
+- not a training framework or model-serving runtime;
+- not a general object store or checkpoint format converter;
+- not a Kubernetes scheduler;
+- not a promise that online cutover is production-ready;
+- not a replacement for the source checkpoint's retention policy.
+
+The recommended path is intentionally narrow: **PyTorch DCP, local disk,
+explicit topology, bitwise verification**.
+
+See [`docs/POSITIONING.zh-CN.md`](docs/POSITIONING.zh-CN.md) and
+[`docs/ROADMAP.zh-CN.md`](docs/ROADMAP.zh-CN.md) for the product boundary and
+development sequence.
+
 ## Product path
 
 ```bash
