@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 from urllib.parse import urlsplit
 
+from ..adaptive import AdaptiveRateRegistry
 from .file import FileStorage, StorageError
 from .http import HttpStorage
 
@@ -14,12 +16,21 @@ class StorageRouter:
         source_base: str | None = None,
         token: str | None = None,
         rate_controller=None,
+        rate_registry: AdaptiveRateRegistry | None = None,
     ) -> None:
+        if rate_controller is None and rate_registry is None:
+            configured = os.environ.get("SHARDFERRY_RATE_LIMIT_RPS", "")
+            if configured:
+                try:
+                    rate_registry = AdaptiveRateRegistry(rate=float(configured))
+                except ValueError:
+                    rate_registry = None
         self.file = FileStorage()
         self.http = HttpStorage(
             base_url=source_base,
             token=token,
             rate_controller=rate_controller,
+            rate_registry=rate_registry,
         )
 
     def read_range(self, uri: str, offset: int, size: int) -> bytes:

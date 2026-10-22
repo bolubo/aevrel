@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from shardferry.adaptive import AdaptiveRateRegistry
 from shardferry.storage.file import StorageError
 from shardferry.storage.http import HttpRateLimitError, HttpStorage
 from shardferry.storage.router import StorageRouter
@@ -80,3 +81,19 @@ def test_http_storage_honors_retry_after_hint(monkeypatch) -> None:
     assert storage.read_range("http://example.test/shard/w/0", 0, 2) == b"ok"
     assert sleeps == [0.75]
     assert limiter.snapshot().throttles == 1
+
+
+def test_http_storage_uses_per_url_rate_limiter(monkeypatch) -> None:
+    registry = AdaptiveRateRegistry(rate=10)
+    storage = HttpStorage(rate_registry=registry)
+    monkeypatch.setattr(
+        storage,
+        "_open",
+        lambda method, url: _Response(b"ok"),
+    )
+    storage.read_range("http://source-a:9000/w/0", 0, 2)
+    storage.read_range("http://source-b:9000/w/0", 0, 2)
+    assert set(registry.snapshot()) == {
+        "http://source-a:9000",
+        "http://source-b:9000",
+    }
