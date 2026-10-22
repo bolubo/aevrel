@@ -373,3 +373,45 @@ warm target job 预热完成后的正式本地结果：
 `active_wall=10.41s`、RSS `56.2MiB`、target-ready `0.046s`。之前的
 `237.8MiB` 已确认是源生成一次性大块造成的 benchmark artifact，不是数据面
 RSS；这个旧数字不能再作为产品结论。
+
+## 0.2 计划中的爆炸性 benchmark：Handoff RTO / RPO
+
+这一组不是“谁复制得快”，而是“source 出事后，target 多快能以同一个
+checkpoint 边界继续训练”。它是 0.2 的发布门禁，不是营销附录。
+
+### 场景
+
+1. source 训练任务持续产生 DCP version；
+2. target follower 预先追赶到最新 version；
+3. source 在 checkpoint 边界被停止/回收；
+4. target 做 final delta、promote，并继续 N 个训练 step；
+5. 另跑一次“搬运到 90% 时中断”，记录重传字节。
+
+### 对照
+
+| 路径 | 说明 |
+|---|---|
+| 冷恢复 | source 已死；从最近完整 checkpoint 重新启动 |
+| 共享盘原生 load | target 直接挂载 source；最快但不能跨控制域 |
+| ShardFerry warm handoff | target shadow 已就绪；只做 final delta + promote |
+| 90% 故障恢复 | 搬运中断后续跑，验证不重复已提交 chunk |
+
+### 必报指标
+
+- `time_to_first_step`
+- cutover `pause_seconds`
+- `steps_lost` / `replayed_steps`
+- `cutover_delta_bytes`
+- 90% failure 后 `retransferred_bytes`
+- target 实际继续的 step 数
+- source SHA256 是否不变
+- target load/proof 是否成功
+
+网络至少跑 `100Mbps / 1Gbps / 10Gbps` 三档，使用网络整形，不用同机
+冷缓存冒充网络结果。
+
+### 发布叙事
+
+如果 0.2 跑出来的是“2 秒暂停、0 个已提交 step 丢失、最后只传几十 MiB
+delta”，这比“比 rsync 快 8%”有意义得多。若没有这个结果，0.2 的 Live
+Handoff 不能发布成主卖点。

@@ -131,6 +131,9 @@ source keeps training
 - 4×L20 上真实 `4→3` 或 `4→2` live handoff；
 - 128→64 CPU/控制面规模验证；
 - timeline、pause/RPO、proof、source digest 证据。
+- **Handoff RTO/RPO benchmark**：source 停止后的 time-to-first-step、
+  steps_lost、cutover delta bytes、90% 故障重传字节；100Mbps/1Gbps/10Gbps
+  三档网络整形。
 
 ### 0.2 明确不做
 

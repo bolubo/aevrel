@@ -46,6 +46,10 @@ load-time resharding is faster when source and target already share a
 filesystem. shardferry's value is cross-domain movement, resumability, proof,
 and failure-safe commit.
 
+The 0.2 benchmark target is not raw MB/s: it is `time-to-first-step`,
+`steps-lost=0`, cutover delta bytes, and 90%-failure retransfer bytes across
+`100Mbps / 1Gbps / 10Gbps` shaped networks.
+
 ## Install
 
 ### Python wheel
