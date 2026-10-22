@@ -22,7 +22,7 @@ snapshots/
 WORKLOG.md
 docs/superpowers/plans/
 e2e/
-controller
+/controller
 *.test
 *.out
 coverage.out

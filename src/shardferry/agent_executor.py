@@ -124,20 +124,21 @@ class TargetTaskExecutor:
             target_root=task.target_root,
             token=self.source_token,
         )
-        dcp_root = export_dcp_local(
-            spec,
-            task.target_root,
-            raw_root=task.target_root,
-            ranks=(task.rank,),
-            force=True,
-        )
-        if self.load_smoke:
-            DcpTargetReady(
+        if spec["checkpoint"]["format"] == "dcp":
+            dcp_root = export_dcp_local(
+                spec,
                 task.target_root,
-                rank=task.rank,
-            )(task.migration_uid)
-        report = dict(report)
-        report["dcp_root"] = str(dcp_root)
+                raw_root=task.target_root,
+                ranks=(task.rank,),
+                force=True,
+            )
+            if self.load_smoke:
+                DcpTargetReady(
+                    task.target_root,
+                    rank=task.rank,
+                )(task.migration_uid)
+            report = dict(report)
+            report["dcp_root"] = str(dcp_root)
         if self.proof_enabled:
             proof = build_proof(
                 spec,

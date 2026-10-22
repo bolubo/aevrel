@@ -47,6 +47,7 @@ def test_target_executor_stages_then_commits_one_rank(tmp_path) -> None:
         (3, 1),
         ("Shard(0)", "Replicate()"),
     )
+    spec["checkpoint"]["format"] = "dcp"
     materialize_source_files(spec, arrays, tmp_path)
     plan_payload = plan(spec)
     spec_path = tmp_path / "spec.yaml"
