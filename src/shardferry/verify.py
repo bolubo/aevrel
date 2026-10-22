@@ -32,10 +32,11 @@ def verify(
     target_paths: dict[tuple[str, int], Path] | None = None,
     target_rank: int | None = None,
     target_root: str | Path | None = None,
+    token: str | None = None,
 ) -> dict[str, Any]:
     del report
     validate_plan(plan, spec)
-    source_storage = StorageRouter()
+    source_storage = StorageRouter(token=token)
     target_storage = FileStorage()
     verify_source_checksums(spec, plan, source_storage, target_rank=target_rank)
 

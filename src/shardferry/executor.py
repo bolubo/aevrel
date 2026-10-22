@@ -206,6 +206,7 @@ def apply(
             plan,
             target_rank=target_rank,
             target_root=target_root,
+            token=token,
         )
         result = _report(
             spec, plan, journal, verification, started, target_rank=target_rank
@@ -255,6 +256,7 @@ def apply(
         plan,
         target_rank=target_rank,
         target_paths=active_paths,
+        token=token,
     )
     journal.mark_verified(verification)
     if not commit:
@@ -324,6 +326,7 @@ def commit_staged(
                 plan,
                 target_rank=target_rank,
                 target_root=target_root,
+                token=token,
             )
         result = _report(
             spec, plan, journal, verification, started, target_rank=target_rank

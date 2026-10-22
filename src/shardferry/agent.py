@@ -18,6 +18,13 @@ from .contracts import (
     validate_error,
     validate_ranks,
 )
+from .dcp import (
+    DcpChunkRef,
+    inventory_dcp_descriptors,
+    local_dcp_ranks,
+    read_dcp_chunk,
+    read_dcp_chunk_range,
+)
 from .layout import DTYPE_BYTES
 from .manifest import ManifestError, load_spec
 from .planner import plan as build_plan
@@ -31,6 +38,37 @@ class AgentError(RuntimeError):
         self.retryable = retryable
 
 
+class _ShardCache:
+    def __init__(self, max_bytes: int) -> None:
+        self.max_bytes = max(1, max_bytes)
+        self._items: dict[str, bytes] = {}
+        self._order: list[str] = []
+        self._size = 0
+
+    def get(self, key: str) -> bytes | None:
+        value = self._items.get(key)
+        if value is not None:
+            self._order.remove(key)
+            self._order.append(key)
+        return value
+
+    def put(self, key: str, value: bytes) -> None:
+        if len(value) > self.max_bytes:
+            raise AgentError(
+                f"source chunk {key} exceeds cache limit {self.max_bytes}"
+            )
+        old = self._items.pop(key, None)
+        if old is not None:
+            self._size -= len(old)
+            self._order.remove(key)
+        while self._items and self._size + len(value) > self.max_bytes:
+            oldest = self._order.pop(0)
+            self._size -= len(self._items.pop(oldest))
+        self._items[key] = value
+        self._order.append(key)
+        self._size += len(value)
+
+
 class AgentApp:
     def __init__(
         self,
@@ -39,15 +77,38 @@ class AgentApp:
         executor: Callable[[TaskRecord], None] | None = None,
         committer: Callable[[TaskRecord], None] | None = None,
         spec_path: str | Path | None = None,
+        dcp_checkpoint: str | Path | None = None,
+        dcp_metadata: str | Path | None = None,
+        public_url: str | None = None,
+        max_cache_bytes: int = 512 * 1024 * 1024,
     ) -> None:
         if not controller_token:
             raise AgentError("controller token must not be empty")
+        if spec_path is not None and dcp_checkpoint is not None:
+            raise AgentError(
+                "spec_path and dcp_checkpoint are mutually exclusive"
+            )
         self.controller_token = controller_token
         self.store = TaskStore(state_dir)
         self.executor = executor
         self.committer = committer
         self.spec_path = Path(spec_path).resolve() if spec_path else None
         self.spec = load_spec(self.spec_path) if self.spec_path else None
+        self.dcp_checkpoint = (
+            Path(dcp_checkpoint).resolve() if dcp_checkpoint else None
+        )
+        self.dcp_metadata = (
+            Path(dcp_metadata).resolve() if dcp_metadata else None
+        )
+        if self.dcp_checkpoint is not None:
+            metadata_root = self.dcp_metadata or self.dcp_checkpoint
+            if not (metadata_root / ".metadata").is_file():
+                raise AgentError(
+                    f"DCP metadata is not visible at {metadata_root}"
+                )
+        self.public_url = (public_url or "http://127.0.0.1:9443").rstrip("/")
+        self._shards: dict[str, DcpChunkRef] = {}
+        self._cache = _ShardCache(max_cache_bytes)
         self._metadata_hash = (
             _sha256(self.spec_path.read_bytes())
             if self.spec_path is not None
@@ -55,17 +116,29 @@ class AgentApp:
         )
 
     def capabilities(self) -> dict[str, Any]:
+        features = ["dcp", "range-read", "bitwise-verify"]
+        if self.spec_path is not None or self.dcp_checkpoint is not None:
+            features.append("rank-discovery")
         payload = {
             "version": contract_version(),
             "apiVersion": "shardferry.io/v1",
             "agentVersion": __version__,
             "roles": ["source", "target"],
-            "features": ["dcp", "range-read", "bitwise-verify"],
+            "features": features,
         }
         validate_capabilities(payload)
         return payload
 
     def inventory(self, rank: int) -> dict[str, Any]:
+        if self.dcp_checkpoint is not None:
+            inventory, refs = inventory_dcp_descriptors(
+                self.dcp_checkpoint,
+                rank,
+                metadata_dir=self.dcp_metadata,
+                file_prefix=self.public_url + "/v1/shards",
+            )
+            self._shards.update(refs)
+            return inventory
         if self.spec is None:
             raise AgentError("inventory is not configured")
         rows = [
@@ -108,15 +181,58 @@ class AgentApp:
         }
 
     def ranks(self) -> dict[str, Any]:
-        if self.spec is None:
+        if self.dcp_checkpoint is not None:
+            ranks = local_dcp_ranks(
+                self.dcp_checkpoint,
+                metadata_dir=self.dcp_metadata,
+            )
+        elif self.spec is not None:
+            ranks = sorted({
+                int(shard["rank"])
+                for shard in self.spec["source"]["shards"]
+            })
+        else:
             raise AgentError("rank discovery is not configured")
-        ranks = sorted({
-            int(shard["rank"])
-            for shard in self.spec["source"]["shards"]
-        })
         payload = {"version": contract_version(), "ranks": ranks}
         validate_ranks(payload)
         return payload
+
+    def read_shard(
+        self,
+        chunk_hash: str,
+        offset: int,
+        length: int,
+    ) -> tuple[bytes, str]:
+        ref = self._shards.get(chunk_hash)
+        if ref is None:
+            raise AgentError(f"source shard not found: {chunk_hash}")
+        if ref.data_size:
+            try:
+                data = read_dcp_chunk_range(
+                    self.dcp_checkpoint,
+                    ref,
+                    offset,
+                    length,
+                )
+            except Exception as exc:
+                raise AgentError(str(exc)) from exc
+            return data, ref.checksum
+        data = self._cache.get(chunk_hash)
+        if data is None:
+            try:
+                data = read_dcp_chunk(self.dcp_checkpoint, ref)
+            except Exception as exc:
+                raise AgentError(str(exc)) from exc
+            self._cache.put(chunk_hash, data)
+        if offset < 0 or length < 0 or offset + length > len(data):
+            raise AgentError("source shard range is out of bounds")
+        return data[offset : offset + length], _sha256(data)
+
+    def shard_info(self, chunk_hash: str) -> tuple[int, str]:
+        ref = self._shards.get(chunk_hash)
+        if ref is None:
+            raise AgentError(f"source shard not found: {chunk_hash}")
+        return ref.size, ref.checksum
 
     def plan(self, spec: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -196,6 +312,10 @@ def build_agent_server(
     executor: Callable[[TaskRecord], None] | None = None,
     committer: Callable[[TaskRecord], None] | None = None,
     spec_path: str | Path | None = None,
+    dcp_checkpoint: str | Path | None = None,
+    dcp_metadata: str | Path | None = None,
+    public_url: str | None = None,
+    max_cache_bytes: int = 512 * 1024 * 1024,
 ) -> ThreadingHTTPServer:
     app = AgentApp(
         controller_token,
@@ -203,6 +323,10 @@ def build_agent_server(
         executor=executor,
         committer=committer,
         spec_path=spec_path,
+        dcp_checkpoint=dcp_checkpoint,
+        dcp_metadata=dcp_metadata,
+        public_url=public_url,
+        max_cache_bytes=max_cache_bytes,
     )
     app.recover_tasks()
     host, port = _parse_listen(listen)
@@ -219,6 +343,9 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             self._handle_get()
 
+        def do_HEAD(self) -> None:
+            self._handle_get(head=True)
+
         def do_POST(self) -> None:
             self._handle_post()
 
@@ -227,7 +354,7 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                 super().log_message(format, *args)
             return
 
-        def _handle_get(self) -> None:
+        def _handle_get(self, head: bool = False) -> None:
             parsed = urlsplit(self.path)
             path = parsed.path
             if path in {"/v1/healthz", "/v1/readyz"}:
@@ -237,6 +364,16 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                 self._json(app.capabilities())
                 return
             if not self._authorized():
+                return
+            if path == "/v1/metrics":
+                self._json(app.metrics.snapshot())
+                return
+            if path.startswith("/v1/shards/"):
+                self._shard(
+                    unquote(path[len("/v1/shards/") :]),
+                    parse_qs(parsed.query),
+                    head=head,
+                )
                 return
             if path == "/v1/inventory":
                 query = parse_qs(parsed.query)
@@ -296,6 +433,47 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
                     )
                 return
             self.send_error(404)
+
+        def _shard(
+            self,
+            chunk_hash: str,
+            query: dict[str, list[str]],
+            *,
+            head: bool,
+        ) -> None:
+            try:
+                offset = int(query.get("offset", ["0"])[0])
+                length = int(query["length"][0]) if "length" in query else None
+            except ValueError:
+                self.send_error(400)
+                return
+            try:
+                size, checksum = app.shard_info(chunk_hash)
+                if length is None:
+                    length = size
+                data = b""
+                full_checksum = checksum
+                if not head:
+                    data, full_checksum = app.read_shard(
+                        chunk_hash,
+                        offset,
+                        length,
+                    )
+            except AgentError:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(length))
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("X-Shard-SHA256", checksum)
+            self.send_header(
+                "X-Range-SHA256",
+                _sha256(data) if not head and data else full_checksum,
+            )
+            self.end_headers()
+            if not head:
+                self.wfile.write(data)
 
         def _handle_post(self) -> None:
             if not self._authorized():
@@ -481,6 +659,12 @@ def _make_handler(app: AgentApp) -> type[BaseHTTPRequestHandler]:
             return store.transition(task.task_id, TaskPhase.CANCELLED)
 
         def _authorized(self) -> bool:
+            if os.environ.get("SHARDFERRY_HTTP_DEBUG"):
+                print(
+                    f"HTTP {self.command} {self.path} auth="
+                    f"{self.headers.get('Authorization')}",
+                    flush=True,
+                )
             if app.authorize(self.headers.get("Authorization")):
                 return True
             self._error(

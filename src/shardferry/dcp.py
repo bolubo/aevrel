@@ -25,7 +25,10 @@ from .defaults import (
     DEFAULT_TARGET_PLACEMENTS,
     DEFAULT_WORK_SUFFIX,
 )
+from .dcp_range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
+from .dcp_range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
 from .executor import apply as execute_plan
+from .identity import source_id
 from .layout import DTYPE_BYTES, local_region
 from .manifest import validate_spec
 from .mesh import parse_mesh
@@ -45,6 +48,10 @@ class DcpChunkRef:
     length: int
     checksum: str
     size: int
+    data_offset: int = 0
+    data_size: int = 0
+    data_compression: int = -1
+    data_name: str = ""
 
 
 def _torch():
@@ -490,22 +497,45 @@ def inventory_dcp_descriptors(
             _, info = matching[0]
             if _rank_from_path(info.relative_path) != rank:
                 continue
-            chunk_tensor = _read_storage_tensor(checkpoint_path, info)
-            if tuple(chunk_tensor.shape) != tuple(chunk.sizes):
+            storage_path = checkpoint_path / info.relative_path
+            try:
+                tensor_range = inspect_zip_tensor(storage_path)
+            except DcpRangeError as exc:
                 raise DcpError(
-                    f"DCP chunk shape mismatch for {fqn}/rank{rank}"
+                    f"could not inspect DCP zip {storage_path}: {exc}"
+                ) from exc
+            expected_size = (
+                int(prod(chunk.sizes))
+                * DTYPE_BYTES[
+                    _dtype_name(torch, tensor_metadata.properties.dtype)
+                ]
+            )
+            if tensor_range.size != expected_size:
+                raise DcpError(
+                    f"DCP chunk size mismatch for {fqn}/rank{rank}: "
+                    f"{tensor_range.size} != {expected_size}"
                 )
-            raw = _tensor_bytes(chunk_tensor)
-            digest = "sha256:" + _sha256(raw)
+            digest = tensor_range.checksum(storage_path)
             refs[digest] = DcpChunkRef(
                 relative_path=info.relative_path,
                 offset=int(info.offset),
                 length=int(info.length),
                 checksum=digest,
-                size=len(raw),
+                size=tensor_range.size,
+                data_offset=tensor_range.data_offset,
+                data_size=tensor_range.size,
+                data_compression=tensor_range.compression,
+                data_name=tensor_range.name,
             )
             chunks.append(
                 {
+                    "id": source_id(
+                        fqn,
+                        rank,
+                        chunk.offsets,
+                        chunk.sizes,
+                        digest,
+                    ),
                     "tensor": fqn,
                     "rank": rank,
                     "file": (
@@ -516,7 +546,7 @@ def inventory_dcp_descriptors(
                         int(value) for value in chunk.offsets
                     ],
                     "tensor_size": [int(value) for value in chunk.sizes],
-                    "byte_ranges": [[0, len(raw)]],
+                    "byte_ranges": [[0, tensor_range.size]],
                     "checksum": digest,
                 }
             )
@@ -539,6 +569,15 @@ def read_dcp_chunk(
     checkpoint: str | Path,
     ref: DcpChunkRef,
 ) -> bytes:
+    if ref.data_size:
+        raw = read_dcp_chunk_range(checkpoint, ref, 0, ref.size)
+        digest = "sha256:" + _sha256(raw)
+        if digest != ref.checksum:
+            raise DcpError(
+                f"DCP chunk checksum changed for {ref.relative_path}: "
+                f"{digest} != {ref.checksum}"
+            )
+        return raw
     chunk_tensor = _read_storage_tensor(
         Path(checkpoint).resolve(),
         SimpleNamespace(
@@ -560,6 +599,66 @@ def read_dcp_chunk(
             f"{digest} != {ref.checksum}"
         )
     return raw
+
+
+def read_dcp_chunk_range(
+    checkpoint: str | Path,
+    ref: DcpChunkRef,
+    offset: int,
+    length: int,
+) -> bytes:
+    if offset < 0 or length < 0 or offset + length > ref.size:
+        raise DcpError(
+            f"DCP chunk range is out of bounds: {offset}+{length} > {ref.size}"
+        )
+    if not ref.data_size:
+        return read_dcp_chunk(checkpoint, ref)[offset : offset + length]
+    tensor_range = ZipTensorRange(
+        name=ref.data_name,
+        data_offset=ref.data_offset,
+        size=ref.data_size,
+        compression=ref.data_compression,
+    )
+    try:
+        return tensor_range.read(
+            Path(checkpoint).resolve() / ref.relative_path,
+            offset,
+            length,
+        )
+    except DcpRangeError as exc:
+        raise DcpError(
+            f"could not read DCP range {ref.relative_path}: {exc}"
+        ) from exc
+
+
+def read_dcp_chunk_range(
+    checkpoint: str | Path,
+    ref: DcpChunkRef,
+    offset: int,
+    length: int,
+) -> bytes:
+    if offset < 0 or length < 0 or offset + length > ref.size:
+        raise DcpError(
+            f"DCP chunk range is out of bounds: {offset}+{length} > {ref.size}"
+        )
+    if not ref.data_size:
+        return read_dcp_chunk(checkpoint, ref)[offset : offset + length]
+    tensor_range = ZipTensorRange(
+        name=ref.data_name,
+        data_offset=ref.data_offset,
+        size=ref.data_size,
+        compression=ref.data_compression,
+    )
+    try:
+        return tensor_range.read(
+            Path(checkpoint).resolve() / ref.relative_path,
+            offset,
+            length,
+        )
+    except DcpRangeError as exc:
+        raise DcpError(
+            f"could not read DCP range {ref.relative_path}: {exc}"
+        ) from exc
 
 
 def export_dcp(
