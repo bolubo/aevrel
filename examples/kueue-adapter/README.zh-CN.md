@@ -27,11 +27,21 @@ kubectl apply -f examples/kueue-adapter/deployment.yaml
 kubectl -n shardferry-system rollout status deploy/shardferry-kueue-adapter
 ```
 
+示例 Deployment 使用 `--strict=true`：启动前会校验 `checkpoint-guard`
+必须存在、ClusterQueue 的 classical preemption 三个入口必须为 `Never`，
+并且 numeric-label 规则必须是 `maxValue=0` + `fallbackValue=1`。校验失败
+会直接退出，不允许在“看起来 protected、实际上可能被抢占”的状态下运行。
+
 ## 3. 应用候选过滤规则
 
 ```bash
 kubectl apply -f examples/kueue-adapter/preemption-config.yaml
 ```
+
+这个文件是 strict profile：`fallbackValue: 1`，意味着没有显式
+`preemption-protected=0` 的 Workload 默认被排除在候选之外。真正明确的
+`eligible` 才允许被抢占。需要试运行/fail-open 时使用
+`preemption-config-advisory.yaml`，但不要把它当成二元保护。
 
 然后让目标 ClusterQueue 引用它：
 
@@ -62,4 +72,5 @@ shardferry.io/checkpoint-complete=1
 
 - 本示例验证“Kueue 能看到过滤 label”，不等同于“保护绝对生效”；
 - 检查 ClusterQueue 的 classical preemption 设置，避免它绕过过滤规则；
+- strict profile 还要求 FairSharing 不参与抢占；
 - 真实抢占验收必须观察 Kueue 事件和 victim，而不能只看 label。

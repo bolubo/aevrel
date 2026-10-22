@@ -109,21 +109,26 @@ featureGates:
 numericLabels:
 - key: shardferry.io/preemption-protected
   maxValue: 0
-  fallbackValue: 0
+  fallbackValue: 1
 ```
 
 `maxValue: 0` 表示只有 `protected=0` 的 workload 能成为候选。
-`fallbackValue: 0` 让没有 label 的普通 workload 仍按 eligible 处理，
-避免 adapter 故障时把它们全部排除。
+strict profile 使用 `fallbackValue: 1`：没有 label 的 workload 默认按
+protected 处理，只有 adapter 显式发布 `eligible` 才能成为 victim。
+这是 fail-safe，不是 fail-open；它也避免 preemptor 自己因为缺 label 被
+选中。试运行可使用 `preemption-config-advisory.yaml` 的
+`fallbackValue: 0`，但那不提供二元保护。
 
 ## 已知硬限制
 
 1. **只能过滤，不能排序。** Kueue 的 numeric label 不表达“优先抢占代价最低
    的 workload”。
-2. **不是绝对防抢占。** Kueue 会把 classical preemption 候选和
-   `PreemptionConfig` 候选做并集。只有 classical 路径也不能选中受保护
-   workload 时，保护才是严格的。部署前必须检查 ClusterQueue 的 preemption
-   配置；不要对外宣称“打上 label 就一定不会被抢占”。
+2. **不是绝对防抢占。** Kueue 先走 classical preemption；只有 classical
+   候选不足以满足 preemptor 时，才会继续追加 `PreemptionConfig` 候选。
+   因此 label 只能约束 configurable 阶段，约束不了 classical 阶段。只有
+   classical 路径也不能选中受保护 workload 时，保护才是严格的。部署前必须
+   检查 ClusterQueue 的 preemption 配置；不要对外宣称“打上 label 就一定
+   不会被抢占”。
 3. **必须显式 opt in。** 普通 Job 不会被修改，也不会被自动猜测 checkpoint
    状态。
 4. **状态可能陈旧。** adapter 默认每 30 秒重读 owner Job；发布端应持续更新
@@ -131,12 +136,51 @@ numericLabels:
 5. **不做 admission。** 如果目标是用 `AdmissionCheck` 在进队列前 delay，
    那是后续 StateGate，不混入本 MVP。
 
+### strict profile 的精确条件
+
+在 Kueue 当前实现中，configurable 候选是在 classical 候选失败后才追加的，
+不是提前做交集。因此严格保护必须同时满足：
+
+1. ClusterQueue 的 `withinClusterQueue=Never`；
+2. `reclaimWithinCohort=Never`；
+3. `borrowWithinCohort.policy=Never`；
+4. FairSharing 不参与抢占；
+5. ClusterQueue 通过 `kueue.x-k8s.io/preemption-config-name` 引用
+   `PreemptionConfig`；
+6. `PreemptionConfig` 对 `preemption-protected` 使用 `maxValue: 0`；
+7. strict profile 的 `fallbackValue=1`，让未知状态默认不被抢占。
+
+缺少任一条，二元保护就退化为 advisory：仍然能过滤一部分候选，但不能
+承诺“protected workload 永远不会被 Kueue 选中”。
+
+adapter 以 `--strict=true` 启动时，会在启动阶段检查
+`PreemptionConfig` 的 strict numeric-label 规则，以及引用它的 ClusterQueue
+的 classical 三项配置；检查失败就退出，不启动控制器。FairSharing 是 Kueue
+的全局配置，adapter 无法从单个 ClusterQueue 推断，仍需平台侧关闭。
+
+## 适配器抽象
+
+adapter 只应固定四个边界：
+
+```text
+ObservationSource  -> 读取 checkpoint 状态（当前是 Job annotations）
+Policy             -> 纯函数，输出 protected/eligible
+Projector          -> 把 Decision 投影成 Workload labels
+Kueue Profile      -> 外部的 PreemptionConfig + ClusterQueue 配置
+```
+
+不要把 Kueue 的 classical/fair-sharing 算法复制进 adapter，也不要维护第二个
+调度队列。这样以后接 sidecar、外部 checkpoint provider 或别的调度器时，只需要
+替换 `ObservationSource`/`Projector`，策略本身不变。
+
 ## 本地验证
 
 ```bash
 go test -count=1 ./internal/kueueadapter
 go run ./cmd/kueue-adapter \
   --kubeconfig "$HOME/.kube/config" \
+  --strict=true \
+  --preemption-config-name=checkpoint-guard \
   --workload-api-version v1beta2 \
   --protect-progress-gte 0.8 \
   --require-checkpoint-complete=true \
@@ -150,7 +194,27 @@ kind/Kueue 端到端验收：
 3. 触发一个需要抢占的更高优先级 workload；
 4. 确认受保护 Workload 的 `preemption-protected` 为 `1`；
 5. 确认 Kueue 事件和候选解释中没有把它选为 victim；
-6. 删除 adapter 后重新跑一次，确认 `fallbackValue: 0` 的行为符合预期。
+6. 删除 adapter 后重新跑一次，确认 strict profile 下没有新 label 的
+   Workload 仍按 `fallbackValue: 1` 被排除；如果使用 advisory profile，
+   则确认它按 `fallbackValue: 0` 仍可被抢占。
 
-在真实 Kueue 集群跑通前，只能声明“策略和 label 同步已验证”，
-不能声明“抢占行为已验证”。
+没有真实集群证据时只能声明“策略和 label 同步已验证”。下面的 CPU-only
+kind 验证已经覆盖抢占 victim 选择；生产 Kueue 版本、GPU 场景和规模行为仍需
+单独验证。
+
+## 2026-10-22 kind 实测
+
+使用 Kueue `main`、`ConfigurablePreemptions=true`、上面的 strict setup
+跑过一次 CPU-only 场景：
+
+- `protected-train`：`preemption-protected=1`，保持 `Admitted` 和 Pod
+  `Running`；
+- `eligible-train`：`preemption-protected=0`，被
+  `ConfigurablePreemption` 抢占；
+- `high-priority-preemptor`：没有 label，按 `fallbackValue: 1` 默认不成为
+  victim，正常获得 quota；
+- 放开 strict 条件、把 fallback 改为 `0` 时，preemptor 自己也可能进入候选，
+  因此 strict 不采用 fail-open。
+
+可复现步骤在
+[`examples/kueue-adapter/kind-e2e`](../examples/kueue-adapter/kind-e2e/README.zh-CN.md)。

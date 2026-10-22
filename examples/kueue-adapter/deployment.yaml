@@ -19,6 +19,8 @@ spec:
         image: shardferry-kueue-adapter:dev
         imagePullPolicy: IfNotPresent
         args:
+        - --strict=true
+        - --preemption-config-name=checkpoint-guard
         - --protect-progress-gte=0.8
         - --require-checkpoint-complete=true
         - --protect-unknown=true

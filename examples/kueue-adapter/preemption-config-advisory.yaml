@@ -1,0 +1,17 @@
+apiVersion: kueue.x-k8s.io/v1alpha1
+kind: PreemptionConfig
+metadata:
+  name: checkpoint-guard-advisory
+spec:
+  rules:
+  - name: exclude-explicitly-protected-workloads
+    activationPolicy:
+      trigger: Always
+    candidateSelectors:
+    - scope: AnyClusterQueue
+      numericLabels:
+      - key: shardferry.io/preemption-protected
+        maxValue: 0
+        # Fail-open: an unlabeled workload remains eligible. This is useful for
+        # a trial deployment, but it is not a strict binary protection guarantee.
+        fallbackValue: 0

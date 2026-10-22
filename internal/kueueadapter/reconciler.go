@@ -2,21 +2,14 @@ package kueueadapter
 
 import (
 	"context"
-	"fmt"
-	"reflect"
-	"strconv"
-	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -49,7 +42,8 @@ type Reconciler struct {
 	Policy          Policy
 	WorkloadGVK     schema.GroupVersionKind
 	RefreshInterval time.Duration
-	Recorder        record.EventRecorder
+	Source          ObservationSource
+	Projector       DecisionProjector
 }
 
 func (r *Reconciler) Reconcile(
@@ -68,38 +62,28 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, nil
 	}
 
-	enabled, object, source, err := r.observationSource(ctx, workload)
+	source, err := r.observationSource().Resolve(ctx, workload)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if !enabled {
-		return ctrl.Result{}, r.clearDecision(ctx, workload)
+	if !source.Enabled {
+		return ctrl.Result{}, r.projector().Clear(ctx, workload)
 	}
 
-	observation, parseErr := ParseObservation(
-		object.GetAnnotations(),
-		object.GetLabels(),
+	observation, _ := ParseObservation(
+		source.Object.GetAnnotations(),
+		source.Object.GetLabels(),
 	)
 	decision := r.Policy.Decide(observation)
-	changed, err := r.applyDecision(
+	_, err = r.projector().Project(
 		ctx,
 		workload,
-		source,
+		source.Source,
 		observation,
 		decision,
 	)
 	if err != nil {
 		return ctrl.Result{}, err
-	}
-	if parseErr != nil && changed && r.Recorder != nil {
-		r.Recorder.Eventf(
-			workload,
-			corev1.EventTypeWarning,
-			"InvalidCheckpointObservation",
-			"checkpoint state from %s is invalid: %v",
-			source,
-			parseErr,
-		)
 	}
 
 	requeue := r.RefreshInterval
@@ -109,112 +93,18 @@ func (r *Reconciler) Reconcile(
 	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 
-func (r *Reconciler) observationSource(
-	ctx context.Context,
-	workload *unstructured.Unstructured,
-) (bool, metav1.Object, string, error) {
-	if IsProtectionEnabled(workload) {
-		return true, workload, "workload", nil
+func (r *Reconciler) observationSource() ObservationSource {
+	if r.Source != nil {
+		return r.Source
 	}
-
-	owner := controllerJobOwner(workload.GetOwnerReferences())
-	if owner == nil {
-		return false, nil, "", nil
-	}
-	job := &batchv1.Job{}
-	key := types.NamespacedName{
-		Namespace: workload.GetNamespace(),
-		Name:      owner.Name,
-	}
-	if err := r.Get(ctx, key, job); err != nil {
-		if apierrors.IsNotFound(err) {
-			return false, nil, "", nil
-		}
-		return false, nil, "", fmt.Errorf("get owner Job %s: %w", key, err)
-	}
-	if !IsProtectionEnabled(job) {
-		return false, nil, "", nil
-	}
-	return true, job, "job", nil
+	return JobObservationSource{Reader: r.Client}
 }
 
-func (r *Reconciler) applyDecision(
-	ctx context.Context,
-	workload *unstructured.Unstructured,
-	source string,
-	observation Observation,
-	decision Decision,
-) (bool, error) {
-	base := workload.DeepCopy()
-	labels := workload.GetLabels()
-	if labels == nil {
-		labels = map[string]string{}
+func (r *Reconciler) projector() DecisionProjector {
+	if r.Projector != nil {
+		return r.Projector
 	}
-	labels[LabelPreemptionProtected] = boolLabel(decision.Protected)
-	labels[LabelPreemptionReason] = string(decision.Reason)
-	labels[LabelDecisionSource] = source
-	if observation.Known && !observation.Invalid {
-		labels[LabelProgressPercent] = strconv.Itoa(
-			observation.TrainingProgressPercent,
-		)
-		labels[LabelCheckpointComplete] = boolLabel(
-			observation.CheckpointComplete,
-		)
-	} else {
-		delete(labels, LabelProgressPercent)
-		delete(labels, LabelCheckpointComplete)
-	}
-	workload.SetLabels(labels)
-
-	if reflect.DeepEqual(base.GetLabels(), workload.GetLabels()) {
-		return false, nil
-	}
-	if err := r.Patch(ctx, workload, client.MergeFrom(base)); err != nil {
-		return false, fmt.Errorf("patch Workload protection labels: %w", err)
-	}
-	if r.Recorder == nil {
-		return true, nil
-	}
-	previousReason := ""
-	if base.GetLabels() != nil {
-		previousReason = base.GetLabels()[LabelPreemptionReason]
-	}
-	if previousReason != string(decision.Reason) {
-		r.Recorder.Eventf(
-			workload,
-			corev1.EventTypeNormal,
-			"PreemptionProtection",
-			"protected=%t reason=%s source=%s",
-			decision.Protected,
-			decision.Reason,
-			source,
-		)
-	}
-	return true, nil
-}
-
-func (r *Reconciler) clearDecision(
-	ctx context.Context,
-	workload *unstructured.Unstructured,
-) error {
-	base := workload.DeepCopy()
-	labels := workload.GetLabels()
-	if len(labels) == 0 {
-		return nil
-	}
-	delete(labels, LabelPreemptionProtected)
-	delete(labels, LabelPreemptionReason)
-	delete(labels, LabelProgressPercent)
-	delete(labels, LabelCheckpointComplete)
-	delete(labels, LabelDecisionSource)
-	workload.SetLabels(labels)
-	if reflect.DeepEqual(base.GetLabels(), workload.GetLabels()) {
-		return nil
-	}
-	if err := r.Patch(ctx, workload, client.MergeFrom(base)); err != nil {
-		return fmt.Errorf("clear Workload protection labels: %w", err)
-	}
-	return nil
+	return WorkloadLabelProjector{Client: r.Client}
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -283,30 +173,4 @@ func (r *Reconciler) workloadGVK() schema.GroupVersionKind {
 		return DefaultWorkloadGVK
 	}
 	return r.WorkloadGVK
-}
-
-func controllerJobOwner(
-	owners []metav1.OwnerReference,
-) *metav1.OwnerReference {
-	var fallback *metav1.OwnerReference
-	for i := range owners {
-		owner := &owners[i]
-		if owner.Kind != "Job" || !strings.HasPrefix(owner.APIVersion, "batch/") {
-			continue
-		}
-		if fallback == nil {
-			fallback = owner
-		}
-		if owner.Controller != nil && *owner.Controller {
-			return owner
-		}
-	}
-	return fallback
-}
-
-func boolLabel(value bool) string {
-	if value {
-		return "1"
-	}
-	return "0"
 }

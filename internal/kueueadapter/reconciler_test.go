@@ -176,6 +176,81 @@ func TestReconcilerIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestReconcilerUsesInjectedSourceAndProjector(t *testing.T) {
+	workload := testWorkload(nil)
+	kubeClient := testClient(t, workload)
+	projector := &recordingProjector{}
+	reconciler := testReconciler(kubeClient, DefaultPolicy())
+	reconciler.Source = stubSource{
+		context: ObservationContext{
+			Enabled: true,
+			Source:  "external",
+			Object: &metav1.ObjectMeta{
+				Annotations: map[string]string{
+					AnnotationProgressPercent:    "90",
+					AnnotationCheckpointComplete: "1",
+				},
+			},
+		},
+	}
+	reconciler.Projector = projector
+
+	if _, err := reconciler.Reconcile(
+		context.Background(),
+		workloadRequest(workload),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !projector.called {
+		t.Fatal("injected projector was not called")
+	}
+	if !projector.decision.Protected ||
+		projector.decision.Reason != ReasonProgressThreshold {
+		t.Fatalf("projected decision = %#v", projector.decision)
+	}
+	if projector.source != "external" {
+		t.Fatalf("projected source = %q, want external", projector.source)
+	}
+}
+
+type stubSource struct {
+	context ObservationContext
+	err     error
+}
+
+func (s stubSource) Resolve(
+	context.Context,
+	*unstructured.Unstructured,
+) (ObservationContext, error) {
+	return s.context, s.err
+}
+
+type recordingProjector struct {
+	called   bool
+	source   string
+	decision Decision
+}
+
+func (p *recordingProjector) Project(
+	_ context.Context,
+	_ *unstructured.Unstructured,
+	source string,
+	_ Observation,
+	decision Decision,
+) (bool, error) {
+	p.called = true
+	p.source = source
+	p.decision = decision
+	return true, nil
+}
+
+func (p *recordingProjector) Clear(
+	context.Context,
+	*unstructured.Unstructured,
+) error {
+	return nil
+}
+
 func testScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	scheme := runtime.NewScheme()

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"time"
@@ -26,6 +27,8 @@ func main() {
 	var protectProgressGTE float64
 	var requireCheckpointComplete bool
 	var protectUnknown bool
+	var strict bool
+	var preemptionConfigName string
 	var enableLeaderElection bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "metrics endpoint address")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "health probe address")
@@ -35,6 +38,8 @@ func main() {
 	flag.Float64Var(&protectProgressGTE, "protect-progress-gte", 0.8, "protect workloads at or above this normalized progress (0..1)")
 	flag.BoolVar(&requireCheckpointComplete, "require-checkpoint-complete", true, "protect workloads without a complete checkpoint")
 	flag.BoolVar(&protectUnknown, "protect-unknown", true, "protect workloads with unknown or invalid checkpoint state")
+	flag.BoolVar(&strict, "strict", false, "require the configurable-only Kueue profile before starting")
+	flag.StringVar(&preemptionConfigName, "preemption-config-name", "checkpoint-guard", "PreemptionConfig referenced by strict ClusterQueues")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "enable leader election")
 	flag.Parse()
 
@@ -64,6 +69,8 @@ func main() {
 		Kind:    "Workload",
 	}
 	kueueadapter.AddToScheme(scheme, workloadGVK)
+	kueueadapter.AddToScheme(scheme, kueueadapter.ClusterQueueGVK)
+	kueueadapter.AddToScheme(scheme, kueueadapter.PreemptionConfigGVK)
 
 	managerOptions := ctrl.Options{
 		Scheme:                 scheme,
@@ -84,13 +91,32 @@ func main() {
 		ctrl.Log.Error(err, "unable to create manager")
 		os.Exit(1)
 	}
+	if strict {
+		report, err := kueueadapter.CheckStrictProfile(
+			context.Background(),
+			mgr.GetAPIReader(),
+			preemptionConfigName,
+		)
+		if err != nil {
+			ctrl.Log.Error(err, "strict Kueue profile is not ready")
+			os.Exit(1)
+		}
+		ctrl.Log.Info(
+			"strict Kueue profile validated",
+			"preemptionConfig", report.ConfigName,
+			"clusterQueues", report.ClusterQueues,
+		)
+	}
 
 	if err := (&kueueadapter.Reconciler{
 		Client:          mgr.GetClient(),
 		Policy:          policy,
 		WorkloadGVK:     workloadGVK,
 		RefreshInterval: syncInterval,
-		Recorder:        mgr.GetEventRecorderFor("shardferry-kueue-adapter"),
+		Projector: kueueadapter.WorkloadLabelProjector{
+			Client:   mgr.GetClient(),
+			Recorder: mgr.GetEventRecorderFor("shardferry-kueue-adapter"),
+		},
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create Kueue adapter")
 		os.Exit(1)

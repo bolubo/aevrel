@@ -33,6 +33,15 @@ rules:
   - patch
   - update
 - apiGroups:
+  - kueue.x-k8s.io
+  resources:
+  - clusterqueues
+  - preemptionconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - ""
   resources:
   - events
