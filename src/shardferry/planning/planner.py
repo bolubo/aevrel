@@ -14,10 +14,10 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from ..identity import resolve_source, source_id_for_shard, source_maps
-from ..layout import DTYPE_BYTES, Region, contains, local_region, rank_coord
+from .layout import DTYPE_BYTES, Region, contains, local_region, rank_coord
 from ..manifest import validate_spec
-from ..mesh import Mesh, parse_mesh
-from ..tensor_io import byte_runs, coalesce_runs
+from .mesh import Mesh, parse_mesh
+from .tensor_io import byte_runs, coalesce_runs
 
 
 PLAN_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "spec" / "plan.schema.json"
