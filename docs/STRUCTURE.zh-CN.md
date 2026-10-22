@@ -54,6 +54,9 @@ src/shardferry/
 第四步已开始：`planner.py` 已收进 `src/shardferry/planning/`；`layout`/
 `mesh`/`tensor_io` 暂留原路径，等 planner 稳定后再迁。
 
+第五步已完成：`verify.py`、`proof.py`、`target_ready.py` 已收进
+`src/shardferry/verification/`；旧路径保留兼容 shim。
+
 ## 迁移规则
 
 - 一次只搬一个包，行为不变；
