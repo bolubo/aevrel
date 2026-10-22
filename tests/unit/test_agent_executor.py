@@ -5,6 +5,7 @@ import socket
 import threading
 from urllib.request import Request, urlopen
 
+import pytest
 import yaml
 
 from shardferry.agent import build_agent_server
@@ -40,6 +41,7 @@ def _post(base: str, path: str, payload: dict) -> dict:
 
 
 def test_target_executor_stages_then_commits_one_rank(tmp_path) -> None:
+    pytest.importorskip("torch")
     spec, arrays, _ = generate_sharded_spec(
         (8, 4),
         (2, 2),
