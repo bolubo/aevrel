@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
+import ssl
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import ProxyHandler, Request, build_opener, urlopen
+from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 from .agent_state import TaskRecord
 from .dcp import export_dcp_local
@@ -51,7 +53,13 @@ class HttpArtifactResolver:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
-        self._opener = None if use_proxy else build_opener(ProxyHandler({}))
+        handlers = []
+        context = _tls_context_from_env()
+        if context is not None:
+            handlers.append(HTTPSHandler(context=context))
+        if not use_proxy:
+            handlers.append(ProxyHandler({}))
+        self._opener = build_opener(*handlers) if handlers else None
 
     def resolve(self, ref: str) -> dict[str, Any]:
         url = (
@@ -68,11 +76,12 @@ class HttpArtifactResolver:
         if self.token:
             request.add_header("Authorization", f"Bearer {self.token}")
         try:
-            response = (
-                self._opener.open(request, timeout=self.timeout)
-                if self._opener is not None
-                else urlopen(request, timeout=self.timeout)
-            )
+            if self._opener is not None:
+                response = self._opener.open(request, timeout=self.timeout)
+            else:
+                from urllib.request import urlopen
+
+                response = urlopen(request, timeout=self.timeout)
             with response:
                 data = response.read()
         except HTTPError as exc:
@@ -86,6 +95,20 @@ class HttpArtifactResolver:
         if not isinstance(payload, dict):
             raise ArtifactError(f"artifact must be a JSON object: {url}")
         return payload
+
+
+def _tls_context_from_env() -> ssl.SSLContext | None:
+    ca = os.environ.get("SHARDFERRY_TLS_CA", "")
+    cert = os.environ.get("SHARDFERRY_TLS_CERT", "")
+    key = os.environ.get("SHARDFERRY_TLS_KEY", "")
+    if not (ca or cert or key):
+        return None
+    if bool(cert) != bool(key):
+        raise ArtifactError("TLS cert and key are required together")
+    context = ssl.create_default_context(cafile=ca or None)
+    if cert:
+        context.load_cert_chain(cert, key)
+    return context
 
 
 class TargetTaskExecutor:

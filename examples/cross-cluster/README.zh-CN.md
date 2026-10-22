@@ -19,8 +19,11 @@ helm upgrade --install shardferry-control deploy/helm/shardferry \
   -n shardferry-control --create-namespace \
   --set source.enabled=false \
   --set target.enabled=false \
+  --set tls.enabled=true \
+  --set tls.controllerSecretName=shardferry-tls \
+  --set tls.agentSecretName=shardferry-tls \
   --set controller.serviceType=LoadBalancer \
-  --set controller.artifactPublicURL=http://CONTROL_ARTIFACT_HOST:8082
+  --set controller.artifactPublicURL=https://CONTROL_ARTIFACT_HOST:8082
 ```
 
 source 集群：
@@ -30,12 +33,14 @@ helm upgrade --install shardferry deploy/helm/shardferry \
   -n shardferry --create-namespace \
   --set controller.enabled=false \
   --set gateway.enabled=true \
-  --set gateway.publicURL=http://SOURCE_GATEWAY_HOST:9445 \
+  --set gateway.publicURL=https://SOURCE_GATEWAY_HOST:9445 \
   --set gateway.serviceType=LoadBalancer \
-  --set tls.enabled=false \
+  --set tls.enabled=true \
+  --set tls.controllerSecretName=shardferry-tls \
+  --set tls.agentSecretName=shardferry-tls \
   --set source.enabled=true \
   --set target.enabled=false \
-  --set controller.artifactPublicURL=http://CONTROL_ARTIFACT_HOST:8082
+  --set controller.artifactPublicURL=https://CONTROL_ARTIFACT_HOST:8082
 ```
 
 target 集群把 `source.enabled` 和 `target.enabled` 对调，并设置 target 的
@@ -44,14 +49,16 @@ checkpoint hostPath。
 如果使用 chart 自带的 source agent，还要让它返回 gateway 可达的 shard URL：
 
 ```bash
-  --set source.publicURL='http://SOURCE_GATEWAY_HOST:9445/v1/agents/{pod}'
+  --set source.publicURL='https://SOURCE_GATEWAY_HOST:9445/v1/agents/{pod}'
 ```
 
 agent 会在运行时展开 `{pod}`；这是为了让 target agent 通过 gateway
 读取 source shard，而不是直接访问 source Pod IP。
 
-P0 alpha 先走 token + 可信网络，source/target agent 与 gateway 都关闭 TLS；
-mTLS 是下一轮硬化项。
+生产方向使用 mTLS：controller、gateway、source/target agent 使用同一 CA，
+gateway 校验客户端证书，agent 数据面也走 mTLS。示例需要提供包含
+`ca.crt`、`tls.crt`、`tls.key` 的 Secret，证书 SAN 覆盖 gateway endpoint、
+agent 节点 IP 和 artifact endpoint。
 
 ## 注册和迁移
 
@@ -59,6 +66,9 @@ mTLS 是下一轮硬化项。
 
 ```bash
 export SHARDFERRY_AGENT_TOKEN='replace-with-the-agent-token'
+export SHARDFERRY_TLS_CA=/path/to/ca.crt
+export SHARDFERRY_TLS_CERT=/path/to/tls.crt
+export SHARDFERRY_TLS_KEY=/path/to/tls.key
 kubectl --context management apply -f clusters.yaml
 shardferryctl preflight -f migration.yaml --json
 shardferryctl migrate -f migration.yaml --wait
@@ -75,7 +85,7 @@ agent capabilities；不是只检查 YAML。
 - gateway 的 `/v1/shards/*` 允许 agent token，其他 proxy 路径要求本集群
   gateway token。
 
-当前仍是 token + 可信网络，mTLS 是后续硬化项。
+当前 token 仍保留为应用层第二因子；mTLS 负责传输身份。
 
 ## 已验证（2026-10-22，两套 kind）
 
@@ -95,6 +105,8 @@ agent capabilities；不是只检查 YAML。
   最终 `commit-pending → succeeded`，64/64 load，report/proof 完整。
 - per-cluster token：source/target 使用各自 gateway token，16→8 和 1GiB
   controller 重启路径均通过；不再是单一全局 gateway token。
+- mTLS：controller/gateway/agent 使用同一 CA；16→8 全链路成功，target
+  8/8 load；无客户端证书访问受保护 resolve 返回 401，health 保持 200。
 
 这组 128→64 验证使用小 tensor/小 DCP 数据，只证明控制面和 rank 编排，
 不是 1GiB/10GiB 性能或真实 GPU 结论。

@@ -113,7 +113,9 @@ management cluster -> ShardferryCluster(source/target) -> gateway -> local agent
 See [`examples/cross-cluster/README.zh-CN.md`](examples/cross-cluster/README.zh-CN.md)
 for the two-cluster install and migration example. The current alpha assumes one
 data-plane agent token, while gateway control traffic uses the per-cluster token
-from each `ShardferryCluster`; mTLS is a later hardening step.
+from each `ShardferryCluster`. mTLS is supported for controller↔gateway,
+gateway↔agent, agent→source shard, and artifact transport; certificates must be
+provided by the deployment.
 
 The two-kind control-plane path has been exercised for 16→8 and small 128→64
 DCP migrations, including target DCP load and source checksum preservation. This

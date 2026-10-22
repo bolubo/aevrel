@@ -46,10 +46,24 @@ func executePreflight(
 		return fmt.Errorf("SHARDFERRY_AGENT_TOKEN is required for preflight")
 	}
 	agents := agentclient.New(token)
+	clusterAPI := clusterclient.New("")
+	tlsCA := os.Getenv("SHARDFERRY_TLS_CA")
+	tlsCert := os.Getenv("SHARDFERRY_TLS_CERT")
+	tlsKey := os.Getenv("SHARDFERRY_TLS_KEY")
+	if tlsCA != "" || tlsCert != "" || tlsKey != "" {
+		agents, err = agentclient.NewWithTLS(token, tlsCA, tlsCert, tlsKey)
+		if err != nil {
+			return fmt.Errorf("configure preflight agent TLS: %w", err)
+		}
+		clusterAPI, err = clusterclient.NewWithTLS("", tlsCA, tlsCert, tlsKey)
+		if err != nil {
+			return fmt.Errorf("configure preflight gateway TLS: %w", err)
+		}
+	}
 	resolver := &controller.AgentResolver{
 		Client:   kubeClient,
 		Agents:   agents,
-		Clusters: clusterclient.New(""),
+		Clusters: clusterAPI,
 		Tokens:   agents,
 	}
 	resolved, err := resolver.Resolve(ctx, migration)

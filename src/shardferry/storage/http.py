@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import os
+import ssl
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-from urllib.request import ProxyHandler, Request, build_opener, urlopen
+from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener, urlopen
 
 from .file import StorageError
 
@@ -44,9 +46,13 @@ class HttpStorage:
         self.rate_controller = rate_controller
         self.rate_registry = rate_registry
         self._connections: dict[tuple[str, str, int], http.client.HTTPConnection] = {}
-        self._direct_opener = (
-            None if use_proxy else build_opener(ProxyHandler({}))
-        )
+        self._ssl_context = _tls_context_from_env()
+        handlers = []
+        if self._ssl_context is not None:
+            handlers.append(HTTPSHandler(context=self._ssl_context))
+        if not use_proxy:
+            handlers.append(ProxyHandler({}))
+        self._direct_opener = build_opener(*handlers) if handlers else None
 
     def read_range(self, uri: str, offset: int, size: int) -> bytes:
         if offset < 0 or size < 0:
@@ -161,6 +167,7 @@ class HttpStorage:
                     host,
                     port,
                     timeout=self.timeout,
+                    context=self._ssl_context,
                 )
             else:
                 connection = http.client.HTTPConnection(
@@ -244,6 +251,20 @@ class HttpStorage:
         if hasattr(self.rate_controller, "for_url"):
             return self.rate_controller.for_url(url)
         return self.rate_controller
+
+
+def _tls_context_from_env() -> ssl.SSLContext | None:
+    ca = os.environ.get("SHARDFERRY_TLS_CA", "")
+    cert = os.environ.get("SHARDFERRY_TLS_CERT", "")
+    key = os.environ.get("SHARDFERRY_TLS_KEY", "")
+    if not (ca or cert or key):
+        return None
+    if bool(cert) != bool(key):
+        raise StorageError("TLS cert and key are required together")
+    context = ssl.create_default_context(cafile=ca or None)
+    if cert:
+        context.load_cert_chain(cert, key)
+    return context
 
 
 def _parse_retry_after(value: str | None) -> float | None:

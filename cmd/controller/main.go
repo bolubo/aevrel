@@ -182,11 +182,24 @@ func main() {
 		runner,
 		4,
 	)
+	clusterClient := clusterclient.New(agentToken)
+	if agentCA != "" || agentCert != "" || agentKey != "" {
+		clusterClient, err = clusterclient.NewWithTLS(
+			agentToken,
+			agentCA,
+			agentCert,
+			agentKey,
+		)
+		if err != nil {
+			ctrl.Log.Error(err, "configure cluster gateway TLS")
+			os.Exit(1)
+		}
+	}
 	resolver := &controller.AgentResolver{
 		Client:   mgr.GetClient(),
 		Reader:   mgr.GetAPIReader(),
 		Agents:   agents,
-		Clusters: clusterclient.New(agentToken),
+		Clusters: clusterClient,
 		Tokens:   agents,
 	}
 	preparer.SetResolver(resolver)

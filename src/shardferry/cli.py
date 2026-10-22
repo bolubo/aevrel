@@ -168,6 +168,9 @@ def _build_parser() -> argparse.ArgumentParser:
     agent.add_argument("--metadata", required=False)
     agent.add_argument("--target-root", required=False)
     agent.add_argument("--public-url", required=False)
+    agent.add_argument("--tls-cert", default="")
+    agent.add_argument("--tls-key", default="")
+    agent.add_argument("--tls-ca", default="")
     agent.add_argument("--cache-bytes", type=int, default=512 * 1024 * 1024)
     agent.add_argument("--artifact-base-url", required=True)
     agent.add_argument("--proof", action="store_true")
@@ -624,6 +627,9 @@ def main(argv: list[str] | None = None) -> int:
                 target_root=args.target_root,
                 public_url=public_url,
                 max_cache_bytes=args.cache_bytes,
+                tls_cert=args.tls_cert or None,
+                tls_key=args.tls_key or None,
+                tls_ca=args.tls_ca or None,
             )
             print(
                 f"shardferry agent listening on "

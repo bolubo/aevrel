@@ -23,13 +23,15 @@ import (
 var agentPath = regexp.MustCompile(`^/v1/agents/([^/]+)(/.*)?$`)
 
 type Config struct {
-	PublicURL    string
-	ClusterName  string
-	GatewayToken string
-	AgentToken   string
-	AgentClient  *agentclient.Client
-	Client       client.Client
-	Namespace    string
+	PublicURL         string
+	ClusterName       string
+	GatewayToken      string
+	AgentToken        string
+	RequireClientCert bool
+	AgentClient       *agentclient.Client
+	AgentTransport    http.RoundTripper
+	Client            client.Client
+	Namespace         string
 }
 
 type Server struct {
@@ -76,6 +78,11 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) authorized(next http.HandlerFunc, allowAgentToken bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s.config.RequireClientCert &&
+			(r.TLS == nil || len(r.TLS.PeerCertificates) == 0) {
+			http.Error(w, "client certificate required", http.StatusUnauthorized)
+			return
+		}
 		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if got != s.config.GatewayToken &&
 			!(allowAgentToken &&
@@ -295,6 +302,9 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 		rest = "/"
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	if s.config.AgentTransport != nil {
+		proxy.Transport = s.config.AgentTransport
+	}
 	proxy.Director = func(request *http.Request) {
 		request.URL.Scheme = targetURL.Scheme
 		request.URL.Host = targetURL.Host
