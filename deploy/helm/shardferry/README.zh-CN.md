@@ -53,6 +53,22 @@ shardferryctl migrate -f examples/k8s/migration.yaml --wait
 
 `agentSelector` 由 controller 解析为 Pod 和本地 rank，不需要手写 rankMap。
 
+## Live Rank Split（实验）
+
+如果 LRS 执行器已经实现 `POST /v1/live/reconcile`，可以把 controller 接到
+它：
+
+```bash
+helm upgrade --install shardferry deploy/helm/shardferry \
+  --set controller.liveURL=http://lrs-handoff.live.svc:9460 \
+  --set controller.liveToken.existingSecret=shardferry-live-token
+```
+
+不设置 `controller.liveURL` 时，static 迁移完全不受影响；但使用
+`spec.mode: live-rank-split` 的 CR 会以 `LiveExecutorUnavailable` 失败关闭。
+未配置 `controller.liveToken.existingSecret` 时，controller 复用
+`SHARDFERRY_AGENT_TOKEN`。
+
 ## 跨集群
 
 跨集群时不要依赖远程 Pod IP。每个 source/target 集群启用一个薄 gateway，

@@ -23,6 +23,12 @@ controller:
   nodePort: 0
   artifactPublicURL: ""
   servicePort: 8082
+  # Optional LRS executor. Set this only when the Python live service
+  # implements POST /v1/live/reconcile.
+  liveURL: ""
+  liveToken:
+    existingSecret: ""
+    key: token
   resources: {}
   nodeSelector: {}
   tolerations: []

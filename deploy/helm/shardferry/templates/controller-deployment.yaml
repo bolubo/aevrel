@@ -43,6 +43,9 @@ spec:
             - --artifact-bind-address=:{{ .Values.controller.servicePort }}
             - --artifact-dir=/var/lib/shardferry/artifacts
             - --leader-elect=true
+            {{- if .Values.controller.liveURL }}
+            - --live-url={{ .Values.controller.liveURL }}
+            {{- end }}
             {{- if .Values.tls.enabled }}
             - --agent-ca=/tls/{{ .Values.tls.caKey }}
             - --agent-cert=/tls/{{ .Values.tls.certKey }}
@@ -57,6 +60,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.agentToken.existingSecret }}
                   key: {{ .Values.agentToken.key }}
+            {{- if and .Values.controller.liveURL .Values.controller.liveToken.existingSecret }}
+            - name: SHARDFERRY_LIVE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.controller.liveToken.existingSecret }}
+                  key: {{ .Values.controller.liveToken.key }}
+            {{- end }}
           ports:
             - name: artifacts
               containerPort: {{ .Values.controller.servicePort }}
