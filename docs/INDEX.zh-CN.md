@@ -19,6 +19,7 @@
 
 - [新手操作手册](QUICKSTART.zh-CN.md)
 - [完整使用场景与验收](USAGE.zh-CN.md)
+- [跨集群 live acceptance](LIVE-ACCEPTANCE.zh-CN.md)
 - [产品面契约](PRODUCT.zh-CN.md)
 - [目标 DCP 加载](TARGET-LOAD.zh-CN.md)
 - [物理 A/B 实验](AB-EXPERIMENT.zh-CN.md)

@@ -92,6 +92,7 @@ def check(image_prefix: str) -> dict[str, Any]:
         "docs/UPGRADE.zh-CN.md",
         "docs/USER-ENABLEMENT.zh-CN.md",
         "docs/RELEASE.zh-CN.md",
+        "docs/LIVE-ACCEPTANCE.zh-CN.md",
         ".github/workflows/release.yml",
     ]
     for relative in required:
