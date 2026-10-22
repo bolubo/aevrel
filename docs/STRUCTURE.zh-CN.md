@@ -51,6 +51,9 @@ src/shardferry/
 第三步已完成：`agent.py`、`agent_state.py`、`agent_executor.py` 已收进
 `src/shardferry/agent/`；`agent_state`/`agent_executor` 旧路径保留兼容 shim。
 
+第四步已开始：`planner.py` 已收进 `src/shardferry/planning/`；`layout`/
+`mesh`/`tensor_io` 暂留原路径，等 planner 稳定后再迁。
+
 ## 迁移规则
 
 - 一次只搬一个包，行为不变；
