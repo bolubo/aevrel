@@ -50,6 +50,7 @@ func executePreflight(
 		Client:   kubeClient,
 		Agents:   agents,
 		Clusters: clusterclient.New(""),
+		Tokens:   agents,
 	}
 	resolved, err := resolver.Resolve(ctx, migration)
 	if err != nil {

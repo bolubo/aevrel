@@ -182,12 +182,14 @@ func main() {
 		runner,
 		4,
 	)
-	preparer.SetResolver(&controller.AgentResolver{
+	resolver := &controller.AgentResolver{
 		Client:   mgr.GetClient(),
 		Reader:   mgr.GetAPIReader(),
 		Agents:   agents,
 		Clusters: clusterclient.New(agentToken),
-	})
+		Tokens:   agents,
+	}
+	preparer.SetResolver(resolver)
 	if err := mgr.Add(preparer); err != nil {
 		ctrl.Log.Error(err, "unable to add preparation runner")
 		os.Exit(1)
@@ -201,6 +203,7 @@ func main() {
 		Scheme:             mgr.GetScheme(),
 		Runner:             runner,
 		Preparer:           preparer,
+		Resolver:           resolver,
 		Orchestrator:       orchestrator,
 		Cutover:            cutover,
 		CutoverAutoPromote: cutoverAutoPromote,

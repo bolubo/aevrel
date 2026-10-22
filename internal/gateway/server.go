@@ -78,7 +78,9 @@ func (s *Server) authorized(next http.HandlerFunc, allowAgentToken bool) http.Ha
 	return func(w http.ResponseWriter, r *http.Request) {
 		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if got != s.config.GatewayToken &&
-			!(allowAgentToken && got == s.config.AgentToken) {
+			!(allowAgentToken &&
+				strings.Contains(r.URL.Path, "/v1/shards/") &&
+				got == s.config.AgentToken) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

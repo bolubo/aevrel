@@ -112,8 +112,8 @@ management cluster -> ShardferryCluster(source/target) -> gateway -> local agent
 
 See [`examples/cross-cluster/README.zh-CN.md`](examples/cross-cluster/README.zh-CN.md)
 for the two-cluster install and migration example. The current alpha assumes one
-agent token across the control plane and both gateways; per-cluster token routing
-and mTLS are later hardening steps.
+data-plane agent token, while gateway control traffic uses the per-cluster token
+from each `ShardferryCluster`; mTLS is a later hardening step.
 
 The two-kind control-plane path has been exercised for 16→8 and small 128→64
 DCP migrations, including target DCP load and source checksum preservation. This

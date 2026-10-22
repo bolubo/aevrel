@@ -67,14 +67,15 @@ shardferryctl migrate -f migration.yaml --wait
 `preflight` 会通过 gateway 实际读取 source inventory，并探测 target
 agent capabilities；不是只检查 YAML。
 
-### P0 凭据简化
+### 凭据模型
 
-当前示例使用同一份 agent token 贯穿 gateway 和 agent，避免第一版引入
-per-cluster token 路由。`ShardferryCluster.secretRef` 的 token 必须与
-对应 gateway 的 `SHARDFERRY_GATEWAY_TOKEN` 一致；controller 的
-`SHARDFERRY_AGENT_TOKEN` 必须与 agent/gateway 的代理 token 一致。
+- `ShardferryCluster.secretRef` 的 token 是该集群 gateway token；
+- controller 按 gateway endpoint 绑定各自 token，不再依赖全局 gateway token；
+- `SHARDFERRY_AGENT_TOKEN` 只用于本地 agent 和 source shard 数据路径；
+- gateway 的 `/v1/shards/*` 允许 agent token，其他 proxy 路径要求本集群
+  gateway token。
 
-后续会把 gateway token、agent token 和每集群凭据拆开。
+当前仍是 token + 可信网络，mTLS 是后续硬化项。
 
 ## 已验证（2026-10-22，两套 kind）
 
@@ -92,6 +93,8 @@ per-cluster token 路由。`ShardferryCluster.secretRef` 的 token 必须与
 - controller 重启后，已成功 migration 仍保持 `succeeded`，不会静默重跑。
 - 1GiB 迁移进行中重启 controller：从 execution snapshot 续跑，
   最终 `commit-pending → succeeded`，64/64 load，report/proof 完整。
+- per-cluster token：source/target 使用各自 gateway token，16→8 和 1GiB
+  controller 重启路径均通过；不再是单一全局 gateway token。
 
 这组 128→64 验证使用小 tensor/小 DCP 数据，只证明控制面和 rank 编排，
 不是 1GiB/10GiB 性能或真实 GPU 结论。
