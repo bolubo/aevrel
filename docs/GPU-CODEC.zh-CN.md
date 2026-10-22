@@ -26,6 +26,8 @@
 - `src/shardferry/gpu_adaptive.py`：从 range 的 head/middle/tail 采样，
   用采样压缩时间和校准吞吐估算完整 range 收益；不满足相对收益门槛就走
   identity。
+- `src/shardferry/gpu_batch.py`：把多个 range 合成 `SFB1` batch，统一采样、
+  统一 decision、统一压缩，再按长度拆回。
 - `nvidia-nvcomp-cu12>=6.0.0.12` 作为 optional `gpu` 依赖；基础安装不变。
 
 ## 使用
@@ -83,6 +85,17 @@ RTX 5070 Ti Laptop 12GB，32 个 4MiB range：
 - 4MiB range / 1Gbps：可压 range 也全部跳过；采样和 GPU 固定开销不划算。
 - 8MiB range / 100Mbps：可压 fixture 8 个中启用 3 个；随机 DCP 8 个中启用 0 个。
 - 首次 `.metadata` 小 range 全部走 identity。
+
+### Batch 结果
+
+本地 RTX 5070 Ti，8×4MiB batch，1Gbps：
+
+- 可压 fixture：batch 启用，ratio `0.2347`，网络投影收益 `+0.058s`。
+- 随机 DCP：batch 走 identity，ratio `1.0`，网络投影为负。
+- 同一批 range 逐 range 自适应在 4MiB/1Gbps 下会跳过，batch 才把固定
+  采样/决策开销摊薄。
+
+`gpu_codec_probe.py --adaptive --batch-ranges N` 可复现；默认仍未接入主路径。
 
 ## 后续接入（未做）
 

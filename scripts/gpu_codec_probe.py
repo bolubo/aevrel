@@ -22,6 +22,7 @@ from shardferry.gpu_codec import (  # noqa: E402
     nvcomp_status,
 )
 from shardferry.gpu_adaptive import AdaptiveRangeCodec  # noqa: E402
+from shardferry.gpu_batch import AdaptiveBatchCodec  # noqa: E402
 from shardferry.gpu_policy import decide_codec  # noqa: E402
 
 
@@ -95,6 +96,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--network-gbps", type=float, default=10.0)
     parser.add_argument("--adaptive", action="store_true")
+    parser.add_argument("--batch-ranges", type=int, default=1)
     parser.add_argument("--json", action="store_true", dest="json_output")
     return parser
 
@@ -129,6 +131,10 @@ def _run(args) -> dict:
         raise ValueError("max-ranges must be positive")
     if args.network_gbps < 0:
         raise ValueError("network-gbps must be non-negative")
+    if args.batch_ranges < 1:
+        raise ValueError("batch-ranges must be positive")
+    if args.batch_ranges > 1 and not args.adaptive:
+        raise ValueError("batch-ranges requires --adaptive")
     codec = make_codec(args.codec)
     if isinstance(codec, NvcompCodec) and not codec.available():
         status = nvcomp_status()
@@ -192,35 +198,75 @@ def _run(args) -> dict:
     roundtrip_ok = True
     adaptive_enabled = 0
     adaptive_skipped = 0
+    adaptive_enabled_ranges = 0
+    adaptive_skipped_ranges = 0
+    adaptive_enabled_batches = 0
+    adaptive_skipped_batches = 0
     adaptive_decisions = []
-    for chunk in chunks:
-        if adaptive_codec is not None:
+    batch_codec = None
+    batches = []
+    if adaptive_codec is not None and args.batch_ranges > 1:
+        batch_codec = AdaptiveBatchCodec(
+            adaptive_codec,
+            max_ranges=args.batch_ranges,
+            max_bytes=args.batch_ranges * args.range_bytes,
+        )
+        batches = [
+            chunks[index : index + args.batch_ranges]
+            for index in range(0, len(chunks), args.batch_ranges)
+        ]
+    if batch_codec is not None:
+        for batch in batches:
             started = time.perf_counter()
-            adaptive_result = adaptive_codec.encode(chunk)
+            adaptive_result = batch_codec.encode(batch)
             compress_seconds += time.perf_counter() - started
             frame = adaptive_result.frame
             adaptive_decisions.append(adaptive_result.decision.to_dict())
             if adaptive_result.compressed:
                 adaptive_enabled += 1
+                adaptive_enabled_batches += 1
+                adaptive_enabled_ranges += len(batch)
             else:
                 adaptive_skipped += 1
-        else:
-            if hasattr(codec, "synchronize"):
-                codec.synchronize()
+                adaptive_skipped_batches += 1
+                adaptive_skipped_ranges += len(batch)
             started = time.perf_counter()
-            frame = encode_frame(codec, chunk)
+            decoded_batch = batch_codec.decode(frame)
+            decompress_seconds += time.perf_counter() - started
+            raw_bytes += sum(len(chunk) for chunk in batch)
+            frame_bytes += len(frame)
+            roundtrip_ok = roundtrip_ok and decoded_batch == batch
+    else:
+        for chunk in chunks:
+            if adaptive_codec is not None:
+                started = time.perf_counter()
+                adaptive_result = adaptive_codec.encode(chunk)
+                compress_seconds += time.perf_counter() - started
+                frame = adaptive_result.frame
+                adaptive_decisions.append(adaptive_result.decision.to_dict())
+                if adaptive_result.compressed:
+                    adaptive_enabled += 1
+                    adaptive_enabled_ranges += 1
+                else:
+                    adaptive_skipped += 1
+                    adaptive_skipped_ranges += 1
+            else:
+                if hasattr(codec, "synchronize"):
+                    codec.synchronize()
+                started = time.perf_counter()
+                frame = encode_frame(codec, chunk)
+                if hasattr(codec, "synchronize"):
+                    codec.synchronize()
+                compress_seconds += time.perf_counter() - started
+
+            started = time.perf_counter()
+            decoded = decode_frame(frame, codecs)
             if hasattr(codec, "synchronize"):
                 codec.synchronize()
-            compress_seconds += time.perf_counter() - started
-
-        started = time.perf_counter()
-        decoded = decode_frame(frame, codecs)
-        if hasattr(codec, "synchronize"):
-            codec.synchronize()
-        decompress_seconds += time.perf_counter() - started
-        raw_bytes += len(chunk)
-        frame_bytes += len(frame)
-        roundtrip_ok = roundtrip_ok and decoded == chunk
+            decompress_seconds += time.perf_counter() - started
+            raw_bytes += len(chunk)
+            frame_bytes += len(frame)
+            roundtrip_ok = roundtrip_ok and decoded == chunk
 
     gib = 1024**3
     network_bytes_per_second = args.network_gbps * 1_000_000_000 / 8
@@ -265,8 +311,15 @@ def _run(args) -> dict:
         "roundtrip_ok": roundtrip_ok,
         "adaptive": (
             {
-                "enabled_ranges": adaptive_enabled,
-                "skipped_ranges": adaptive_skipped,
+                "enabled_ranges": adaptive_enabled_ranges,
+                "skipped_ranges": adaptive_skipped_ranges,
+                "batch_ranges": args.batch_ranges,
+                "enabled_batches": (
+                    adaptive_enabled_batches if batch_codec is not None else 0
+                ),
+                "skipped_batches": (
+                    adaptive_skipped_batches if batch_codec is not None else 0
+                ),
                 "decisions": adaptive_decisions,
             }
             if adaptive_codec is not None

@@ -99,3 +99,38 @@ def test_gpu_codec_probe_adaptive_mode_reports_range_decisions() -> None:
     assert report["adaptive"]["enabled_ranges"] == 4
     assert report["adaptive"]["skipped_ranges"] == 0
     assert report["roundtrip_ok"] is True
+
+
+def test_gpu_codec_probe_batch_mode_reports_batch_decisions() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "gpu_codec_probe.py"),
+            "--codec",
+            "zlib",
+            "--pattern",
+            "repeat",
+            "--size",
+            str(1024 * 1024),
+            "--range-bytes",
+            str(256 * 1024),
+            "--max-ranges",
+            "4",
+            "--network-gbps",
+            "0.01",
+            "--adaptive",
+            "--batch-ranges",
+            "4",
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["adaptive"]["batch_ranges"] == 4
+    assert report["adaptive"]["enabled_batches"] == 1
+    assert report["adaptive"]["skipped_batches"] == 0
+    assert report["roundtrip_ok"] is True
