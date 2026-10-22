@@ -22,6 +22,7 @@ from .cutover_service import (
     CutoverServiceError,
     build_cutover_server,
 )
+from .handoff import CommandPauseHook
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
 from .target_ready import (
@@ -30,6 +31,7 @@ from .target_ready import (
     HttpTargetReady,
     TargetReadyChain,
 )
+from .target_job import KubernetesTargetReady, TargetJobConfig
 from .defaults import (
     DEFAULT_LISTEN,
     DEFAULT_PUBLIC_LISTEN,
@@ -50,7 +52,7 @@ from .tensor_io import TensorIOError
 from .verify import VerificationError, verify
 
 
-_PUBLIC_COMMANDS = ("demo", "migrate", "doctor", "capabilities")
+_PUBLIC_COMMANDS = ("demo", "migrate", "doctor", "capabilities", "handoff")
 _INTERNAL_COMMANDS = (
     "inspect",
     "plan",
@@ -98,7 +100,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="store_true", help="print version")
     sub = parser.add_subparsers(
         dest="command",
-        metavar="{demo,migrate,doctor,capabilities}",
+        metavar="{handoff,demo,migrate,doctor,capabilities}",
     )
 
     inspect = sub.add_parser("inspect")
@@ -180,7 +182,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="verify each completed target rank with a local DCP load",
     )
 
-    cutover = sub.add_parser("cutover-serve")
+    cutover = sub.add_parser(
+        "handoff",
+        help="run the warm-target checkpoint handoff service",
+    )
     cutover.add_argument("--source", required=True)
     cutover.add_argument("--target", required=True)
     cutover.add_argument("--listen", default="0.0.0.0:9450")
@@ -219,10 +224,42 @@ def _build_parser() -> argparse.ArgumentParser:
     cutover.add_argument("--target-ready-interval", type=float, default=0.5)
     cutover.add_argument("--target-ready-timeout", type=float, default=300.0)
     cutover.add_argument(
+        "--target-job-template",
+        default="",
+        help="Kubernetes batch/v1 Job template for real target validation",
+    )
+    cutover.add_argument("--target-job-namespace", default="default")
+    cutover.add_argument("--target-job-id", default="handoff")
+    cutover.add_argument("--target-world-size", type=int, default=1)
+    cutover.add_argument("--validation-steps", type=int, default=1)
+    cutover.add_argument("--target-validation-timeout", type=float, default=900.0)
+    cutover.add_argument(
+        "--target-checkpoint-template",
+        default="{target}/shadow/{version_id}/rank{rank}",
+        help="checkpoint path template injected into target Jobs",
+    )
+    cutover.add_argument("--kubectl", default="kubectl")
+    cutover.add_argument(
         "--max-pause-seconds",
         type=float,
         default=300.0,
         help="hard upper bound for source pause, including target readiness",
+    )
+    cutover.add_argument(
+        "--pause-command",
+        default="",
+        help="argv template run before final delta; {version_id} is substituted",
+    )
+    cutover.add_argument(
+        "--resume-command",
+        default="",
+        help="argv template run when cutover fails or is recovered",
+    )
+    cutover.add_argument(
+        "--pause-timeout",
+        type=float,
+        default=60.0,
+        help="timeout for pause/resume commands",
     )
     cutover.add_argument(
         "--follow-interval",
@@ -433,6 +470,10 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "cutover-serve":
+        # Keep the internal name as a compatibility alias without advertising
+        # it in the product command surface.
+        arguments[0] = "handoff"
     if (
         arguments
         and not arguments[0].startswith("-")
@@ -651,16 +692,28 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError, AgentError) as exc:
             print(f"shardferry agent: {exc}", file=sys.stderr)
             return 2
-    if args.command == "cutover-serve":
+    if args.command in {"cutover-serve", "handoff"}:
+        command_name = args.command
         token = args.token or os.environ.get("SHARDFERRY_CUTOVER_TOKEN", "")
         if not token:
             print(
-                "shardferry cutover-serve: --token or "
+                f"shardferry {command_name}: --token or "
                 "SHARDFERRY_CUTOVER_TOKEN is required",
                 file=sys.stderr,
             )
             return 2
         try:
+            pause_hook = None
+            if bool(args.pause_command) != bool(args.resume_command):
+                raise ValueError(
+                    "--pause-command and --resume-command must be used together"
+                )
+            if args.pause_command:
+                pause_hook = CommandPauseHook(
+                    args.pause_command,
+                    args.resume_command,
+                    timeout=args.pause_timeout,
+                )
             checks = []
             if args.target_ready_command:
                 checks.append(
@@ -686,6 +739,26 @@ def main(argv: list[str] | None = None) -> int:
                         token=args.target_ready_token or None,
                     )
                 )
+            if args.target_job_template:
+                checks.append(
+                    KubernetesTargetReady(
+                        TargetJobConfig(
+                            template=Path(args.target_job_template),
+                            namespace=args.target_job_namespace,
+                            world_size=args.target_world_size,
+                            steps=args.validation_steps,
+                            job_id=args.target_job_id,
+                            checkpoint_template=(
+                                args.target_checkpoint_template.replace(
+                                    "{target}",
+                                    str(Path(args.target).resolve()),
+                                )
+                            ),
+                            timeout=args.target_validation_timeout,
+                            kubectl=args.kubectl,
+                        )
+                    )
+                )
             if len(checks) == 1:
                 target_ready = checks[0]
             elif checks:
@@ -703,11 +776,15 @@ def main(argv: list[str] | None = None) -> int:
                     max_lag_versions=10,
                 ),
                 target_ready=target_ready,
+                pause_hook=pause_hook,
                 follow_interval=(
                     None if args.no_auto_follow else args.follow_interval
                 ),
                 max_versions_per_cycle=args.max_follow_versions,
                 retain_versions=args.retain_versions,
+                accept_pause_version=(
+                    True if args.pause_command else False
+                ),
             )
             server = build_cutover_server(
                 args.listen,
@@ -718,7 +795,7 @@ def main(argv: list[str] | None = None) -> int:
                 tls_ca=args.tls_ca or None,
             )
             print(
-                f"shardferry cutover-serve listening on "
+                f"shardferry {command_name} listening on "
                 f"{server.server_address[0]}:{server.server_address[1]}"
             )
             try:
@@ -732,7 +809,7 @@ def main(argv: list[str] | None = None) -> int:
                 server.server_close()
             return 0
         except (CutoverServiceError, OSError, ValueError) as exc:
-            print(f"shardferry cutover-serve: {exc}", file=sys.stderr)
+            print(f"shardferry {command_name}: {exc}", file=sys.stderr)
             return 2
     if args.command == "dcp-inspect":
         try:

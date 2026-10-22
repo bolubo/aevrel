@@ -20,6 +20,7 @@ from .cutover import (
     CutoverError,
     CutoverPolicy,
     CutoverSession,
+    PauseHook,
 )
 from .follower import FollowerLoop
 from .tls import server_context
@@ -42,9 +43,11 @@ class CutoverService:
         chunking: ChunkingPolicy | None = None,
         policy: CutoverPolicy | None = None,
         target_ready: Callable[[str], None] | None = None,
+        pause_hook: PauseHook | None = None,
         follow_interval: float | None = None,
         max_versions_per_cycle: int = 8,
         retain_versions: int = 0,
+        accept_pause_version: bool | None = None,
     ) -> None:
         if follow_interval is not None and follow_interval <= 0:
             raise ValueError("follow_interval must be positive")
@@ -60,6 +63,11 @@ class CutoverService:
         self._lifecycle_lock = threading.RLock()
         self._retention_lock = threading.RLock()
         self.retain_versions = retain_versions
+        self.accept_pause_version = (
+            pause_hook is not None
+            if accept_pause_version is None
+            else accept_pause_version
+        )
         self._last_retention: dict[str, Any] | None = None
         self._retention_error: str | None = None
         self.follower = CheckpointFollower(
@@ -87,6 +95,7 @@ class CutoverService:
             chunking=self.chunking,
             follower=self.follower,
             target_ready=target_ready,
+            pause_hook=pause_hook,
         )
         self._follow_thread: threading.Thread | None = None
         self._follow_stop: threading.Event | None = None
@@ -233,9 +242,11 @@ class CutoverService:
         self,
         version_id: str | None = None,
         *,
+        accept_new_version: bool | None = None,
         owner: str | None = None,
         epoch: int | None = None,
     ) -> dict[str, Any]:
+        explicit_version = version_id is not None
         descriptors = scan_versions(self.source_root)
         selected = version_id or (
             descriptors[-1].version_id if descriptors else None
@@ -247,6 +258,11 @@ class CutoverService:
                 selected,
                 owner=owner or self.owner,
                 epoch=epoch if epoch is not None else self.epoch,
+                accept_new_version=(
+                    self.accept_pause_version and not explicit_version
+                    if accept_new_version is None
+                    else accept_new_version
+                ),
             )
         payload = {
             "state": result.state,

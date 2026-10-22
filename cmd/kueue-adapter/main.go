@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/shardferry/shardferry/internal/cutoverclient"
 	"github.com/shardferry/shardferry/internal/kueueadapter"
 )
 
@@ -29,6 +30,9 @@ func main() {
 	var protectUnknown bool
 	var strict bool
 	var preemptionConfigName string
+	var handoffURL string
+	var handoffToken string
+	var handoffTimeout time.Duration
 	var enableLeaderElection bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "metrics endpoint address")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "health probe address")
@@ -40,6 +44,9 @@ func main() {
 	flag.BoolVar(&protectUnknown, "protect-unknown", true, "protect workloads with unknown or invalid checkpoint state")
 	flag.BoolVar(&strict, "strict", false, "require the configurable-only Kueue profile before starting")
 	flag.StringVar(&preemptionConfigName, "preemption-config-name", "checkpoint-guard", "PreemptionConfig referenced by strict ClusterQueues")
+	flag.StringVar(&handoffURL, "handoff-url", "", "optional cutover service URL; enables eviction-triggered handoff")
+	flag.StringVar(&handoffToken, "handoff-token", os.Getenv("SHARDFERRY_CUTOVER_TOKEN"), "bearer token for the cutover service")
+	flag.DurationVar(&handoffTimeout, "handoff-timeout", 5*time.Minute, "timeout for a cutover request")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "enable leader election")
 	flag.Parse()
 
@@ -108,6 +115,17 @@ func main() {
 		)
 	}
 
+	var handoff kueueadapter.HandoffTrigger
+	if handoffURL != "" {
+		if handoffToken == "" {
+			ctrl.Log.Error(nil, "handoff-token is required when handoff-url is set")
+			os.Exit(1)
+		}
+		cutover := cutoverclient.New(handoffURL, handoffToken)
+		cutover.HTTP.Timeout = handoffTimeout
+		handoff = kueueadapter.CutoverHandoff{Client: cutover}
+	}
+
 	if err := (&kueueadapter.Reconciler{
 		Client:          mgr.GetClient(),
 		Policy:          policy,
@@ -117,6 +135,7 @@ func main() {
 			Client:   mgr.GetClient(),
 			Recorder: mgr.GetEventRecorderFor("shardferry-kueue-adapter"),
 		},
+		Handoff: handoff,
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create Kueue adapter")
 		os.Exit(1)

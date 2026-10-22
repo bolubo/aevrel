@@ -213,6 +213,61 @@ func TestReconcilerUsesInjectedSourceAndProjector(t *testing.T) {
 	}
 }
 
+func TestReconcilerTriggersHandoffOnEviction(t *testing.T) {
+	job := testJob(map[string]string{
+		AnnotationProtection:         "enabled",
+		AnnotationHandoff:            "enabled",
+		AnnotationProgressPercent:    "10",
+		AnnotationCheckpointComplete: "1",
+	})
+	workload := testWorkload(job)
+	workload.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{
+				"type":   "Evicted",
+				"status": "True",
+			},
+		},
+	}
+	kubeClient := testClient(t, job, workload)
+	handoff := &recordingHandoff{state: "promoted"}
+	r := testReconciler(kubeClient, DefaultPolicy())
+	r.Handoff = handoff
+
+	if _, err := r.Reconcile(context.Background(), workloadRequest(workload)); err != nil {
+		t.Fatal(err)
+	}
+	if !handoff.called {
+		t.Fatal("handoff trigger was not called")
+	}
+	got := getWorkload(t, kubeClient, workload)
+	if got.GetAnnotations()[AnnotationHandoffState] != "promoted" {
+		t.Fatalf(
+			"handoff state = %q, want promoted",
+			got.GetAnnotations()[AnnotationHandoffState],
+		)
+	}
+}
+
+func TestReconcilerDoesNotHandoffWithoutEviction(t *testing.T) {
+	job := testJob(map[string]string{
+		AnnotationProtection: "enabled",
+		AnnotationHandoff:    "enabled",
+	})
+	workload := testWorkload(job)
+	kubeClient := testClient(t, job, workload)
+	handoff := &recordingHandoff{state: "promoted"}
+	r := testReconciler(kubeClient, DefaultPolicy())
+	r.Handoff = handoff
+
+	if _, err := r.Reconcile(context.Background(), workloadRequest(workload)); err != nil {
+		t.Fatal(err)
+	}
+	if handoff.called {
+		t.Fatal("handoff trigger was called without an eviction")
+	}
+}
+
 type stubSource struct {
 	context ObservationContext
 	err     error
@@ -229,6 +284,18 @@ type recordingProjector struct {
 	called   bool
 	source   string
 	decision Decision
+}
+
+type recordingHandoff struct {
+	called bool
+	state  string
+}
+
+func (h *recordingHandoff) Trigger(
+	context.Context,
+) (string, error) {
+	h.called = true
+	return h.state, nil
 }
 
 func (p *recordingProjector) Project(
