@@ -538,7 +538,7 @@ Gate:
   file probe and before the target-job readiness URL.
 - `python -m shardferry.target_probe --dcp-checkpoint ...` now provides the
   same load proof as a target-job command; cutover RTO includes its load time.
-- Python: `265 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
+- Python: `266 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
   `go build ./cmd/controller` pass; Helm lint/template pass.
 - HTTP range reads now reuse per-host `HTTP(S)Connection` keep-alive
   connections; the existing agent/HTTP/DCP-provider tests remain green.
@@ -568,7 +568,7 @@ Gate:
 - Added bounded rank-local DCP readiness: `DcpTargetReady(rank=N)` and
   `target_probe --dcp-rank N` deserialize only local `.distcp` chunks; the
   regression verifies no global tensor allocation.
-- Gate: Python `265 passed / 2 skipped`; Go tests/vet/build and Helm
+- Gate: Python `266 passed / 2 skipped`; Go tests/vet/build and Helm
   lint/template pass.
 
 ## 2026-10-22 / Zero-materialization migration path
@@ -579,6 +579,13 @@ Gate:
 - Added the `dcpzip` storage adapter and local range-spec builder.
 - Product `migrate` work space now contains target staging/output plus
   plan/report, not a second raw source copy.
+- Benchmark against the legacy materialized path (DCP 1D, source 4/8 ranks ->
+  target 3/4 ranks):
+  - 64MiB: zero-materialized `0.31s / 67MB`; legacy `0.45s / 134MB`
+  - 256MiB: zero-materialized `1.64s / 268MB`; legacy `2.42s / 537MB`
+  - 512MiB: zero-materialized `2.89s / 537MB`; legacy `4.88s / 1074MB`
+- Source raw extraction is absent in the new path; dcpzip uses cached range
+  descriptors and file descriptors on Linux.
 
 ## 2026-10-22 / Warm target job DCP probe
 
