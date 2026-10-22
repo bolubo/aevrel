@@ -48,6 +48,9 @@ src/shardferry/
 第二步已完成：`dcp.py`、`dcp_range.py`、`dcp_local.py`、`dcp_provider.py`
 已收进 `src/shardferry/dcp/`；旧导入路径保留兼容 shim。
 
+第三步已完成：`agent.py`、`agent_state.py`、`agent_executor.py` 已收进
+`src/shardferry/agent/`；`agent_state`/`agent_executor` 旧路径保留兼容 shim。
+
 ## 迁移规则
 
 - 一次只搬一个包，行为不变；
