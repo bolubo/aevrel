@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -27,6 +29,50 @@ def test_redact_text_removes_common_credentials() -> None:
     assert "json-secret" not in redacted
     assert "secret\n" not in redacted
     assert "safe=ok" in redacted
+
+
+def test_support_bundle_creates_redacted_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    kubectl = bin_dir / "kubectl"
+    kubectl.write_text(
+        "#!/bin/sh\n"
+        'case "$*" in\n'
+        '  *"get pods -o json"*) echo \'{"items":[]}\' ;;\n'
+        '  *"get secrets -o name"*) echo "secret/example" ;;\n'
+        '  *"config current-context"*) echo "management" ;;\n'
+        '  *) echo "token: super-secret";;\n'
+        "esac\n",
+        encoding="utf-8",
+    )
+    kubectl.chmod(0o755)
+    helm = bin_dir / "helm"
+    helm.write_text("#!/bin/sh\necho 'NAME\tNAMESPACE'\n", encoding="utf-8")
+    helm.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    output = tmp_path / "support.tar.gz"
+    assert (
+        support_bundle.main(
+            [
+                "--output",
+                str(output),
+                "--no-logs",
+            ]
+        )
+        == 0
+    )
+    assert output.is_file()
+    with tarfile.open(output) as archive:
+        contents = "\n".join(
+            archive.extractfile(member).read().decode("utf-8", "replace")
+            for member in archive.getmembers()
+            if member.isfile() and member.name.endswith(".txt")
+        )
+    assert "super-secret" not in contents
+    assert "<redacted>" in contents
 
 
 @pytest.mark.skipif(
