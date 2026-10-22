@@ -241,6 +241,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=8,
         help="maximum versions staged per background catch-up cycle",
     )
+    cutover.add_argument(
+        "--retain-versions",
+        type=int,
+        default=0,
+        help="keep this many recent target versions (0 disables retention)",
+    )
     cutover.add_argument("--tls-cert", default="")
     cutover.add_argument("--tls-key", default="")
     cutover.add_argument("--tls-ca", default="")
@@ -701,6 +707,7 @@ def main(argv: list[str] | None = None) -> int:
                     None if args.no_auto_follow else args.follow_interval
                 ),
                 max_versions_per_cycle=args.max_follow_versions,
+                retain_versions=args.retain_versions,
             )
             server = build_cutover_server(
                 args.listen,

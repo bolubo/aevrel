@@ -104,6 +104,17 @@ promote 是元数据操作：
 
 失败只影响 shadow 版本，不影响已 promote 的版本。
 
+### 4.1 Target retention
+
+`cutover-serve --retain-versions N` 显式开启 target 版本回收；默认 0 表示关闭。
+
+- 总是保留最近 N 个 manifest，加上 `current` 和 fence 指向的版本；
+- 删除旧 shadow/manifest 前，先验证所有保留版本的 shadow 和 chunk 都存在；
+- 缺 chunk 或 shadow 时中止，不继续删除；
+- manifest 删除后，只 GC 不再被任何保留 manifest 引用的 CAS chunk；
+- source checkpoint 永不参与回收；
+- 回收结果写入 `/v1/status.retention`，包括删除版本、chunk 数和逻辑字节数。
+
 ## 5. 增量算法
 
 对每个新 source 版本：

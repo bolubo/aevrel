@@ -44,9 +44,12 @@ class CutoverService:
         target_ready: Callable[[str], None] | None = None,
         follow_interval: float | None = None,
         max_versions_per_cycle: int = 8,
+        retain_versions: int = 0,
     ) -> None:
         if follow_interval is not None and follow_interval <= 0:
             raise ValueError("follow_interval must be positive")
+        if retain_versions < 0:
+            raise ValueError("retain_versions must be non-negative")
         self.source_root = Path(source_root).resolve()
         self.target = VersionTarget(target_root)
         self.owner = owner
@@ -55,6 +58,10 @@ class CutoverService:
         self.policy = policy or CutoverPolicy()
         self._sync_lock = threading.RLock()
         self._lifecycle_lock = threading.RLock()
+        self._retention_lock = threading.RLock()
+        self.retain_versions = retain_versions
+        self._last_retention: dict[str, Any] | None = None
+        self._retention_error: str | None = None
         self.follower = CheckpointFollower(
             self.source_root,
             self.target,
@@ -67,6 +74,11 @@ class CutoverService:
             lock=self._sync_lock,
             poll_interval=follow_interval or 0.0,
             max_versions_per_cycle=max_versions_per_cycle,
+            after_sync=(
+                self._apply_retention
+                if self.retain_versions > 0
+                else None
+            ),
         )
         self.session = CutoverSession(
             self.source_root,
@@ -118,6 +130,12 @@ class CutoverService:
         ):
             state = "promoted"
         follower = self.follow_loop.status()
+        with self._retention_lock:
+            retention = {
+                "keep": self.retain_versions,
+                "last": self._last_retention,
+                "error": self._retention_error,
+            }
         return {
             "state": state,
             "source_latest": (
@@ -138,8 +156,22 @@ class CutoverService:
             "follow_synced_versions": follower.synced_versions,
             "follow_last_missing_bytes": follower.last_missing_bytes,
             "follow_total_missing_bytes": follower.total_missing_bytes,
+            "retention": retention,
             "last_cutover": self._last_cutover,
         }
+
+    def _apply_retention(self) -> None:
+        if self.retain_versions < 1:
+            return
+        try:
+            result = self.target.prune(self.retain_versions)
+        except Exception as exc:
+            with self._retention_lock:
+                self._retention_error = str(exc)
+            raise
+        with self._retention_lock:
+            self._last_retention = result.to_dict()
+            self._retention_error = None
 
     def follow_once(self) -> list[dict[str, Any]]:
         results = self.follow_loop.sync_once()

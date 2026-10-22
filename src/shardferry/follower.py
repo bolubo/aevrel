@@ -52,6 +52,7 @@ class FollowerLoop:
         lock: threading.RLock | None = None,
         poll_interval: float = 5.0,
         max_versions_per_cycle: int = 1,
+        after_sync: Callable[[], None] | None = None,
     ) -> None:
         if poll_interval < 0:
             raise ValueError("poll_interval must be non-negative")
@@ -67,6 +68,7 @@ class FollowerLoop:
         )
         self.poll_interval = poll_interval
         self.max_versions_per_cycle = max_versions_per_cycle
+        self.after_sync = after_sync
         self._lock = lock or threading.RLock()
         self._status_lock = threading.RLock()
         self._status = FollowerStatus()
@@ -111,6 +113,8 @@ class FollowerLoop:
         with self._lock:
             results = self.follower.sync_once(max_versions=max_versions)
             self._record_success(results)
+            if self.after_sync is not None:
+                self.after_sync()
             return results
 
     def _record_success(self, results: list[SyncResult]) -> None:

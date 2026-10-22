@@ -485,6 +485,161 @@ def test_follower_stages_delta_without_switching_current(tmp_path) -> None:
     assert target.current().version_id == "step-200"
 
 
+def test_prune_keeps_recent_versions_and_collects_unreferenced_chunks(
+    tmp_path,
+) -> None:
+    source = tmp_path / "source"
+    make_version(
+        source,
+        "step-100",
+        {"shared.bin": b"same", "old.bin": b"old!"},
+    )
+    make_version(
+        source,
+        "step-200",
+        {"shared.bin": b"same", "new.bin": b"new!"},
+        parent_id="step-100",
+    )
+    make_version(
+        source,
+        "step-300",
+        {"shared.bin": b"same", "new.bin": b"new!"},
+        parent_id="step-200",
+    )
+    descriptors = scan_versions(source)
+    target = VersionTarget(tmp_path / "target")
+    manifests = [
+        build_manifest(descriptor, target.chunks, chunk_bytes=4)
+        for descriptor in descriptors
+    ]
+    for manifest in manifests:
+        target.stage(manifest)
+
+    old_digest = next(
+        chunk.digest for chunk in manifests[0].chunks if chunk.file == "old.bin"
+    )
+    shared_digest = next(
+        chunk.digest for chunk in manifests[0].chunks if chunk.file == "shared.bin"
+    )
+    result = target.prune(2)
+
+    assert result.retained_versions == ("step-200", "step-300")
+    assert result.deleted_versions == ("step-100",)
+    assert result.deleted_chunks == 1
+    assert result.freed_bytes == 4
+    assert target.chunks.has(shared_digest)
+    assert not target.chunks.has(old_digest)
+    assert not target.manifests.path("step-100").exists()
+    assert not target._shadow_path("step-100").exists()
+    assert target.manifests.path("step-200").exists()
+    assert target.manifests.path("step-300").exists()
+
+    second = target.prune(2)
+    assert second.deleted_versions == ()
+    assert second.deleted_chunks == 0
+
+
+def test_prune_always_keeps_current_version(tmp_path) -> None:
+    source = tmp_path / "source"
+    make_version(source, "step-100", {"a.bin": b"one!"})
+    make_version(
+        source,
+        "step-200",
+        {"a.bin": b"two!"},
+        parent_id="step-100",
+    )
+    make_version(
+        source,
+        "step-300",
+        {"a.bin": b"thre"},
+        parent_id="step-200",
+    )
+    descriptors = scan_versions(source)
+    target = VersionTarget(tmp_path / "target")
+    manifests = [
+        build_manifest(descriptor, target.chunks, chunk_bytes=4)
+        for descriptor in descriptors
+    ]
+    target.promote(manifests[0])
+    target.stage(manifests[1])
+    target.stage(manifests[2])
+
+    result = target.prune(1)
+
+    assert result.retained_versions == ("step-100", "step-300")
+    assert result.deleted_versions == ("step-200",)
+    assert target.current().version_id == "step-100"
+    assert target._shadow_path("step-100").is_dir()
+    assert target._shadow_path("step-300").is_dir()
+
+
+def test_prune_keeps_fenced_version(tmp_path) -> None:
+    source = tmp_path / "source"
+    make_version(source, "step-100", {"a.bin": b"one!"})
+    make_version(
+        source,
+        "step-200",
+        {"a.bin": b"two!"},
+        parent_id="step-100",
+    )
+    make_version(
+        source,
+        "step-300",
+        {"a.bin": b"thre"},
+        parent_id="step-200",
+    )
+    descriptors = scan_versions(source)
+    target = VersionTarget(tmp_path / "target")
+    manifests = [
+        build_manifest(descriptor, target.chunks, chunk_bytes=4)
+        for descriptor in descriptors
+    ]
+    for manifest in manifests:
+        target.stage(manifest)
+    FenceStore(target.root).acquire("controller-a", 1, "step-100")
+
+    result = target.prune(1)
+
+    assert result.retained_versions == ("step-100", "step-300")
+    assert result.deleted_versions == ("step-200",)
+    assert target._shadow_path("step-100").is_dir()
+
+
+def test_prune_aborts_before_deleting_when_retained_chunk_is_missing(
+    tmp_path,
+) -> None:
+    source = tmp_path / "source"
+    make_version(source, "step-100", {"a.bin": b"one!"})
+    make_version(
+        source,
+        "step-200",
+        {"a.bin": b"two!"},
+        parent_id="step-100",
+    )
+    descriptors = scan_versions(source)
+    target = VersionTarget(tmp_path / "target")
+    manifests = [
+        build_manifest(descriptor, target.chunks, chunk_bytes=4)
+        for descriptor in descriptors
+    ]
+    for manifest in manifests:
+        target.stage(manifest)
+    target.chunks.path(manifests[1].chunks[0].digest).unlink()
+
+    with pytest.raises(CDPError, match="missing chunk"):
+        target.prune(1)
+
+    assert target.manifests.path("step-100").is_file()
+    assert target.manifests.path("step-200").is_file()
+    assert target._shadow_path("step-100").is_dir()
+
+
+def test_prune_rejects_non_positive_retention(tmp_path) -> None:
+    target = VersionTarget(tmp_path / "target")
+    with pytest.raises(ValueError, match="retain_versions"):
+        target.prune(0)
+
+
 def test_fence_store_rejects_stale_epoch_and_owner(tmp_path) -> None:
     fences = FenceStore(tmp_path / "target")
     first = fences.acquire("controller-a", 1, "step-100")
