@@ -5,9 +5,10 @@
 路线图按 SemVer 编号：
 
 - **0.1.x**：静态 checkpoint 迁移的维护线；
+- **0.1.2**：Rescue Demo，做出可传播、可复现的第一次体验；
+- **0.1.3**：迁移性能专项，消掉当前可优化的 I/O 和实现开销；
 - **0.2.0**：训练热接力（Live Handoff）大版本；
-- 口语中的“0.11”不再作为版本号使用；如果指“第一次可玩的 rescue 体验”，
-  它是 0.1.x 的一个体验补丁，不单独成为大版本。
+- 口语中的“0.11/0.12/0.13”统一写作 `0.1.1/0.1.2/0.1.3`，都属于 0.1 维护线。
 
 大版本的门槛不是“功能变多”，而是用户完成任务的形态发生变化。
 
@@ -51,19 +52,57 @@
 
 0.1 的完整验收见 [0.1 目标与验收](0.1-ACCEPTANCE.zh-CN.md)。
 
-## 0.1.x 可选体验补丁：Rescue Demo
+## 0.1.2：Rescue Demo（第一次体验版）
 
-这不是 0.2，也不阻塞 0.2：
+目标：让一个外部用户在 5 分钟内看懂并在本地复现“checkpoint 被救出来”，
+而不是先读一大段文档。
 
-- 两套 kind、无 GPU；
+必须交付：
+
+- 两套 kind、无 GPU、无外部 checkpoint；
 - 一条命令启动 16→8 本地盘迁移；
-- 注入 target agent 失败、controller 重启；
-- 显示 journal 恢复、重传字节、target load；
-- 输出 timeline 和 proof。
+- 40% 注入 target agent 失败、65% 注入 controller 重启；
+- 显示 journal/execution snapshot 恢复、已提交字节、重传字节；
+- target DCP load 8/8 成功；
+- 输出 `timeline.html`、`migration-proof.json` 和 source SHA256；
+- 同一套场景进入 CI；
+- README 首屏有 GIF/短录屏和一条可复制命令。
 
-它服务于首次体验和 CI onboarding，不改变“静态 checkpoint 迁移”的产品边界。
+验收：
+
+- 干净 Linux + Docker/kind 环境，5–10 分钟内完成；
+- 不需要 GPU、S3、共享盘或手工 rankMap；
+- 故障注入后不误报成功；
+- 观众能从 timeline 直接看到“暂停/失败/恢复/完成”。
+
+这不是 0.2，也不改变静态 checkpoint 迁移的边界。它只是让 0.1 的价值可见。
+
+## 0.1.3：迁移性能专项
+
+目标：把 768 MiB、4→3、冷缓存场景的 migration 从 `10.43s` 压到接近
+`cp -a + DCP load` 的复制基线，同时保持 resume/verify 能力。
+
+必须优化：
+
+1. **single-write DCP export**：去掉 raw target workdir 再封装最终
+   `.distcp` 的第二遍写入；
+2. **checksum 融合**：避免 inventory、executor 对 source 的重复整读；
+3. **fsync/journal 批量化**：每 target rank 一次，而不是每个 plan node 一次；
+4. **target rank 并行**：至少并行不同 rank 的独立搬运；
+5. 重新跑 768 MiB 冷缓存和 `4→3` 基准。
+
+验收：
+
+- 同机 cold-cache migration wall 不超过 `cp -a + DCP load` 基线的 `1.1x`；
+- target load 不慢于当前 DCP 基线；
+- source 不变、bitwise、resume、proof 全部回归；
+- 继续如实报告：共享盘原生 DCP 仍可能更快，我们只消除实现性开销。
+
+0.1.3 完成后，直接进入 0.2.0。不要再把 0.1.x 扩成新品类。
 
 ## 0.2.0：Live Handoff（训练热接力）
+
+启动条件：0.1.2 Demo 可用，0.1.3 性能基线稳定。
 
 ### 用户任务
 
@@ -102,9 +141,13 @@ source keeps training
 
 详细门槛见 [0.2 目标与验收](0.2-ACCEPTANCE.zh-CN.md)。
 
-## 0.2.x：Live Handoff 稳定化
+## 0.2.x：实现中发现的补丁待办
 
-在不改变 0.2 语义的前提下补：
+0.2 开发过程中发现的问题不另开 0.3、0.4 或新大版本，统一进入
+`0.2.1`、`0.2.2`、`0.2.3`……补丁待办。只有改变用户任务形态，才重新讨论
+大版本。
+
+已知可能进入待办的方向：
 
 - 更多 GPU 拓扑和真实多节点；
 - 网络整形、带宽退避和 backpressure；
@@ -143,9 +186,10 @@ source keeps training
 
 ## 当前优先级
 
-1. 完成 0.1.x 的发布维护和真实安装验证；
-2. 完成 0.2 的 source version 协议、follower、fence 和 target-ready；
-3. 跑通一次真实 GPU live handoff；
-4. 再补 0.1.x Rescue Demo 和 0.2 的故障/规模矩阵。
+1. `0.1.2` Rescue Demo；
+2. `0.1.3` 性能专项；
+3. `0.2.0` source version 协议、follower、fence、target-ready；
+4. 真实 GPU live handoff 和故障/规模矩阵；
+5. 0.2 实现中冒出的问题按 `0.2.x` 补丁登记。
 
 不在当前优先级：更多格式、更多 provider、模型推理和通用工作负载迁移。
