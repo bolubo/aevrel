@@ -65,6 +65,53 @@ training Job / checkpoint sidecar
 5. **target launcher**：target Job/TrainJob 加载并运行 N step；只有成功
    才写 target-ready。
 
+## 更通用的前置层：StateGate
+
+如果目标是“先经过 shardferry 过滤，再进 Kueue”，不要让 shardferry 维护
+第二个作业队列，也不要假装重写 Kueue 的 admission。应该使用 Kueue 已有的
+AdmissionCheck 作为前置 gate：
+
+```text
+training Job
+   -> shardferry StateGate
+        - checkpoint capability?
+        - recoverability?
+        - policy: admit / delay / reject
+   -> Kueue AdmissionCheckState = Ready / Pending / Rejected
+   -> Kueue quota + priority + fair-sharing
+```
+
+这要求 ClusterQueue 显式引用 shardferry AdmissionCheck。对普通非训练 Job，
+可以配置为直接 Ready，不改变原有调度行为。
+
+### StateGate 应该输出的不是“权重”，而是决策
+
+```text
+Decision:
+  Admit
+  DelayUntilCheckpoint
+  Reject
+Cost:
+  interruption cost / recovery cost
+Recovery:
+  restart | restore | migrate
+```
+
+调度器可以只用 Decision 做过滤，也可以在有 cost-aware 能力时使用 Cost 排序。
+这样不同调度器不需要理解 DCP，只需要消费同一套决策。
+
+### 前置层不是第二个调度器
+
+不要做：
+
+- 自己维护 pending job 队列再去创建 Kueue Workload；
+- 自己计算 quota、fair share、gang scheduling；
+- 直接 evict Kueue 的 victim；
+- 用一个自定义 CRD 冒充调度器状态。
+
+这些会制造双状态源、竞态和不可解释的调度结果。前置层只负责“状态是否允许
+进入/触发资源调度”，资源如何分配仍归 Kueue。
+
 ### 不能把 PreemptionGate 当成 victim 保护
 
 Kueue 的 `spec.preemptionGates` 是控制**preemptor 能不能触发抢占**，
