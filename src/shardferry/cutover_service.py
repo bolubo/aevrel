@@ -77,6 +77,7 @@ class CutoverService:
         )
         self._follow_thread: threading.Thread | None = None
         self._follow_stop: threading.Event | None = None
+        self._last_cutover: dict[str, Any] | None = None
 
     def status(self) -> dict[str, Any]:
         descriptors = scan_versions(self.source_root)
@@ -133,6 +134,7 @@ class CutoverService:
             "follow_synced_versions": follower.synced_versions,
             "follow_last_missing_bytes": follower.last_missing_bytes,
             "follow_total_missing_bytes": follower.total_missing_bytes,
+            "last_cutover": self._last_cutover,
         }
 
     def follow_once(self) -> list[dict[str, Any]]:
@@ -204,7 +206,7 @@ class CutoverService:
                 owner=owner or self.owner,
                 epoch=epoch if epoch is not None else self.epoch,
             )
-        return {
+        payload = {
             "state": result.state,
             "version_id": result.version_id,
             "previous_version": result.previous_version,
@@ -213,6 +215,8 @@ class CutoverService:
             "target_ready_seconds": result.target_ready_seconds,
             "fence": result.fence.to_dict(),
         }
+        self._last_cutover = payload
+        return payload
 
     def recover(self, *, owner: str | None = None) -> dict[str, Any]:
         with self._sync_lock:

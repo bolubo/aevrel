@@ -267,6 +267,20 @@ shardferry cutover-serve \
 回滚 target pointer 并恢复 source。`--max-pause-seconds` 必须覆盖 final delta
 和 target ready，不能把它设得比实际 target 启动时间还短。
 
+仓库提供一个最小真实探针，可直接作为 target-ready command：
+
+```bash
+python -m shardferry.target_probe \
+  --target-root /targets/job42 \
+  --version-id "{version_id}" \
+  --timeout 60
+```
+
+它等待 target `current` 指向指定版本，并校验 manifest root、CAS chunk 和
+shadow 文件。GPU 训练侧的真实 load hook 应在下一步替换/包装这个命令。
+`/v1/status.last_cutover` 会保留最近一次 `paused_seconds` 与
+`target_ready_seconds`，用于 RTO 报告。
+
 如果用户要的是训练不中断，验收必须额外包含：
 
 - source 暂停窗口；
