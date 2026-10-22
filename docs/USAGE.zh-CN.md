@@ -244,6 +244,9 @@ controller 会：
   w/rank37.bin        # 原始 staging 产物仍保留作证据
 ```
 
+finalize 后 target agent 还会执行一次 rank-local DCP load smoke；失败会让
+task 停在 `commit-incomplete`，而不是报告成功。
+
 目标训练任务需要按 rank 使用本机 `targetRoot` 下的 DCP 目录；这避免在
 local-disk 场景把所有 rank 汇总到一台机器。完整目标任务的 `load` smoke
 仍应由目标训练应用执行，不能只相信文件存在。
