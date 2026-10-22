@@ -192,6 +192,55 @@ func TestTargetReadyExampleIsValid(t *testing.T) {
 	}
 }
 
+func TestLiveRankSplitExampleIsValid(t *testing.T) {
+	path := filepath.Join(
+		"..",
+		"..",
+		"examples",
+		"live-rank-split",
+		"migration.yaml",
+	)
+	migration, err := loadMigration(path, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migration.Spec.Mode != shardferryv1.MigrationModeLiveRankSplit {
+		t.Fatalf("mode = %q", migration.Spec.Mode)
+	}
+	if migration.Spec.Live == nil ||
+		migration.Spec.Live.MaxInFlight != 1 ||
+		migration.Spec.Live.StateMode != shardferryv1.LiveStateModeL4 {
+		t.Fatalf("live = %+v", migration.Spec.Live)
+	}
+	if migration.Spec.Live.Cutover.RequireStateComplete == nil ||
+		!*migration.Spec.Live.Cutover.RequireStateComplete {
+		t.Fatal("live.cutover.requireStateComplete was not defaulted")
+	}
+	if err := validateProductMigration(migration); err != nil {
+		t.Fatal(err)
+	}
+	migration.Status.Phase = shardferryv1.MigrationPhaseTransferring
+	migration.Status.Live = &shardferryv1.LiveRankSplitStatus{
+		CutoverPhase: "following",
+		InFlight:     []int32{2},
+		Coverage:     []int32{0, 1, 2, 3},
+		Quorum:       3,
+	}
+	var output bytes.Buffer
+	if err := writeDescribe(&output, migration, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Mode:       live-rank-split",
+		"Live spec:  maxInFlight=1 stateMode=L4",
+		"Live:       phase=following inFlight=[2]",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("describe missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
 func TestParseGlobalAcceptsFlagsAfterCommand(t *testing.T) {
 	namespace, jsonOut, args, err := parseGlobal(
 		[]string{"migrate", "-f", "migration.yaml", "--json", "-n", "team-a"},

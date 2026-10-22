@@ -17,6 +17,11 @@ const (
 	MigrationPhaseFailed           = "failed"
 	MigrationPhaseCancelled        = "cancelled"
 	MigrationPhaseCommitIncomplete = "commit-incomplete"
+
+	MigrationModeStatic        = "static"
+	MigrationModeLiveRankSplit = "live-rank-split"
+	LiveStateModeL3            = "L3"
+	LiveStateModeL4            = "L4"
 )
 
 // CheckpointSpec describes the supported checkpoint format.
@@ -160,13 +165,58 @@ type ArtifactSpec struct {
 	Prefix    string `json:"prefix,omitempty"`
 }
 
+// LiveRankPlanSpec describes the TP/PP layout and the logical ranks that may
+// be in flight during a live rank split.
+type LiveRankPlanSpec struct {
+	// +kubebuilder:validation:Minimum=0
+	TP int32 `json:"tp,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	PP int32 `json:"pp,omitempty"`
+	// Ranks are logical source ranks that may be in flight.
+	Ranks []int32 `json:"ranks,omitempty"`
+}
+
+// LiveCutoverSpec describes the quorum/fencing contract at cutover.
+type LiveCutoverSpec struct {
+	// Quorum defaults to floor(source.worldSize/2)+1.
+	// +kubebuilder:validation:Minimum=0
+	Quorum int32 `json:"quorum,omitempty"`
+	// +kubebuilder:default=true
+	RequireStateComplete *bool `json:"requireStateComplete,omitempty"`
+}
+
+// LiveRankSplitSpec configures a live rank split. The source and target
+// clusters share a logical world size; ranks move while the remaining ranks
+// continue the same synchronous step.
+type LiveRankSplitSpec struct {
+	// MaxInFlight is F, the maximum number of concurrently moving ranks.
+	// +kubebuilder:validation:Minimum=1
+	MaxInFlight int32 `json:"maxInFlight"`
+	// +kubebuilder:validation:Enum=L3;L4
+	// +kubebuilder:default=L4
+	StateMode string `json:"stateMode,omitempty"`
+	// StateRoot is the rank-local state bundle root on the source.
+	// +kubebuilder:validation:MinLength=1
+	StateRoot string `json:"stateRoot"`
+	// StateProviders is the explicit provider list for the bundle.
+	StateProviders []string `json:"stateProviders,omitempty"`
+	// HandoffEndpoint is the live state handoff service.
+	HandoffEndpoint string            `json:"handoffEndpoint,omitempty"`
+	Cutover         LiveCutoverSpec   `json:"cutover,omitempty"`
+	RankPlan        *LiveRankPlanSpec `json:"rankPlan,omitempty"`
+}
+
 // CheckpointMigrationSpec defines the desired migration.
 type CheckpointMigrationSpec struct {
-	Checkpoint CheckpointSpec `json:"checkpoint"`
-	Source     SourceSpec     `json:"source"`
-	Target     TargetSpec     `json:"target"`
-	Policy     PolicySpec     `json:"policy"`
-	Artifacts  ArtifactSpec   `json:"artifacts"`
+	// +kubebuilder:validation:Enum=static;live-rank-split
+	// +kubebuilder:default=static
+	Mode       string             `json:"mode,omitempty"`
+	Live       *LiveRankSplitSpec `json:"live,omitempty"`
+	Checkpoint CheckpointSpec     `json:"checkpoint"`
+	Source     SourceSpec         `json:"source"`
+	Target     TargetSpec         `json:"target"`
+	Policy     PolicySpec         `json:"policy"`
+	Artifacts  ArtifactSpec       `json:"artifacts"`
 }
 
 // RankCounts is a summary of rank states.
@@ -218,6 +268,30 @@ type TargetReadyStatus struct {
 	Ranks                []TargetReadyRankStatus `json:"ranks,omitempty"`
 }
 
+// LiveRankStatus is the observed state of one logical rank in a live split.
+type LiveRankStatus struct {
+	Rank    int32  `json:"rank"`
+	Phase   string `json:"phase"`
+	Owner   int32  `json:"owner,omitempty"`
+	Epoch   int64  `json:"epoch,omitempty"`
+	Retries int32  `json:"retries,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// LiveRankSplitStatus is the observed live rank split state.
+type LiveRankSplitStatus struct {
+	// +kubebuilder:validation:Enum=pending;preflight;draining;snapshotting;following;cutover;target-validating;succeeded;failed;cancelled
+	CutoverPhase  string           `json:"cutoverPhase,omitempty"`
+	InFlight      []int32          `json:"inFlight,omitempty"`
+	Coverage      []int32          `json:"coverage,omitempty"`
+	Quorum        int32            `json:"quorum,omitempty"`
+	StateComplete bool             `json:"stateComplete,omitempty"`
+	StateRoot     string           `json:"stateRoot,omitempty"`
+	ProofRef      string           `json:"proofRef,omitempty"`
+	Message       string           `json:"message,omitempty"`
+	Ranks         []LiveRankStatus `json:"ranks,omitempty"`
+}
+
 // CheckpointMigrationStatus is the observed migration state.
 type CheckpointMigrationStatus struct {
 	// +kubebuilder:validation:Enum=pending;preparing;transferring;commit-pending;committing;target-validating;target-failed;succeeded;failed;cancelled;commit-incomplete
@@ -225,19 +299,20 @@ type CheckpointMigrationStatus struct {
 	PlanRef  string `json:"planRef,omitempty"`
 	PlanHash string `json:"planHash,omitempty"`
 	// +kubebuilder:validation:Enum=following;catching-up;target-verified;promoting;promoted;commit-incomplete;failed;cancelled
-	CutoverPhase string             `json:"cutoverPhase,omitempty"`
-	ExecutionRef string             `json:"executionRef,omitempty"`
-	ReportRef    string             `json:"reportRef,omitempty"`
-	ProofRef     string             `json:"proofRef,omitempty"`
-	ProofHash    string             `json:"proofHash,omitempty"`
-	CommitToken  string             `json:"commitToken,omitempty"`
-	Counts       RankCounts         `json:"counts,omitempty"`
-	Ranks        []RankStatus       `json:"ranks,omitempty"`
-	FailedRanks  []int32            `json:"failedRanks,omitempty"`
-	StartedAt    string             `json:"startedAt,omitempty"`
-	CompletedAt  string             `json:"completedAt,omitempty"`
-	TargetReady  *TargetReadyStatus `json:"targetReady,omitempty"`
-	Conditions   []metav1.Condition `json:"conditions,omitempty"`
+	CutoverPhase string               `json:"cutoverPhase,omitempty"`
+	ExecutionRef string               `json:"executionRef,omitempty"`
+	ReportRef    string               `json:"reportRef,omitempty"`
+	ProofRef     string               `json:"proofRef,omitempty"`
+	ProofHash    string               `json:"proofHash,omitempty"`
+	CommitToken  string               `json:"commitToken,omitempty"`
+	Counts       RankCounts           `json:"counts,omitempty"`
+	Ranks        []RankStatus         `json:"ranks,omitempty"`
+	FailedRanks  []int32              `json:"failedRanks,omitempty"`
+	StartedAt    string               `json:"startedAt,omitempty"`
+	CompletedAt  string               `json:"completedAt,omitempty"`
+	TargetReady  *TargetReadyStatus   `json:"targetReady,omitempty"`
+	Live         *LiveRankSplitStatus `json:"live,omitempty"`
+	Conditions   []metav1.Condition   `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

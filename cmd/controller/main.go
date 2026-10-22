@@ -22,6 +22,7 @@ import (
 	"github.com/shardferry/shardferry/internal/controller"
 	"github.com/shardferry/shardferry/internal/cutoverclient"
 	"github.com/shardferry/shardferry/internal/execution"
+	"github.com/shardferry/shardferry/internal/liveclient"
 )
 
 func main() {
@@ -37,6 +38,7 @@ func main() {
 	var artifactKey string
 	var artifactClientCA string
 	var cutoverURL string
+	var liveURL string
 	var cutoverAutoPromote bool
 	var enableLeaderElection bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "metrics endpoint address")
@@ -51,6 +53,7 @@ func main() {
 	flag.StringVar(&artifactKey, "artifact-tls-key", "", "artifact server TLS key")
 	flag.StringVar(&artifactClientCA, "artifact-tls-client-ca", "", "client CA for artifact mTLS")
 	flag.StringVar(&cutoverURL, "cutover-url", "", "optional CutoverService base URL")
+	flag.StringVar(&liveURL, "live-url", "", "optional live-rank-split executor base URL")
 	flag.BoolVar(&cutoverAutoPromote, "cutover-auto-promote", false, "automatically promote the latest cutover version")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "enable leader election")
 	flag.Parse()
@@ -157,6 +160,28 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	var live controller.LiveRankSplitExecutor
+	if liveURL != "" {
+		liveToken := os.Getenv("SHARDFERRY_LIVE_TOKEN")
+		if liveToken == "" {
+			liveToken = agentToken
+		}
+		if agentCert != "" || agentKey != "" || agentCA != "" {
+			live, err = liveclient.NewWithTLS(
+				liveURL,
+				liveToken,
+				agentCA,
+				agentCert,
+				agentKey,
+			)
+		} else {
+			live = liveclient.New(liveURL, liveToken)
+		}
+		if err != nil {
+			ctrl.Log.Error(err, "configure live-rank-split client")
+			os.Exit(1)
+		}
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -222,6 +247,7 @@ func main() {
 		Orchestrator:       orchestrator,
 		Cutover:            cutover,
 		CutoverAutoPromote: cutoverAutoPromote,
+		Live:               live,
 		Recorder:           mgr.GetEventRecorderFor("shardferry-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create controller")

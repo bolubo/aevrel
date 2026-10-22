@@ -33,6 +33,9 @@ type targetValidationSettings struct {
 	Timeout        time.Duration
 	JobName        string
 	HasJobTemplate bool
+	StateTemplate  string
+	StateProviders string
+	RequireState   bool
 }
 
 func parseTargetValidationSettings(
@@ -70,12 +73,26 @@ func parseTargetValidationSettings(
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 600
 	}
+	stateTemplate := ""
+	stateProviders := ""
+	requireState := false
+	if migration.Spec.Live != nil && liveRequiresState(migration) {
+		stateTemplate = migration.Spec.Live.StateRoot
+		stateProviders = strings.Join(
+			migration.Spec.Live.StateProviders,
+			",",
+		)
+		requireState = true
+	}
 	return targetValidationSettings{
 		Version:        spec.Version,
 		Steps:          steps,
 		Timeout:        time.Duration(timeoutSeconds) * time.Second,
 		JobName:        spec.JobName,
 		HasJobTemplate: hasTemplate,
+		StateTemplate:  stateTemplate,
+		StateProviders: stateProviders,
+		RequireState:   requireState,
 	}, true, nil
 }
 
@@ -190,6 +207,23 @@ func renderTargetValidationJob(
 		)},
 		{Name: "SHARDFERRY_CHECKPOINT_TEMPLATE", Value: migration.Spec.Target.RootTemplate},
 	}
+	if settings.StateTemplate != "" {
+		env = append(
+			env,
+			corev1.EnvVar{
+				Name:  "SHARDFERRY_STATE_TEMPLATE",
+				Value: settings.StateTemplate,
+			},
+			corev1.EnvVar{
+				Name:  "SHARDFERRY_STATE_PROVIDERS",
+				Value: settings.StateProviders,
+			},
+			corev1.EnvVar{
+				Name:  "SHARDFERRY_REQUIRE_STATE",
+				Value: boolEnv(settings.RequireState),
+			},
+		)
+	}
 	for index := range job.Spec.Template.Spec.Containers {
 		container := &job.Spec.Template.Spec.Containers[index]
 		container.Env = upsertEnv(container.Env, env...)
@@ -197,6 +231,13 @@ func renderTargetValidationJob(
 		container.TerminationMessagePolicy = corev1.TerminationMessageReadFile
 	}
 	return &job, nil
+}
+
+func boolEnv(value bool) string {
+	if value {
+		return "1"
+	}
+	return "0"
 }
 
 func rawExtensionPayload(raw *runtime.RawExtension) ([]byte, error) {

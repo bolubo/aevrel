@@ -68,3 +68,4 @@
 - [LRS RANK state closure](LRS-RANK-STATE.zh-CN.md)
 - [LRS 全局整合](LRS-INTEGRATION.zh-CN.md)
 - [LRS Canonical Merge / Gap Matrix](LRS-CANONICAL-MERGE.zh-CN.md)
+- [Live Rank Split Go 产品面](LIVE-RANK-SPLIT-GO.zh-CN.md)

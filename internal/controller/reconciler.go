@@ -37,6 +37,7 @@ type Reconciler struct {
 	Recorder           record.EventRecorder
 	Cutover            CutoverManager
 	CutoverAutoPromote bool
+	Live               LiveRankSplitExecutor
 }
 
 type TargetCleaner interface {
@@ -75,6 +76,13 @@ func (r *Reconciler) Reconcile(
 			"InvalidSpec",
 			err.Error(),
 		)
+	}
+	if migration.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit {
+		if migration.Status.Phase == shardferryv1.MigrationPhaseTargetValidating ||
+			migration.Status.Phase == shardferryv1.MigrationPhaseTargetFailed {
+			return r.reconcileTargetReady(ctx, &migration)
+		}
+		return r.reconcileLiveRankSplit(ctx, &migration)
 	}
 	if migration.Status.Phase == shardferryv1.MigrationPhaseTargetValidating {
 		return r.reconcileTargetReady(ctx, &migration)
@@ -750,6 +758,9 @@ func cutoverPhase(phase execution.Phase) string {
 
 func validateMigration(migration *shardferryv1.CheckpointMigration) error {
 	spec := &migration.Spec
+	if err := validateMigrationMode(spec); err != nil {
+		return err
+	}
 	if spec.Checkpoint.Format != "dcp" {
 		return fmt.Errorf("unsupported checkpoint format: %s", spec.Checkpoint.Format)
 	}

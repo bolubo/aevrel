@@ -69,6 +69,82 @@ spec:
                 - format
                 - formatVersion
                 type: object
+              live:
+                description: |-
+                  LiveRankSplitSpec configures a live rank split. The source and target
+                  clusters share a logical world size; ranks move while the remaining ranks
+                  continue the same synchronous step.
+                properties:
+                  cutover:
+                    description: LiveCutoverSpec describes the quorum/fencing contract
+                      at cutover.
+                    properties:
+                      quorum:
+                        description: Quorum defaults to floor(source.worldSize/2)+1.
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      requireStateComplete:
+                        default: true
+                        type: boolean
+                    type: object
+                  handoffEndpoint:
+                    description: HandoffEndpoint is the live state handoff service.
+                    type: string
+                  maxInFlight:
+                    description: MaxInFlight is F, the maximum number of concurrently
+                      moving ranks.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  rankPlan:
+                    description: |-
+                      LiveRankPlanSpec describes the TP/PP layout and the logical ranks that may
+                      be in flight during a live rank split.
+                    properties:
+                      pp:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      ranks:
+                        description: Ranks are logical source ranks that may be in
+                          flight.
+                        items:
+                          format: int32
+                          type: integer
+                        type: array
+                      tp:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                    type: object
+                  stateMode:
+                    default: L4
+                    enum:
+                    - L3
+                    - L4
+                    type: string
+                  stateProviders:
+                    description: StateProviders is the explicit provider list for
+                      the bundle.
+                    items:
+                      type: string
+                    type: array
+                  stateRoot:
+                    description: StateRoot is the rank-local state bundle root on
+                      the source.
+                    minLength: 1
+                    type: string
+                required:
+                - maxInFlight
+                - stateRoot
+                type: object
+              mode:
+                default: static
+                enum:
+                - static
+                - live-rank-split
+                type: string
               policy:
                 description: PolicySpec describes migration safety and concurrency
                   policy.
@@ -407,6 +483,70 @@ spec:
                   format: int32
                   type: integer
                 type: array
+              live:
+                description: LiveRankSplitStatus is the observed live rank split state.
+                properties:
+                  coverage:
+                    items:
+                      format: int32
+                      type: integer
+                    type: array
+                  cutoverPhase:
+                    enum:
+                    - pending
+                    - preflight
+                    - draining
+                    - snapshotting
+                    - following
+                    - cutover
+                    - target-validating
+                    - succeeded
+                    - failed
+                    - cancelled
+                    type: string
+                  inFlight:
+                    items:
+                      format: int32
+                      type: integer
+                    type: array
+                  message:
+                    type: string
+                  proofRef:
+                    type: string
+                  quorum:
+                    format: int32
+                    type: integer
+                  ranks:
+                    items:
+                      description: LiveRankStatus is the observed state of one logical
+                        rank in a live split.
+                      properties:
+                        epoch:
+                          format: int64
+                          type: integer
+                        error:
+                          type: string
+                        owner:
+                          format: int32
+                          type: integer
+                        phase:
+                          type: string
+                        rank:
+                          format: int32
+                          type: integer
+                        retries:
+                          format: int32
+                          type: integer
+                      required:
+                      - phase
+                      - rank
+                      type: object
+                    type: array
+                  stateComplete:
+                    type: boolean
+                  stateRoot:
+                    type: string
+                type: object
               phase:
                 enum:
                 - pending

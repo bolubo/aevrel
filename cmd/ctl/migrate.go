@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	"github.com/shardferry/shardferry/internal/controller"
 )
 
 const defaultArtifactClaim = "shardferry-artifacts"
@@ -189,6 +190,21 @@ func migrationDocument(
 
 func applyMigrationDefaults(migration *shardferryv1.CheckpointMigration) {
 	spec := &migration.Spec
+	if spec.Mode == "" {
+		spec.Mode = shardferryv1.MigrationModeStatic
+	}
+	if spec.Live != nil {
+		if spec.Live.StateMode == "" {
+			spec.Live.StateMode = shardferryv1.LiveStateModeL4
+		}
+		if spec.Live.Cutover.Quorum == 0 && spec.Source.WorldSize > 0 {
+			spec.Live.Cutover.Quorum = spec.Source.WorldSize/2 + 1
+		}
+		if spec.Live.Cutover.RequireStateComplete == nil {
+			requireState := true
+			spec.Live.Cutover.RequireStateComplete = &requireState
+		}
+	}
 	if spec.Checkpoint.Format == "" {
 		spec.Checkpoint.Format = "dcp"
 	}
@@ -289,7 +305,7 @@ func validateProductMigration(
 	if spec.Artifacts.ClaimName == "" {
 		return fmt.Errorf("artifacts.claimName is required")
 	}
-	return nil
+	return controller.ValidateMigration(migration)
 }
 
 func validateTargetValidation(spec shardferryv1.CheckpointMigrationSpec) error {

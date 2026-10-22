@@ -591,6 +591,11 @@ func writeDescribe(
 	fmt.Fprintf(out, "Name:       %s\n", migration.Name)
 	fmt.Fprintf(out, "Namespace:  %s\n", migration.Namespace)
 	fmt.Fprintf(out, "Phase:      %s\n", migration.Status.Phase)
+	mode := migration.Spec.Mode
+	if mode == "" {
+		mode = shardferryv1.MigrationModeStatic
+	}
+	fmt.Fprintf(out, "Mode:       %s\n", mode)
 	fmt.Fprintf(
 		out,
 		"Source:     %d rank(s), mesh %v, root %s\n",
@@ -612,6 +617,15 @@ func writeDescribe(
 		migration.Status.Counts.Committed,
 		migration.Status.Counts.Failed,
 	)
+	if live := migration.Spec.Live; live != nil {
+		fmt.Fprintf(
+			out,
+			"Live spec:  maxInFlight=%d stateMode=%s handoff=%s\n",
+			live.MaxInFlight,
+			live.StateMode,
+			emptyDash(live.HandoffEndpoint),
+		)
+	}
 	fmt.Fprintf(out, "PlanHash:   %s\n", emptyDash(migration.Status.PlanHash))
 	fmt.Fprintf(out, "Execution:  %s\n", emptyDash(migration.Status.ExecutionRef))
 	fmt.Fprintf(out, "Report:     %s\n", emptyDash(migration.Status.ReportRef))
@@ -636,6 +650,25 @@ func writeDescribe(
 			emptyDash(target.ProofRef),
 			emptyDash(target.ProofHash),
 		)
+	}
+	if live := migration.Status.Live; live != nil {
+		fmt.Fprintf(
+			out,
+			"Live:       phase=%s inFlight=%v coverage=%v quorum=%d stateComplete=%t\n",
+			emptyDash(live.CutoverPhase),
+			live.InFlight,
+			live.Coverage,
+			live.Quorum,
+			live.StateComplete,
+		)
+		if live.Message != "" {
+			fmt.Fprintf(out, "Live msg:   %s\n", live.Message)
+		}
+		if showRanks && len(live.Ranks) > 0 {
+			if err := writeLiveRankTable(out, live.Ranks); err != nil {
+				return err
+			}
+		}
 	}
 	if len(migration.Status.FailedRanks) > 0 {
 		fmt.Fprintf(out, "FailedRanks: %v\n", migration.Status.FailedRanks)
@@ -705,6 +738,31 @@ func writeTargetRankTable(
 			rank.StepsRan,
 			rank.StateComplete,
 			rank.OK,
+			emptyDash(rank.Error),
+		)
+	}
+	return nil
+}
+
+func writeLiveRankTable(
+	out io.Writer,
+	ranks []shardferryv1.LiveRankStatus,
+) error {
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	defer writer.Flush()
+	fmt.Fprintln(
+		writer,
+		"LIVE_RANK\tPHASE\tOWNER\tEPOCH\tRETRIES\tERROR",
+	)
+	for _, rank := range ranks {
+		fmt.Fprintf(
+			writer,
+			"%d\t%s\t%d\t%d\t%d\t%s\n",
+			rank.Rank,
+			rank.Phase,
+			rank.Owner,
+			rank.Epoch,
+			rank.Retries,
 			emptyDash(rank.Error),
 		)
 	}
