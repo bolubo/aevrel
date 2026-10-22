@@ -552,8 +552,9 @@ Gate:
 - Layout compiler now uses an exact axis-filtered `_SourceIndex` for target
   overlap candidates, caches the plan schema validator, and avoids validating
   the same spec twice inside `plan()`.
-- Added `scripts/planner_benchmark.py`; 1024→512 planning is about `0.27s`
-  best-of-3, with 1024 nodes and 1024 coalesced range reads.
+- Added `scripts/planner_benchmark.py`; 1024→512 planning is about `0.11s`
+  best-of-3, and 4096→2048 is about `1.0s`, with exact node/range counts
+  preserved.
 - Direct target proof smoke passed: rank proof generated, combined proof root
   produced. Physical kind/e2e is not available in this environment.
 
@@ -580,11 +581,12 @@ Gate:
 - Product `migrate` work space now contains target staging/output plus
   plan/report, not a second raw source copy.
 - Benchmark against the legacy materialized path (DCP 1D, source 4/8 ranks ->
-  target 3/4 ranks):
-  - 64MiB: zero-materialized `0.31s / 67MB`; legacy `0.45s / 134MB`
-  - 256MiB: zero-materialized `1.64s / 268MB`; legacy `2.42s / 537MB`
-  - 512MiB: zero-materialized `2.89s / 537MB`; legacy `4.88s / 1074MB`
-  - 1GiB: zero-materialized `6.10s / 1074MB`; legacy `9.54s / 2148MB`
+  target 3/4 ranks; successful zero-materialized runs remove target raw staging
+  unless `--keep-work` is set):
+  - 64MiB: zero-materialized `0.35s / 4.3KB work`; legacy `0.52s / 134MB`
+  - 1GiB: zero-materialized `5.38s / 5.4KB work`; legacy `8.26s / 2148MB`
+  - 10GiB sparse source: zero-materialized `53.1s`, peak RSS `290MB`,
+    work `1.7KB`; max run batch is capped at 4MiB.
 - Source raw extraction is absent in the new path; dcpzip uses cached range
   descriptors and file descriptors on Linux.
 
@@ -601,3 +603,13 @@ Gate:
   drops from ~1.06s to ~1ms. Formal warm target-job results:
   128MiB `active_wall=1.91s`, target-ready `0.132s`; 1GiB 128→64
   `active_wall=21.83s`, target-ready `0.114s`, both P1 pass.
+
+## 2026-10-22 / RSS bottleneck correction
+
+- The former 1GiB 16→8 RSS failure (`237.8MiB`) was caused by the benchmark
+  generating a whole random source file in one allocation, not by the data
+  plane. Random source generation now uses a deterministic 1MiB streaming
+  pattern.
+- Corrected 1GiB 16→8 result: `active_wall=10.41s`, RSS `56.2MiB`,
+  target-ready `0.046s`, P1 pass. The old number is retained only as a
+  benchmark-artifact lesson.

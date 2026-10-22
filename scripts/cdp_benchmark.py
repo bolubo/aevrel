@@ -81,7 +81,14 @@ def make_version(
         path = source_root / f"rank{rank}.bin"
         with path.open("wb") as stream:
             if fill == "random":
-                stream.write(random.Random(1000 + rank).randbytes(row_bytes))
+                rng = random.Random(1000 + rank)
+                pattern_size = min(1 * MiB, row_bytes)
+                pattern = rng.randbytes(pattern_size)
+                remaining = row_bytes
+                while remaining:
+                    block_size = min(pattern_size, remaining)
+                    stream.write(pattern[:block_size])
+                    remaining -= block_size
             else:
                 stream.truncate(row_bytes)
             if change_index is not None and rank == change_index % source_world:
@@ -162,6 +169,11 @@ def main(argv: list[str] | None = None) -> dict:
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--skip-cutover", action="store_true")
     parser.add_argument(
+        "--no-cas-staging",
+        action="store_true",
+        help="disable direct CAS staging for large target ranks",
+    )
+    parser.add_argument(
         "--no-target-probe",
         action="store_true",
         help="do not run the promoted target checkpoint readiness probe",
@@ -217,6 +229,7 @@ def main(argv: list[str] | None = None) -> dict:
             lambda descriptor: registry[descriptor.version_id],
             target=target,
             adaptive=adaptive,
+            use_cas_staging=not args.no_cas_staging,
         )
         follower = CheckpointFollower(
             versions_root,

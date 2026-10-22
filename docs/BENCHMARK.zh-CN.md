@@ -259,6 +259,7 @@ warm target job 预热完成后的正式本地结果：
 - target-ready `0.062s`
 - `--assert-p1` passed
 
-作为对照，1GiB x 3、16→8（单 rank 64MiB）虽然 cutover 能成功，但 RSS
-`237.8MiB`，不满足 P1 的 150MiB 门槛；大 rank 配置需要单独定义数据面
-worker/内存预算，不能把 128→64 的结论直接外推。
+修复 benchmark 随机源生成后，1GiB x 3、16→8（单 rank 64MiB）也通过 P1：
+`active_wall=10.41s`、RSS `56.2MiB`、target-ready `0.046s`。之前的
+`237.8MiB` 已确认是源生成一次性大块造成的 benchmark artifact，不是数据面
+RSS；这个旧数字不能再作为产品结论。
