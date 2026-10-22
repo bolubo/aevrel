@@ -488,3 +488,18 @@ Gate:
 - Go/K8s source recovery is not complete: several files created after the
   available snapshot are still missing or partial, so `go test ./...` is not
   a valid green gate yet. Do not overwrite the controller branch's state.
+
+## 2026-10-22 / target-ready RTO probe
+
+- Added `shardferry.target_probe`: waits for target `current`, checks the
+  manifest root, CAS chunks and shadow files, and fails closed on mismatch.
+- `CutoverService.status()` now exposes `last_cutover`, including
+  `paused_seconds` and `target_ready_seconds`.
+- Integration tests run the probe as a real target-ready subprocess and verify
+  rollback when the probe rejects the target.
+- Real `cutover-serve` HTTP smoke: promoted step-100 with
+  `paused_seconds=0.0368`, `target_ready_seconds=0.0362`.
+- Gate: `234 passed / 19 skipped` (PyTorch/native optional skips), compileall
+  and `cutover-serve --help` pass. This work is on branch `python-rto` in
+  worktree `shardferry-rto`; do not merge into the shared checkout while the
+  parallel Go/K8s session is active.
