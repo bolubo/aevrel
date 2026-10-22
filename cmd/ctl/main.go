@@ -96,6 +96,7 @@ func printUsage(out io.Writer) {
 	fmt.Fprintln(out, "       shardferryctl get clusters|cluster NAME")
 	fmt.Fprintln(out, "       shardferryctl describe migration NAME")
 	fmt.Fprintln(out, "       shardferryctl describe cluster NAME")
+	fmt.Fprintln(out, "       shardferryctl delete migration NAME [--purge-target] [--dry-run]")
 	fmt.Fprintln(out, "       shardferryctl cancel|retry migration NAME")
 	fmt.Fprintln(out, "global: -n/--namespace NAMESPACE, --json")
 }
@@ -122,6 +123,8 @@ func execute(
 		return executeGet(ctx, kubeClient, namespace, jsonOut, args[1:], out)
 	case "describe":
 		return executeDescribe(ctx, kubeClient, namespace, jsonOut, args[1:], out)
+	case "delete":
+		return executeDelete(ctx, kubeClient, namespace, args[1:], out)
 	case "cancel":
 		return executeCancel(ctx, kubeClient, namespace, args[1:], out)
 	case "retry":
@@ -129,6 +132,72 @@ func execute(
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
+}
+
+func executeDelete(
+	ctx context.Context,
+	kubeClient client.Client,
+	namespace string,
+	args []string,
+	out io.Writer,
+) error {
+	if len(args) < 2 || args[0] != "migration" {
+		return fmt.Errorf("usage: shardferryctl delete migration NAME [--purge-target] [--dry-run]")
+	}
+	purgeTarget := false
+	dryRun := false
+	for _, arg := range args[2:] {
+		switch arg {
+		case "--purge-target":
+			purgeTarget = true
+		case "--keep-target":
+			purgeTarget = false
+		case "--dry-run":
+			dryRun = true
+		default:
+			return fmt.Errorf("unknown delete option: %s", arg)
+		}
+	}
+	migration, err := getMigration(ctx, kubeClient, namespace, args[1])
+	if err != nil {
+		return err
+	}
+	if dryRun {
+		fmt.Fprintf(out, "would delete migration %s/%s\n", namespace, args[1])
+		fmt.Fprintf(out, "phase: %s\n", emptyDash(migration.Status.Phase))
+		fmt.Fprintf(out, "target root template: %s\n", migration.Spec.Target.RootTemplate)
+		fmt.Fprintf(out, "purge target: %t\n", purgeTarget)
+		return nil
+	}
+	if migration.Annotations == nil {
+		migration.Annotations = make(map[string]string)
+	}
+	if purgeTarget {
+		migration.Annotations["shardferry.io/purge-target"] = "true"
+	}
+	if !containsFinalizer(migration, "shardferry.io/cleanup") {
+		migration.Finalizers = append(migration.Finalizers, "shardferry.io/cleanup")
+	}
+	if err := kubeClient.Update(ctx, migration); err != nil {
+		return err
+	}
+	if err := kubeClient.Delete(ctx, migration); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "deletion requested for %s/%s (purge_target=%t)\n", namespace, args[1], purgeTarget)
+	return nil
+}
+
+func containsFinalizer(
+	migration *shardferryv1.CheckpointMigration,
+	name string,
+) bool {
+	for _, finalizer := range migration.Finalizers {
+		if finalizer == name {
+			return true
+		}
+	}
+	return false
 }
 
 func executeGet(

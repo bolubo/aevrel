@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	"github.com/shardferry/shardferry/internal/artifactstore"
 	"github.com/shardferry/shardferry/internal/execution"
 )
 
@@ -28,9 +31,15 @@ type Reconciler struct {
 	Runner             *execution.Runner
 	Preparer           *PreparationRunner
 	Resolver           *AgentResolver
+	Cleaner            TargetCleaner
+	Artifacts          artifactstore.Store
 	Recorder           record.EventRecorder
 	Cutover            CutoverManager
 	CutoverAutoPromote bool
+}
+
+type TargetCleaner interface {
+	CleanupTarget(context.Context, string, string, bool) (map[string]any, error)
 }
 
 func (r *Reconciler) Reconcile(
@@ -43,6 +52,10 @@ func (r *Reconciler) Reconcile(
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	if migration.DeletionTimestamp != nil {
+		return r.handleDeletion(ctx, &migration)
 	}
 
 	if handled, err := r.handleControlAnnotations(ctx, &migration); handled {
@@ -287,9 +300,119 @@ func (r *Reconciler) updateStatus(
 }
 
 const (
-	cancelAnnotation = "shardferry.io/cancel"
-	retryAnnotation  = "shardferry.io/retry"
+	cancelAnnotation      = "shardferry.io/cancel"
+	retryAnnotation       = "shardferry.io/retry"
+	purgeTargetAnnotation = "shardferry.io/purge-target"
+	cleanupFinalizer      = "shardferry.io/cleanup"
 )
+
+func (r *Reconciler) handleDeletion(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) (ctrl.Result, error) {
+	if !containsFinalizer(migration, cleanupFinalizer) {
+		return ctrl.Result{}, nil
+	}
+	if err := r.cleanupMigration(ctx, migration); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.removeFinalizer(ctx, migration, cleanupFinalizer); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) cleanupMigration(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) error {
+	if migration.Annotations[purgeTargetAnnotation] == "true" {
+		if r.Resolver == nil || r.Cleaner == nil {
+			return fmt.Errorf("target cleanup is not configured")
+		}
+		targets, err := r.Resolver.ResolveTarget(ctx, migration)
+		if err != nil {
+			return fmt.Errorf("resolve target cleanup: %w", err)
+		}
+		for _, entry := range targets {
+			root := strings.ReplaceAll(
+				migration.Spec.Target.RootTemplate,
+				"{rank}",
+				strconv.Itoa(int(entry.Rank)),
+			)
+			if _, err := r.Cleaner.CleanupTarget(
+				ctx,
+				entry.Endpoint,
+				root,
+				true,
+			); err != nil {
+				return fmt.Errorf(
+					"cleanup target rank %d %s: %w",
+					entry.Rank,
+					root,
+					err,
+				)
+			}
+		}
+	}
+	if r.Artifacts != nil {
+		deleter, ok := r.Artifacts.(artifactstore.Deleter)
+		if !ok {
+			return fmt.Errorf("artifact store does not support deletion")
+		}
+		for _, ref := range []string{
+			migration.Status.PlanRef,
+			migration.Status.ExecutionRef,
+			migration.Status.ReportRef,
+			migration.Status.ProofRef,
+		} {
+			if ref == "" {
+				continue
+			}
+			if err := deleter.Delete(ctx, ref); err != nil {
+				return fmt.Errorf("delete artifact %s: %w", ref, err)
+			}
+		}
+	}
+	return nil
+}
+
+func containsFinalizer(migration *shardferryv1.CheckpointMigration, name string) bool {
+	for _, finalizer := range migration.Finalizers {
+		if finalizer == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Reconciler) removeFinalizer(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+	name string,
+) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest shardferryv1.CheckpointMigration
+		if err := r.Get(
+			ctx,
+			types.NamespacedName{
+				Namespace: migration.Namespace,
+				Name:      migration.Name,
+			},
+			&latest,
+		); err != nil {
+			return err
+		}
+		filtered := latest.Finalizers[:0]
+		for _, finalizer := range latest.Finalizers {
+			if finalizer != name {
+				filtered = append(filtered, finalizer)
+			}
+		}
+		latest.Finalizers = filtered
+		return r.Update(ctx, &latest)
+	})
+}
 
 func (r *Reconciler) handleControlAnnotations(
 	ctx context.Context,

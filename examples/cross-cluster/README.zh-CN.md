@@ -83,10 +83,14 @@ shardferryctl describe migration job42-16-to-8 -n shardferry-control --ranks
 ```bash
 shardferryctl cancel migration job42-16-to-8 -n shardferry-control
 shardferryctl retry migration job42-16-to-8 -n shardferry-control
+shardferryctl delete migration job42-16-to-8 -n shardferry-control
+shardferryctl delete migration job42-16-to-8 -n shardferry-control --purge-target
 ```
 
 `cancel` 只允许在 commit intent 前；`retry` 当前只修复
-`commit-incomplete`，不会把已提交的 rank 重新传一遍。
+`commit-incomplete`，不会把已提交的 rank 重新传一遍。`delete` 默认保留
+target，只清理 controller artifact 和 staging；`--purge-target` 才显式删除
+target 目录，source 永不被删除。
 
 `preflight` 会通过 gateway 实际读取 source inventory，并探测 target
 agent capabilities；不是只检查 YAML。

@@ -217,6 +217,8 @@ func main() {
 		Runner:             runner,
 		Preparer:           preparer,
 		Resolver:           resolver,
+		Cleaner:            agents,
+		Artifacts:          artifacts,
 		Orchestrator:       orchestrator,
 		Cutover:            cutover,
 		CutoverAutoPromote: cutoverAutoPromote,

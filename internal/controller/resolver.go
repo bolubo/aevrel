@@ -111,6 +111,26 @@ func (r *AgentResolver) Resolve(
 	return effective, nil
 }
 
+func (r *AgentResolver) ResolveTarget(
+	ctx context.Context,
+	migration *shardferryv1.CheckpointMigration,
+) ([]shardferryv1.RankEndpoint, error) {
+	if len(migration.Spec.Target.RankMap) > 0 {
+		return append([]shardferryv1.RankEndpoint(nil), migration.Spec.Target.RankMap...), nil
+	}
+	if migration.Spec.Target.ClusterRef != "" {
+		return r.remoteRanks(
+			ctx,
+			migration,
+			"target",
+			migration.Spec.Target.ClusterRef,
+			migration.Spec.Target.AgentSelector,
+			migration.Spec.Target.WorldSize,
+		)
+	}
+	return r.targetRanks(ctx, migration, migration.Spec.Target.AgentSelector)
+}
+
 func (r *AgentResolver) remoteRanks(
 	ctx context.Context,
 	migration *shardferryv1.CheckpointMigration,
