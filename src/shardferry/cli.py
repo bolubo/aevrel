@@ -24,7 +24,7 @@ from .cutover_service import (
 )
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
-from .target_ready import CommandTargetReady
+from .target_ready import CommandTargetReady, HttpTargetReady
 from .defaults import (
     DEFAULT_LISTEN,
     DEFAULT_PUBLIC_LISTEN,
@@ -185,6 +185,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="shell-like command run after promote; {version_id} is substituted",
     )
+    cutover.add_argument(
+        "--target-ready-url",
+        default="",
+        help="readiness endpoint polled after promote; {version_id} is substituted",
+    )
+    cutover.add_argument(
+        "--target-ready-token",
+        default=os.environ.get("SHARDFERRY_TARGET_READY_TOKEN", ""),
+    )
+    cutover.add_argument("--target-ready-interval", type=float, default=0.5)
     cutover.add_argument("--target-ready-timeout", type=float, default=300.0)
     cutover.add_argument(
         "--max-pause-seconds",
@@ -588,10 +598,22 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         try:
             target_ready = None
+            if args.target_ready_command and args.target_ready_url:
+                raise ValueError(
+                    "--target-ready-command and --target-ready-url "
+                    "are mutually exclusive"
+                )
             if args.target_ready_command:
                 target_ready = CommandTargetReady(
                     shlex.split(args.target_ready_command),
                     timeout=args.target_ready_timeout,
+                )
+            elif args.target_ready_url:
+                target_ready = HttpTargetReady(
+                    args.target_ready_url,
+                    timeout=args.target_ready_timeout,
+                    interval=args.target_ready_interval,
+                    token=args.target_ready_token or None,
                 )
             service = CutoverService(
                 args.source,

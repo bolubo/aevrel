@@ -506,6 +506,9 @@ Gate:
 - Last cutover RTO evidence is atomically persisted at
   `<target>/.shardferry/last-cutover.json`, so a CutoverService restart keeps
   `paused_seconds` / `target_ready_seconds` visible in `/v1/status`.
+- Added `HttpTargetReady` and `cutover-serve --target-ready-url` for target
+  job readiness endpoints. 2xx succeeds; 404/409/425/429/5xx retry until the
+  deadline; other 4xx fail closed. CLI smoke promoted with one readiness call.
 - Gate: `234 passed / 19 skipped` (PyTorch/native optional skips), compileall
   and `cutover-serve --help` pass. This work is on branch `python-rto` in
   worktree `shardferry-rto`; do not merge into the shared checkout while the
