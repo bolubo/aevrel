@@ -5,9 +5,9 @@
 
 ## 目标
 
-在 source/target 节点有 GPU 时，对大 range 做可选的 GPU 压缩，减少跨集群
-传输字节；没有 GPU、压缩比不够或协商失败时自动退回 identity。旧客户端和
-旧 agent 的行为不变。
+在 source/target 节点有 GPU 时，对大 range/batch 做可选的 GPU 压缩，减少
+跨集群传输字节。当前没有外部用户，不做旧客户端/旧 agent 兼容层；只保留
+“没有 GPU、压缩比不够或协商失败时走 identity”的正确性/性能保护。
 
 这不是 FSDP 验收，也不重复 `gpu_source_save.py` / `gpu_target_load.py`。
 
