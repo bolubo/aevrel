@@ -129,6 +129,49 @@ func TestMigrateCreatesCheckpointMigration(t *testing.T) {
 	}
 }
 
+func TestPreflightAcceptsExplicitRankMap(t *testing.T) {
+	// Preflight with explicit rank endpoints does not contact agents.
+	const explicit = `
+apiVersion: shardferry.io/v1
+kind: CheckpointMigration
+metadata:
+  name: preflight
+spec:
+  source:
+    worldSize: 1
+    checkpointRoot: /checkpoints/job
+    rankMap:
+      - rank: 0
+        endpoint: http://source:9443
+  target:
+    worldSize: 1
+    rootTemplate: /targets/job/rank{rank}
+    rankMap:
+      - rank: 0
+        endpoint: http://target:9444
+`
+	path := writeMigration(t, explicit)
+	scheme := runtime.NewScheme()
+	if err := shardferryv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	var output bytes.Buffer
+	if err := execute(
+		context.Background(),
+		kubeClient,
+		"default",
+		false,
+		[]string{"preflight", "-f", path},
+		&output,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "preflight ok") {
+		t.Fatalf("unexpected preflight output:\n%s", output.String())
+	}
+}
+
 func TestParseGlobalAcceptsFlagsAfterCommand(t *testing.T) {
 	namespace, jsonOut, args, err := parseGlobal(
 		[]string{"migrate", "-f", "migration.yaml", "--json", "-n", "team-a"},

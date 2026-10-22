@@ -18,7 +18,8 @@ shardferry migrate --checkpoint /path/to/source.dcp --target-world 3
 
 For distributed local disks, see `docs/USAGE.zh-CN.md` and use
 `examples/k8s/migration.yaml` with `shardferryctl migrate -f ... --dry-run` or
-`--wait`.
+`--wait`. Before creating the CR, run `shardferryctl preflight -f ...` to
+discover the actual source/target agents and ranks.
 
 ## What it will do
 
@@ -83,10 +84,6 @@ and planned bytes match the plan.
   assembly, and Python planner invocation.
 - `api/v1/`, `internal/controller/`, `cmd/controller/`: Go controller-runtime
   API, generated CRD/deepcopy, commit coordinator, and manager.
-- `cmd/ctl/`: `shardferryctl migrate -f ... --wait`, get/describe, cancel, retry.
-- `internal/controller/resolver.go`: selector-based agent and local-rank discovery.
-- `examples/k8s/migration.yaml`: minimal selector-based 128 -> 64 migration.
-- `deploy/docker/`: controller and CPU-DCP agent image builds.
 - `cmd/ctl/`: `shardferryctl migrate -f ... --wait`, get/describe, cancel, retry.
 - `internal/controller/resolver.go`: selector-based agent and local-rank discovery.
 - `examples/k8s/migration.yaml`: minimal selector-based 128 -> 64 migration.

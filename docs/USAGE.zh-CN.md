@@ -219,8 +219,12 @@ spec:
 
 ```bash
 shardferryctl migrate -f migration.yaml --dry-run
+shardferryctl preflight -f migration.yaml
 shardferryctl migrate -f migration.yaml --wait
 ```
+
+`preflight` 会连接集群，按 selector 查 Pod、调用 source agent 的
+`/v1/ranks`，并打印实际发现的 source/target rank 数；它不创建 CR。
 
 controller 会：
 

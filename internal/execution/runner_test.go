@@ -270,6 +270,33 @@ func TestRunnerPublishesMergedProofArtifact(t *testing.T) {
 	if proof["root"] != run.ProofHash() {
 		t.Fatalf("proof artifact root = %v", proof["root"])
 	}
+	deadline = time.Now().Add(time.Second)
+	for run.ReportRef() == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if run.ReportRef() == "" {
+		t.Fatal("report artifact ref is empty")
+	}
+	reportPayload, err := store.Get(context.Background(), run.ReportRef())
+	if err != nil {
+		t.Fatalf("read report artifact: %v", err)
+	}
+	var aggregate map[string]any
+	if err := json.Unmarshal(reportPayload, &aggregate); err != nil {
+		t.Fatal(err)
+	}
+	reports, _ := aggregate["reports"].([]any)
+	if len(reports) != 2 {
+		t.Fatalf("aggregated reports = %d, want 2", len(reports))
+	}
+	for _, raw := range reports {
+		row, _ := raw.(map[string]any)
+		report, _ := row["report"].(map[string]any)
+		if report["proof_ref"] != run.ProofRef() ||
+			report["proof_hash"] != run.ProofHash() {
+			t.Fatalf("report proof refs = %v", report)
+		}
+	}
 }
 
 func TestRunSnapshotRestoresCommittedState(t *testing.T) {

@@ -538,11 +538,25 @@ Gate:
   file probe and before the target-job readiness URL.
 - `python -m shardferry.target_probe --dcp-checkpoint ...` now provides the
   same load proof as a target-job command; cutover RTO includes its load time.
-- Python: `261 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
+- Python: `262 passed / 2 skipped`; Go: `go test ./...`, `go vet ./...`,
   `go build ./cmd/controller` pass; Helm lint/template pass.
 - HTTP range reads now reuse per-host `HTTP(S)Connection` keep-alive
   connections; the existing agent/HTTP/DCP-provider tests remain green.
 - `doctor --checkpoint` now reports a conservative source/work/output disk
   estimate against the actual destination free space.
+- Added an HTTP target-agent proof lifecycle test (rank proof in commit report
+  and `/v1/proof/merge` verification) and controller recovery for
+  `cutover-incomplete`.
 - Direct target proof smoke passed: rank proof generated, combined proof root
   produced. Physical kind/e2e is not available in this environment.
+
+## 2026-10-22 / Product closure additions
+
+- Target task commit now finalizes a per-rank DCP directory (`.metadata` plus
+  rank `.distcp`) and reports `dcp_root`; raw rank files remain as evidence.
+- Added `shardferryctl preflight -f migration.yaml`, which performs live
+  selector/agent/rank discovery without creating a CheckpointMigration.
+- Added `scripts/product_acceptance.py` for the non-kind local product path and
+  strengthened DCP HTTP HEAD/token verification.
+- Gate: Python `260 passed / 2 skipped`; Go tests/vet/build and Helm
+  lint/template pass.

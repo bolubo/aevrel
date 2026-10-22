@@ -4,6 +4,7 @@ import threading
 import time
 from dataclasses import dataclass
 from typing import Callable
+from urllib.parse import urlsplit
 
 
 class RateLimitTimeout(TimeoutError):
@@ -120,4 +121,50 @@ class AdaptiveTokenBucket:
 
 class AdaptiveRateController(AdaptiveTokenBucket):
     """Backward-friendly name for callers that want an explicit controller."""
+
+
+class AdaptiveRateRegistry:
+    """Keep one adaptive limiter per HTTP endpoint.
+
+    A throttled source node should not reduce the rate of every other source.
+    The key is ``scheme://host:port`` so separate agents and ports are
+    independent, while all requests to the same agent share one bucket.
+    """
+
+    def __init__(
+        self,
+        rate: float = 10.0,
+        *,
+        min_rate: float = 0.5,
+        max_rate: float = 100.0,
+        burst: float | None = None,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._defaults = {
+            "rate": rate,
+            "min_rate": min_rate,
+            "max_rate": max_rate,
+            "burst": burst,
+            "clock": clock,
+        }
+        self._lock = threading.Lock()
+        self._limiters: dict[str, AdaptiveRateController] = {}
+
+    def for_url(self, url: str) -> AdaptiveRateController:
+        parsed = urlsplit(url)
+        key = (
+            f"{parsed.scheme}://{parsed.hostname or ''}:"
+            f"{parsed.port or (443 if parsed.scheme == 'https' else 80)}"
+        )
+        with self._lock:
+            limiter = self._limiters.get(key)
+            if limiter is None:
+                limiter = AdaptiveRateController(**self._defaults)
+                self._limiters[key] = limiter
+            return limiter
+
+    def snapshot(self) -> dict[str, RateSnapshot]:
+        with self._lock:
+            limiters = list(self._limiters.items())
+        return {key: limiter.snapshot() for key, limiter in limiters}
 
