@@ -23,6 +23,10 @@ print(json.dumps({
   "cuda": torch.version.cuda,
   "available": torch.cuda.is_available(),
   "devices": torch.cuda.device_count(),
+  "device_names": [
+    torch.cuda.get_device_name(index)
+    for index in range(torch.cuda.device_count())
+  ],
   "bf16": bool(getattr(torch.cuda, "is_bf16_supported", lambda: False)()),
   "nccl": bool(torch.distributed.is_nccl_available()),
   "cudnn": torch.backends.cudnn.version(),
@@ -77,9 +81,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-gpus", type=int, default=4)
     parser.add_argument("--min-disk-gb", type=float, default=20.0)
     parser.add_argument("--work-dir", default="/tmp")
+    parser.add_argument("--require-bf16", action="store_true")
     parser.add_argument("--json", action="store_true", dest="json_output")
     args = parser.parse_args(argv)
     checks: list[str] = []
+    python_ok = sys.version_info >= (3, 11)
+    checks.append(f"python: {sys.version.split()[0]}")
+    if not python_ok:
+        checks.append("need Python 3.11+")
     probe = _probe_torch()
     checks.append("torch import")
     if probe.get("error"):
@@ -111,9 +120,11 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "ok": (
             not probe.get("error")
+            and python_ok
             and probe.get("available")
             and int(probe.get("devices", 0)) >= args.min_gpus
             and bool(probe.get("nccl"))
+            and (not args.require_bf16 or bool(probe.get("bf16")))
             and shutil.which("torchrun") is not None
             and shardferry_version is not None
             and free >= args.min_disk_gb * 1024**3

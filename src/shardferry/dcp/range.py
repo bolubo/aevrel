@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import struct
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 
 class DcpRangeError(RuntimeError):
@@ -47,10 +49,68 @@ class ZipTensorRange:
         return "sha256:" + digest.hexdigest()
 
 
-def inspect_zip_tensor(path: str | Path) -> ZipTensorRange:
+class _SliceReader(io.RawIOBase):
+    def __init__(self, path: Path, offset: int, length: int) -> None:
+        super().__init__()
+        self._stream: BinaryIO = path.open("rb")
+        self._base = int(offset)
+        self._length = int(length)
+        self._position = 0
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def tell(self) -> int:
+        return self._position
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        if whence == 0:
+            position = offset
+        elif whence == 1:
+            position = self._position + offset
+        elif whence == 2:
+            position = self._length + offset
+        else:
+            raise ValueError(f"invalid whence: {whence}")
+        if position < 0 or position > self._length:
+            raise ValueError("seek outside DCP storage segment")
+        self._position = position
+        return position
+
+    def read(self, size: int = -1) -> bytes:
+        remaining = self._length - self._position
+        if size < 0 or size > remaining:
+            size = remaining
+        self._stream.seek(self._base + self._position)
+        data = self._stream.read(size)
+        self._position += len(data)
+        return data
+
+    def close(self) -> None:
+        if not self.closed:
+            self._stream.close()
+        super().close()
+
+
+def inspect_zip_tensor(
+    path: str | Path,
+    *,
+    base_offset: int = 0,
+    length: int | None = None,
+) -> ZipTensorRange:
     archive_path = Path(path)
+    if length is None:
+        length = archive_path.stat().st_size - base_offset
+    if base_offset < 0 or length < 0:
+        raise DcpRangeError("DCP storage segment bounds must be non-negative")
     try:
-        with zipfile.ZipFile(archive_path) as archive:
+        with (
+            _SliceReader(archive_path, base_offset, length) as stream,
+            zipfile.ZipFile(stream) as archive,
+        ):
             entries = [
                 entry
                 for entry in archive.infolist()
@@ -61,11 +121,11 @@ def inspect_zip_tensor(path: str | Path) -> ZipTensorRange:
                     f"{archive_path} must contain exactly one data/* entry"
                 )
             entry = entries[0]
-            header_offset = entry.header_offset
+            header_offset = base_offset + entry.header_offset
             compression = entry.compress_type
             size = entry.file_size
             name = entry.filename
-    except (OSError, zipfile.BadZipFile) as exc:
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
         raise DcpRangeError(f"could not inspect DCP zip {path}: {exc}") from exc
 
     try:

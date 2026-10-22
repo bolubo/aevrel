@@ -58,13 +58,10 @@ torchrun --standalone --nproc_per_node=3 \
 
 | 用例 | source | target | 检查 |
 |---|---|---|---|
-| fp32 4→3 | 4 GPU/rank | 3 GPU/rank | model + AdamW + forward |
-| fp32 4→1 | 4 | 1 | target 全量加载 |
-| 1→4 | 1 | 4 | 广播/重分片 |
-| bf16 4→3 | 4 | 3 | dtype 和输出 |
-| 中断续跑 | 4 | 3 | journal、source/target 不变 |
-| source 重启 | 4 | 3 | HTTP 失败后恢复 |
-| 8→5、16→7 | 多卡 | 多卡 | bytes、内存、时间 |
+| fp32 4→2 | 4 GPU/rank | 2 GPU/rank | model + AdamW + forward |
+| fp32 4→3 | 4 | 3 | 非整除拓扑 |
+| bf16 4→2 | 4 | 2 | dtype + tolerance |
+| fp32 2→4 | 2 | 4 | 可选扩容方向 |
 
 只有在 GPU 上跑通的用例才写入结果；脚本存在不等于已验证。
 

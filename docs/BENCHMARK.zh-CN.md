@@ -218,6 +218,116 @@ source agent 已切到 HTTP/1.1，`HttpStorage` 对同一 host 复用
 TCP/TLS 连接；现有 HTTP source/agent/executor 测试通过。实际吞吐收益需要在
 真实网络/多节点上补测。
 
+## 2026-10-22 GPU：DCP 原生 vs 整目录复制 vs ShardFerry
+
+这一组只回答一个问题：**在 4×L20 同机、同 NVMe、4→3、768 MiB
+model+AdamW DCP 的冷缓存场景下，time-to-target-ready 是多少。**
+
+结果不能外推为跨机网络性能，也不能把同机共享文件系统当作 ShardFerry 的
+主战场。
+
+### 受测流程
+
+| 流程 | 前提 | 额外目标盘 | 分块续传 | 独立校验 |
+|---|---|---:|---|---|
+| DCP 原生 load-time reshard | target 直接看见 source 共享目录 | 0 | 由 DCP 决定 | DCP 自身 |
+| `cp -a` 整目录 + DCP load | source/target 能共享或复制目录 | 769 MiB | 文件级 | 无整库 bitwise proof |
+| ShardFerry migrate + DCP load | 源分片可逐块读取，不要求共享全局目录 | 769 MiB | chunk/journal | bitwise + source digest |
+
+其他常见方案只进入功能矩阵，不混入这张耗时表：
+
+- NVIDIA `nvRX` local checkpoint：偏本地快速存盘，不提供通用
+  跨集群 topology reshard；
+- DeepSpeed Universal Checkpoint / Megatron dist-checkpoint 转换：
+  绑定各自训练框架和模型布局，不是通用 DCP 工具；
+- CRIU / `cuda-checkpoint`：进程级快照与恢复，依赖特权、驱动和设备状态，
+  不是 checkpoint 的跨 world-size 重分片；
+- Kubernetes VolumeSnapshot / PVC 复制：存储层整卷复制，不感知 rank、
+  DeviceMesh 或 DCP chunk，无法回答“搬哪些字节、如何重构”。
+
+因此当前可公平 timing 的只有前两行：DCP 原生与目录复制；其余先比能力边界，
+等出现同模型、同硬件、同故障注入条件后再进入计时表。
+
+### 冷缓存实测
+
+每组前执行 `drop_caches`；DCP 原生 load 跑两次，ShardFerry target load
+跑两次。时间包含 FSDP 初始化、DCP load、`set_state_dict` 和前向校验。
+
+| 流程 | 1 | 2 | 代表值 | 额外说明 |
+|---|---:|---:|---:|---|
+| DCP 原生 load-time reshard | 20.97s | 21.73s | **21.35s** | 不产生 target checkpoint |
+| `cp -a` + DCP load | — | — | **27.77s** | copy `5.15s` + load `22.62s` |
+| ShardFerry migrate + DCP load | — | — | **32.27s** | migrate `10.43s` + load `21.84s` |
+
+ShardFerry 的 `10.43s` 包含 planning、source checksum、分块写 target、bitwise
+verify；其中实际 transfer 输出为 `6.99s / 768.1 MiB`。
+
+### 结论
+
+同机共享盘场景，DCP 原生最快；ShardFerry 比原生慢约 51%，比
+“复制后加载”的土办法慢约 16%。这组数字必须原样保留，不能包装成
+ShardFerry 性能胜出。
+
+ShardFerry 的差异化不在这一组：
+
+- source 分片不暴露为 target 可挂载的单一全局目录；
+- 传输中断后要按 chunk/journal 续传，而不是整目录重来；
+- 需要 source 不变证明、target 原子提交和独立 bitwise 校验；
+- 拓扑变化和搬迁是控制面任务，不是训练脚本里的一次 `dcp.load`。
+
+下一组真正能证明价值的 benchmark 必须注入故障：
+
+1. 迁移到 90% 时断网/杀进程；
+2. 记录恢复后重传字节；
+3. 对比 `rsync` 文件级恢复和全量重拷；
+4. 在 100Mbps / 1Gbps 整形网络上重复；
+5. 报告 `time-to-ready`、重传字节、peak RSS、target disk amplification。
+
+若这组故障恢复 benchmark 不能显著赢，ShardFerry 就不该以“迁移更快”作为
+主叙事，只应保留“跨域可执行、可恢复、可验证”的工程价值。
+
+### 为什么慢：哪些能优化，哪些不能
+
+先把 `32.27s` 拆开：
+
+- target load：`21.84s`，与 DCP 原生 `21.35s` 基本持平；说明我们产出的
+  target 布局没有引入加载税；
+- migration：`10.43s`，其中传输阶段 `6.99s`，其余 planning、source
+  checksum、journal/fsync、DCP export 约 `3.44s`;
+- `cp -a` 只有 `5.15s`，所以单看搬运实现，我们比单线程复制慢 `1.84s`。
+
+**不可优化、也不该拿来吹的部分**
+
+- 如果 target 能直接挂载 source 的共享目录，DCP 原生 load 不需要生成
+  target checkpoint，天然少一次整库写；这种场景它应该最快。
+- ShardFerry 的用户价值是生成一个可启动的 target 状态，因此至少需要一次
+  target 写入。这是产品语义，不是 bug。
+
+**明显可优化的部分**
+
+1. 当前执行路径先把 plan 落到 raw target workdir，再由 `export_dcp`
+   生成最终 `.distcp`；等于对 target 峰值写了约两遍（769 MiB 数据会看到
+   约 1.5 GiB 的瞬时占用）。可以把目标 rank 直接写成最终 DCP ZIP，
+   省掉第二遍 `769 MiB` 写。
+2. inventory 与 executor 各做了一次 source checksum，随后又读 source
+   搬运；可以把校验融合进唯一一次读取，或在本地可信路径用
+   sampling/ deferred verification。
+3. executor 目前每个 plan node 都 `fsync` 并原子写 journal；Case G 有
+   66 个 node，fsync 成本可合并为每 target rank 一次，journal 按时间窗
+   批量提交。
+4. 各 target rank 可以并行搬运；768 MiB 的单流 `6.99s` 有希望靠近
+   `cp -a 5.15s`，而不是保持 36% 的差距。
+
+因此结论不是“ShardFerry 注定慢 51%”：
+
+- 相对 **DCP 原生共享盘直载**，一次 target 物化带来结构性劣势，不能承诺赢；
+- 相对 **跨集群常用的 git/rsync/目录复制流程**，多出的 `4.5s` 绝大部分是
+  可消除的实现开销。优化目标应是：保持 resume/verify 能力，同时把总时间
+  做到与整目录复制基本持平。
+
+下一步优化优先级：single-write DCP export → checksum 融合 → fsync/journal
+批量化 → target rank 并行。每项都要用同一 768 MiB、冷缓存、4→3 用例复测。
+
 ### target-ready probe RTO
 
 `cdp_benchmark.py` 默认在 cutover 后运行

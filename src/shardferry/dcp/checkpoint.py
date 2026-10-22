@@ -311,8 +311,11 @@ def inspect_dcp(
     ranks: set[int] = set()
 
     for fqn, tensor_metadata in metadata.state_dict_metadata.items():
-        if not hasattr(tensor_metadata, "chunks"):
-            raise DcpError(f"DCP entry is not a tensor: {fqn}")
+        if (
+            not hasattr(tensor_metadata, "chunks")
+            or len(tensor_metadata.size) == 0
+        ):
+            continue
         dtype = _dtype_name(torch, tensor_metadata.properties.dtype)
         global_shape = tuple(int(value) for value in tensor_metadata.size)
         tensor_rows[fqn] = {
@@ -463,8 +466,11 @@ def inventory_dcp_descriptors(
     chunks: list[dict[str, Any]] = []
     refs: dict[str, DcpChunkRef] = {}
     for fqn, tensor_metadata in metadata.state_dict_metadata.items():
-        if not hasattr(tensor_metadata, "chunks"):
-            raise DcpError(f"DCP entry is not a tensor: {fqn}")
+        if (
+            not hasattr(tensor_metadata, "chunks")
+            or len(tensor_metadata.size) == 0
+        ):
+            continue
         tensors.append(
             {
                 "name": fqn,
@@ -499,7 +505,11 @@ def inventory_dcp_descriptors(
                 continue
             storage_path = checkpoint_path / info.relative_path
             try:
-                tensor_range = inspect_zip_tensor(storage_path)
+                tensor_range = inspect_zip_tensor(
+                    storage_path,
+                    base_offset=int(info.offset),
+                    length=int(info.length),
+                )
             except DcpRangeError as exc:
                 raise DcpError(
                     f"could not inspect DCP zip {storage_path}: {exc}"
@@ -510,20 +520,21 @@ def inventory_dcp_descriptors(
                     _dtype_name(torch, tensor_metadata.properties.dtype)
                 ]
             )
-            if tensor_range.size != expected_size:
+            if tensor_range.size < expected_size:
                 raise DcpError(
                     f"DCP chunk size mismatch for {fqn}/rank{rank}: "
                     f"{tensor_range.size} != {expected_size}"
                 )
-            digest = tensor_range.checksum(storage_path)
+            raw = tensor_range.read(storage_path, 0, expected_size)
+            digest = "sha256:" + _sha256(raw)
             refs[digest] = DcpChunkRef(
                 relative_path=info.relative_path,
                 offset=int(info.offset),
                 length=int(info.length),
                 checksum=digest,
-                size=tensor_range.size,
+                size=expected_size,
                 data_offset=tensor_range.data_offset,
-                data_size=tensor_range.size,
+                data_size=expected_size,
                 data_compression=tensor_range.compression,
                 data_name=tensor_range.name,
             )
@@ -546,7 +557,7 @@ def inventory_dcp_descriptors(
                         int(value) for value in chunk.offsets
                     ],
                     "tensor_size": [int(value) for value in chunk.sizes],
-                    "byte_ranges": [[0, tensor_range.size]],
+                    "byte_ranges": [[0, expected_size]],
                     "checksum": digest,
                 }
             )
@@ -651,6 +662,7 @@ def export_dcp(
     output_dir: str | Path,
     *,
     force: bool = False,
+    source_checkpoint: str | Path | None = None,
 ) -> Path:
     torch = _torch()
     from torch.distributed.checkpoint.filesystem import _StorageInfo
@@ -743,7 +755,72 @@ def export_dcp(
     )
     with (output / ".metadata").open("wb") as stream:
         pickle.dump(metadata, stream)
+    _copy_bytes_metadata(source_checkpoint, output)
     return output
+
+
+def _copy_bytes_metadata(
+    source_checkpoint: str | Path | None,
+    output: str | Path,
+) -> None:
+    """Preserve DCP scalar/bytes entries that do not have tensor chunks."""
+    if source_checkpoint is None:
+        return
+    from torch.distributed.checkpoint.metadata import BytesStorageMetadata
+
+    source = Path(source_checkpoint).resolve()
+    target = Path(output).resolve()
+    source_metadata = read_dcp_metadata(source)
+    target_metadata = read_dcp_metadata(target)
+    preserved = []
+    for fqn, value in source_metadata.state_dict_metadata.items():
+        if isinstance(value, BytesStorageMetadata):
+            preserved.append((fqn, value))
+        elif hasattr(value, "chunks") and len(value.size) == 0:
+            preserved.append((fqn, value))
+    if not preserved:
+        return
+    storage_data = target_metadata.storage_data or {}
+    copy_index = 0
+    for fqn, value in preserved:
+        entries = [
+            (metadata_index, info)
+            for metadata_index, info in (source_metadata.storage_data or {}).items()
+            if metadata_index.fqn == fqn
+        ]
+        if not entries:
+            raise DcpError(f"no storage entry for preserved DCP entry {fqn}")
+        target_metadata.state_dict_metadata[fqn] = value
+        for key, info in entries:
+            source_path = source / info.relative_path
+            try:
+                with source_path.open("rb") as stream:
+                    stream.seek(int(info.offset))
+                    raw = stream.read(int(info.length))
+            except OSError as exc:
+                raise DcpError(
+                    f"could not read preserved DCP entry {fqn}: {exc}"
+                ) from exc
+            if len(raw) != int(info.length):
+                raise DcpError(f"short preserved DCP entry: {fqn}")
+            file_name = f"__preserved_{copy_index}.distcp"
+            copy_index += 1
+            (target / file_name).write_bytes(raw)
+            storage_data[
+                type(key)(
+                    fqn=key.fqn,
+                    offset=key.offset,
+                    index=key.index,
+                )
+            ] = type(info)(
+                relative_path=file_name,
+                offset=0,
+                length=len(raw),
+                transform_descriptors=None,
+            )
+    target_metadata.storage_data = storage_data
+    with (target / ".metadata").open("wb") as stream:
+        pickle.dump(target_metadata, stream)
 
 
 def export_dcp_local(
@@ -942,7 +1019,12 @@ def migrate_dcp(
         encoding="utf-8",
     )
     notify("verification passed; writing target DCP")
-    export_dcp(spec, output_path, force=force)
+    export_dcp(
+        spec,
+        output_path,
+        force=force,
+        source_checkpoint=checkpoint_path,
+    )
     if not keep_work:
         target_work = (work_path / "target").resolve()
         if target_work.exists() and target_work.is_dir():

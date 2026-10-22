@@ -16,12 +16,19 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 
 class TinyModel(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, bulk_dim: int = 0) -> None:
         super().__init__()
         self.fc = nn.Linear(4, 8)
+        self.bulk = nn.Linear(bulk_dim, bulk_dim) if bulk_dim else None
 
     def forward(self, value: torch.Tensor) -> torch.Tensor:
-        return self.fc(value)
+        output = self.fc(value)
+        if self.bulk is not None:
+            bulk_input = output.new_zeros(
+                (output.shape[0], self.bulk.in_features)
+            )
+            output = output + self.bulk(bulk_input)[:, : output.shape[1]]
+        return output
 
 
 def main() -> None:
@@ -30,6 +37,7 @@ def main() -> None:
     parser.add_argument("--fixture", required=True)
     parser.add_argument("--backend", default="nccl")
     parser.add_argument("--dtype", choices=["float32", "bfloat16"], default="float32")
+    parser.add_argument("--bulk-dim", type=int, default=0)
     parser.add_argument("--atol", type=float, default=0.0)
     args = parser.parse_args()
     if not torch.cuda.is_available():
@@ -42,7 +50,10 @@ def main() -> None:
     try:
         torch.manual_seed(0)
         dtype = torch.float32 if args.dtype == "float32" else torch.bfloat16
-        model = FSDP(TinyModel().to(device=device, dtype=dtype), device_id=device)
+        model = FSDP(
+            TinyModel(args.bulk_dim).to(device=device, dtype=dtype),
+            device_id=device,
+        )
         optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
         options = StateDictOptions(full_state_dict=False, cpu_offload=True)
         model_state, optim_state = get_state_dict(
@@ -73,6 +84,12 @@ def main() -> None:
         else:
             matched = torch.allclose(actual, expected, atol=args.atol, rtol=0)
         if not matched:
+            max_abs_diff = (actual.float() - expected.float()).abs().max()
+            print(
+                f"rank={dist.get_rank()} max_abs_diff={max_abs_diff.item():.8g} "
+                f"actual={actual.flatten()[:4].tolist()} "
+                f"expected={expected.flatten()[:4].tolist()}"
+            )
             raise RuntimeError(
                 f"model output mismatch on rank {dist.get_rank()}"
             )

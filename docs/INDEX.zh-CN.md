@@ -33,4 +33,5 @@
 - [目标 Agent 任务卡](AGENT-TARGET-PROMPT.zh-CN.md)
 - [GPU/FSDP 实验卡](GPU-EXPERIMENT.zh-CN.md)
 - [GPU 两小时验收 Runbook](GPU-RUNBOOK.zh-CN.md)
+- [GPU 验证记录（2026-10-22）](GPU-VALIDATION-2026-10-22.md)
 - [Benchmark](BENCHMARK.zh-CN.md)

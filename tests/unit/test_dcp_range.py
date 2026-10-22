@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import socket
 import threading
@@ -191,6 +192,26 @@ def test_compressed_zip_has_explicit_fallback(tmp_path: Path) -> None:
     tensor_range = inspect_zip_tensor(path)
     assert tensor_range.compression == zipfile.ZIP_DEFLATED
     assert tensor_range.read(path, 2, 3) == payload[2:5]
+
+
+def test_inspect_zip_tensor_reads_storage_segment(tmp_path: Path) -> None:
+    def archive_bytes(payload: bytes) -> bytes:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr("__0_0/data/0", payload)
+        return buffer.getvalue()
+
+    first = archive_bytes(b"first!!!")
+    second = archive_bytes(b"second!!")
+    path = tmp_path / "concatenated.distcp"
+    path.write_bytes(first + second)
+
+    tensor_range = inspect_zip_tensor(
+        path,
+        base_offset=len(first),
+        length=len(second),
+    )
+    assert tensor_range.read(path, 0, 8) == b"second!!"
 
 
 def test_export_dcp_does_not_read_target_bytes(
