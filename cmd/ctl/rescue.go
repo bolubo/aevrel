@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func executeRescue(
@@ -24,7 +24,7 @@ func executeRescue(
 	if kubeClient == nil {
 		return fmt.Errorf("Kubernetes client is not configured")
 	}
-	spec := shardferryv1.RescueDecisionSpec{Fallback: "hold"}
+	spec := aevrelv1.RescueDecisionSpec{Fallback: "hold"}
 	name := ""
 	for index := 0; index < len(args); index++ {
 		switch args[index] {
@@ -74,7 +74,7 @@ func executeRescue(
 	if spec.Fallback != "hold" && spec.Fallback != "restart" {
 		return fmt.Errorf("--fallback must be hold or restart")
 	}
-	decision := &shardferryv1.RescueDecision{
+	decision := &aevrelv1.RescueDecision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -96,7 +96,7 @@ func executeRescue(
 		decision.Namespace,
 		decision.Name,
 	)
-	fmt.Fprintln(out, "Next: shardferryctl get rescuedecision "+decision.Name)
+	fmt.Fprintln(out, "Next: aevrelctl get rescuedecision "+decision.Name)
 	return nil
 }
 
@@ -107,7 +107,7 @@ func executeGetRescueDecisions(
 	jsonOut bool,
 	out io.Writer,
 ) error {
-	var list shardferryv1.RescueDecisionList
+	var list aevrelv1.RescueDecisionList
 	if err := kubeClient.List(
 		ctx,
 		&list,
@@ -151,7 +151,7 @@ func executeGetRescueDecision(
 	jsonOut bool,
 	out io.Writer,
 ) error {
-	var decision shardferryv1.RescueDecision
+	var decision aevrelv1.RescueDecision
 	if err := kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,

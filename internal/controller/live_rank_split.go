@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 const liveRankSplitPollInterval = 2 * time.Second
@@ -19,15 +19,15 @@ const liveRankSplitPollInterval = 2 * time.Second
 // executor. The controller remains the source of truth for CR status and
 // promotion gates.
 type LiveRankSplitObservation struct {
-	Phase         string                        `json:"phase"`
-	InFlight      []int32                       `json:"inFlight,omitempty"`
-	Coverage      []int32                       `json:"coverage,omitempty"`
-	Quorum        int32                         `json:"quorum,omitempty"`
-	StateComplete bool                          `json:"stateComplete,omitempty"`
-	StateRoot     string                        `json:"stateRoot,omitempty"`
-	ProofRef      string                        `json:"proofRef,omitempty"`
-	Message       string                        `json:"message,omitempty"`
-	Ranks         []shardferryv1.LiveRankStatus `json:"ranks,omitempty"`
+	Phase         string                    `json:"phase"`
+	InFlight      []int32                   `json:"inFlight,omitempty"`
+	Coverage      []int32                   `json:"coverage,omitempty"`
+	Quorum        int32                     `json:"quorum,omitempty"`
+	StateComplete bool                      `json:"stateComplete,omitempty"`
+	StateRoot     string                    `json:"stateRoot,omitempty"`
+	ProofRef      string                    `json:"proofRef,omitempty"`
+	Message       string                    `json:"message,omitempty"`
+	Ranks         []aevrelv1.LiveRankStatus `json:"ranks,omitempty"`
 }
 
 // LiveRankSplitExecutor owns the live data-plane handoff. The controller
@@ -36,18 +36,18 @@ type LiveRankSplitObservation struct {
 type LiveRankSplitExecutor interface {
 	Observe(
 		context.Context,
-		*shardferryv1.CheckpointMigration,
+		*aevrelv1.CheckpointMigration,
 	) (LiveRankSplitObservation, error)
 }
 
 func (r *Reconciler) reconcileLiveRankSplit(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (ctrl.Result, error) {
 	switch migration.Status.Phase {
-	case shardferryv1.MigrationPhaseSucceeded,
-		shardferryv1.MigrationPhaseFailed,
-		shardferryv1.MigrationPhaseCancelled:
+	case aevrelv1.MigrationPhaseSucceeded,
+		aevrelv1.MigrationPhaseFailed,
+		aevrelv1.MigrationPhaseCancelled:
 		return ctrl.Result{}, nil
 	}
 	if r.Live == nil {
@@ -65,10 +65,10 @@ func (r *Reconciler) reconcileLiveRankSplit(
 		return ctrl.Result{RequeueAfter: requeue}, r.updateStatus(
 			ctx,
 			migration,
-			func(latest *shardferryv1.CheckpointMigration) bool {
+			func(latest *aevrelv1.CheckpointMigration) bool {
 				before := latest.Status.DeepCopy()
-				latest.Status.Phase = shardferryv1.MigrationPhaseTransferring
-				latest.Status.Live = &shardferryv1.LiveRankSplitStatus{
+				latest.Status.Phase = aevrelv1.MigrationPhaseTransferring
+				latest.Status.Live = &aevrelv1.LiveRankSplitStatus{
 					CutoverPhase: "failed",
 					Message:      message,
 				}
@@ -96,17 +96,17 @@ func (r *Reconciler) reconcileLiveRankSplit(
 
 func (r *Reconciler) failLiveRankSplit(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	reason string,
 	message string,
 ) (ctrl.Result, error) {
 	return ctrl.Result{}, r.updateStatus(
 		ctx,
 		migration,
-		func(latest *shardferryv1.CheckpointMigration) bool {
+		func(latest *aevrelv1.CheckpointMigration) bool {
 			before := latest.Status.DeepCopy()
-			latest.Status.Phase = shardferryv1.MigrationPhaseFailed
-			latest.Status.Live = &shardferryv1.LiveRankSplitStatus{
+			latest.Status.Phase = aevrelv1.MigrationPhaseFailed
+			latest.Status.Live = &aevrelv1.LiveRankSplitStatus{
 				CutoverPhase: "failed",
 				Message:      message,
 			}
@@ -125,7 +125,7 @@ func (r *Reconciler) failLiveRankSplit(
 
 func (r *Reconciler) persistLiveRankSplitObservation(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	observation LiveRankSplitObservation,
 ) (ctrl.Result, error) {
 	phase := liveMigrationPhase(observation.Phase)
@@ -133,18 +133,18 @@ func (r *Reconciler) persistLiveRankSplitObservation(
 	message := observation.Message
 	conditionStatus := metav1.ConditionUnknown
 	conditionReason := "LiveInProgress"
-	if phase == shardferryv1.MigrationPhaseFailed {
+	if phase == aevrelv1.MigrationPhaseFailed {
 		conditionStatus = metav1.ConditionFalse
 		conditionReason = "LiveFailed"
 	}
-	if phase == shardferryv1.MigrationPhaseCancelled {
+	if phase == aevrelv1.MigrationPhaseCancelled {
 		conditionStatus = metav1.ConditionFalse
 		conditionReason = "LiveCancelled"
 	}
 	if observation.Phase == "succeeded" &&
 		migration.Spec.Target.Validation != nil &&
 		(migration.Status.TargetReady == nil || !migration.Status.TargetReady.Ready) {
-		phase = shardferryv1.MigrationPhaseTargetValidating
+		phase = aevrelv1.MigrationPhaseTargetValidating
 		livePhase = "target-validating"
 		conditionReason = "TargetValidationRequired"
 		if message == "" {
@@ -152,11 +152,11 @@ func (r *Reconciler) persistLiveRankSplitObservation(
 		}
 	}
 	if observation.Phase == "succeeded" &&
-		phase == shardferryv1.MigrationPhaseSucceeded {
+		phase == aevrelv1.MigrationPhaseSucceeded {
 		conditionStatus = metav1.ConditionTrue
 		conditionReason = "LiveCompleted"
 	}
-	if phase == shardferryv1.MigrationPhaseTargetValidating {
+	if phase == aevrelv1.MigrationPhaseTargetValidating {
 		conditionStatus = metav1.ConditionUnknown
 		conditionReason = "TargetValidationRequired"
 	}
@@ -171,10 +171,10 @@ func (r *Reconciler) persistLiveRankSplitObservation(
 	err := r.updateStatus(
 		ctx,
 		migration,
-		func(latest *shardferryv1.CheckpointMigration) bool {
+		func(latest *aevrelv1.CheckpointMigration) bool {
 			before := latest.Status.DeepCopy()
 			latest.Status.Phase = phase
-			latest.Status.Live = &shardferryv1.LiveRankSplitStatus{
+			latest.Status.Live = &aevrelv1.LiveRankSplitStatus{
 				CutoverPhase:  livePhase,
 				InFlight:      append([]int32(nil), observation.InFlight...),
 				Coverage:      append([]int32(nil), observation.Coverage...),
@@ -183,15 +183,15 @@ func (r *Reconciler) persistLiveRankSplitObservation(
 				StateRoot:     stateRoot,
 				ProofRef:      observation.ProofRef,
 				Message:       message,
-				Ranks:         append([]shardferryv1.LiveRankStatus(nil), observation.Ranks...),
+				Ranks:         append([]aevrelv1.LiveRankStatus(nil), observation.Ranks...),
 			}
 			if observation.ProofRef != "" {
 				latest.Status.ProofRef = observation.ProofRef
 			}
 			switch phase {
-			case shardferryv1.MigrationPhaseSucceeded,
-				shardferryv1.MigrationPhaseFailed,
-				shardferryv1.MigrationPhaseCancelled:
+			case aevrelv1.MigrationPhaseSucceeded,
+				aevrelv1.MigrationPhaseFailed,
+				aevrelv1.MigrationPhaseCancelled:
 				if latest.Status.CompletedAt == "" {
 					latest.Status.CompletedAt = time.Now().UTC().Format(time.RFC3339)
 				}
@@ -213,11 +213,11 @@ func (r *Reconciler) persistLiveRankSplitObservation(
 		return ctrl.Result{}, err
 	}
 	switch phase {
-	case shardferryv1.MigrationPhaseSucceeded,
-		shardferryv1.MigrationPhaseFailed,
-		shardferryv1.MigrationPhaseCancelled:
+	case aevrelv1.MigrationPhaseSucceeded,
+		aevrelv1.MigrationPhaseFailed,
+		aevrelv1.MigrationPhaseCancelled:
 		return ctrl.Result{}, nil
-	case shardferryv1.MigrationPhaseTargetValidating:
+	case aevrelv1.MigrationPhaseTargetValidating:
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	default:
 		return ctrl.Result{RequeueAfter: liveRankSplitPollInterval}, nil
@@ -227,24 +227,24 @@ func (r *Reconciler) persistLiveRankSplitObservation(
 func liveMigrationPhase(livePhase string) string {
 	switch livePhase {
 	case "pending", "preflight":
-		return shardferryv1.MigrationPhasePreparing
+		return aevrelv1.MigrationPhasePreparing
 	case "draining", "snapshotting", "following", "cutover":
-		return shardferryv1.MigrationPhaseTransferring
+		return aevrelv1.MigrationPhaseTransferring
 	case "target-validating":
-		return shardferryv1.MigrationPhaseTargetValidating
+		return aevrelv1.MigrationPhaseTargetValidating
 	case "succeeded":
-		return shardferryv1.MigrationPhaseSucceeded
+		return aevrelv1.MigrationPhaseSucceeded
 	case "failed":
-		return shardferryv1.MigrationPhaseFailed
+		return aevrelv1.MigrationPhaseFailed
 	case "cancelled":
-		return shardferryv1.MigrationPhaseCancelled
+		return aevrelv1.MigrationPhaseCancelled
 	default:
-		return shardferryv1.MigrationPhaseFailed
+		return aevrelv1.MigrationPhaseFailed
 	}
 }
 
 func validateLiveRankSplitObservation(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	observation LiveRankSplitObservation,
 ) error {
 	switch observation.Phase {
@@ -316,7 +316,7 @@ func validateLiveRanks(name string, ranks []int32, worldSize int32) error {
 	return nil
 }
 
-func liveQuorum(migration *shardferryv1.CheckpointMigration) int32 {
+func liveQuorum(migration *aevrelv1.CheckpointMigration) int32 {
 	if migration.Spec.Live == nil {
 		return 0
 	}
@@ -327,40 +327,40 @@ func liveQuorum(migration *shardferryv1.CheckpointMigration) int32 {
 }
 
 func liveRequiresState(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) bool {
-	if migration.Spec.Mode != shardferryv1.MigrationModeLiveRankSplit ||
+	if migration.Spec.Mode != aevrelv1.MigrationModeLiveRankSplit ||
 		migration.Spec.Live == nil {
 		return false
 	}
 	mode := migration.Spec.Live.StateMode
 	if mode == "" {
-		mode = shardferryv1.LiveStateModeL4
+		mode = aevrelv1.LiveStateModeL4
 	}
 	requireState := true
 	if migration.Spec.Live.Cutover.RequireStateComplete != nil {
 		requireState = *migration.Spec.Live.Cutover.RequireStateComplete
 	}
-	return mode == shardferryv1.LiveStateModeL4 || requireState
+	return mode == aevrelv1.LiveStateModeL4 || requireState
 }
 
 func validateMigrationMode(
-	spec *shardferryv1.CheckpointMigrationSpec,
+	spec *aevrelv1.CheckpointMigrationSpec,
 ) error {
 	mode := spec.Mode
 	if mode == "" {
-		mode = shardferryv1.MigrationModeStatic
+		mode = aevrelv1.MigrationModeStatic
 	}
 	switch mode {
-	case shardferryv1.MigrationModeStatic:
+	case aevrelv1.MigrationModeStatic:
 		if spec.Live != nil {
 			return fmt.Errorf(
 				"live is only valid when mode=%s",
-				shardferryv1.MigrationModeLiveRankSplit,
+				aevrelv1.MigrationModeLiveRankSplit,
 			)
 		}
 		return nil
-	case shardferryv1.MigrationModeLiveRankSplit:
+	case aevrelv1.MigrationModeLiveRankSplit:
 	default:
 		return fmt.Errorf("unsupported migration mode: %s", mode)
 	}
@@ -368,7 +368,7 @@ func validateMigrationMode(
 	if live == nil {
 		return fmt.Errorf(
 			"live is required when mode=%s",
-			shardferryv1.MigrationModeLiveRankSplit,
+			aevrelv1.MigrationModeLiveRankSplit,
 		)
 	}
 	if spec.Source.WorldSize < 2 {
@@ -388,10 +388,10 @@ func validateMigrationMode(
 	}
 	stateMode := live.StateMode
 	if stateMode == "" {
-		stateMode = shardferryv1.LiveStateModeL4
+		stateMode = aevrelv1.LiveStateModeL4
 	}
-	if stateMode != shardferryv1.LiveStateModeL3 &&
-		stateMode != shardferryv1.LiveStateModeL4 {
+	if stateMode != aevrelv1.LiveStateModeL3 &&
+		stateMode != aevrelv1.LiveStateModeL4 {
 		return fmt.Errorf("live.stateMode must be L3 or L4")
 	}
 	if live.StateRoot == "" {
@@ -411,7 +411,7 @@ func validateMigrationMode(
 			spec.Source.WorldSize/2+1,
 		)
 	}
-	if stateMode == shardferryv1.LiveStateModeL4 &&
+	if stateMode == aevrelv1.LiveStateModeL4 &&
 		spec.Target.Validation == nil {
 		return fmt.Errorf(
 			"live.stateMode=L4 requires target.validation",

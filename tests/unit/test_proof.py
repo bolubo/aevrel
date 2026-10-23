@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.verification import (
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.verification import (
     ProofError,
     build_proof,
     combine_proofs,

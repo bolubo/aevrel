@@ -11,15 +11,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestDescribeShowsTargetReady(t *testing.T) {
-	migration := &shardferryv1.CheckpointMigration{
+	migration := &aevrelv1.CheckpointMigration{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Status: shardferryv1.CheckpointMigrationStatus{
-			Phase: shardferryv1.MigrationPhaseTargetFailed,
-			TargetReady: &shardferryv1.TargetReadyStatus{
+		Status: aevrelv1.CheckpointMigrationStatus{
+			Phase: aevrelv1.MigrationPhaseTargetFailed,
+			TargetReady: &aevrelv1.TargetReadyStatus{
 				Ready:         false,
 				Condition:     "Incomplete",
 				Version:       "step-100000",
@@ -29,7 +29,7 @@ func TestDescribeShowsTargetReady(t *testing.T) {
 				StateComplete: false,
 				ProofRef:      "http://controller/artifacts/target",
 				ProofHash:     "sha256:abc",
-				Ranks: []shardferryv1.TargetReadyRankStatus{{
+				Ranks: []aevrelv1.TargetReadyRankStatus{{
 					Rank:            0,
 					ModelLoaded:     true,
 					OptimizerLoaded: true,
@@ -59,13 +59,13 @@ func TestDescribeShowsTargetReady(t *testing.T) {
 
 func TestWaitForMigrationStopsOnTargetFailed(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	migration := &shardferryv1.CheckpointMigration{
+	migration := &aevrelv1.CheckpointMigration{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Status: shardferryv1.CheckpointMigrationStatus{
-			Phase: shardferryv1.MigrationPhaseTargetFailed,
+		Status: aevrelv1.CheckpointMigrationStatus{
+			Phase: aevrelv1.MigrationPhaseTargetFailed,
 			Conditions: []metav1.Condition{{
 				Type:    "TargetReady",
 				Status:  metav1.ConditionFalse,
@@ -76,7 +76,7 @@ func TestWaitForMigrationStopsOnTargetFailed(t *testing.T) {
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	var output bytes.Buffer

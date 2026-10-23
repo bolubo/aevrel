@@ -16,9 +16,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/clusterclient"
-	"github.com/shardferry/shardferry/internal/kueueadapter"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/clusterclient"
+	"github.com/bolubo/aevrel/internal/kueueadapter"
 )
 
 func main() {
@@ -36,7 +36,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -47,9 +47,9 @@ func main() {
 		if err != nil {
 			fmt.Fprintf(
 				os.Stderr,
-				"shardferryctl %s requires a Kubernetes kubeconfig: %v\n"+
+				"aevrelctl %s requires a Kubernetes kubeconfig: %v\n"+
 					"For offline spec validation, run:\n"+
-					"  shardferryctl migrate -f FILE --dry-run\n",
+					"  aevrelctl migrate -f FILE --dry-run\n",
 				args[0],
 				err,
 			)
@@ -101,20 +101,20 @@ func needsKubeClient(args []string) bool {
 }
 
 func printUsage(out io.Writer) {
-	fmt.Fprintln(out, "usage: shardferryctl migrate -f FILE [--wait|--dry-run] [--no-progress] [--max-in-flight N]")
-	fmt.Fprintln(out, "       shardferryctl plan -f FILE [--max-in-flight N]")
-	fmt.Fprintln(out, "       shardferryctl preflight -f FILE [--max-in-flight N]")
-	fmt.Fprintln(out, "       shardferryctl readiness [NAME]")
-	fmt.Fprintln(out, "       shardferryctl kueue status|explain NAME")
-	fmt.Fprintln(out, "       shardferryctl rescue --event REASON [--workload NAME] [--checkpoint NAME] [--target TARGET] [--fallback hold|restart]")
-	fmt.Fprintln(out, "       shardferryctl get rescuedecisions|rescuedecision NAME")
-	fmt.Fprintln(out, "       shardferryctl get migrations|migration NAME")
-	fmt.Fprintln(out, "       shardferryctl get clusters|cluster NAME")
-	fmt.Fprintln(out, "       shardferryctl describe migration NAME")
-	fmt.Fprintln(out, "       shardferryctl describe cluster NAME")
-	fmt.Fprintln(out, "       shardferryctl cluster add NAME --endpoint URL [--role source|target|both] [--file PATH]")
-	fmt.Fprintln(out, "       shardferryctl delete migration NAME [--purge-target] [--dry-run]")
-	fmt.Fprintln(out, "       shardferryctl cancel|retry migration NAME")
+	fmt.Fprintln(out, "usage: aevrelctl migrate -f FILE [--wait|--dry-run] [--no-progress] [--max-in-flight N]")
+	fmt.Fprintln(out, "       aevrelctl plan -f FILE [--max-in-flight N]")
+	fmt.Fprintln(out, "       aevrelctl preflight -f FILE [--max-in-flight N]")
+	fmt.Fprintln(out, "       aevrelctl readiness [NAME]")
+	fmt.Fprintln(out, "       aevrelctl kueue status|explain NAME")
+	fmt.Fprintln(out, "       aevrelctl rescue --event REASON [--workload NAME] [--checkpoint NAME] [--target TARGET] [--fallback hold|restart]")
+	fmt.Fprintln(out, "       aevrelctl get rescuedecisions|rescuedecision NAME")
+	fmt.Fprintln(out, "       aevrelctl get migrations|migration NAME")
+	fmt.Fprintln(out, "       aevrelctl get clusters|cluster NAME")
+	fmt.Fprintln(out, "       aevrelctl describe migration NAME")
+	fmt.Fprintln(out, "       aevrelctl describe cluster NAME")
+	fmt.Fprintln(out, "       aevrelctl cluster add NAME --endpoint URL [--role source|target|both] [--file PATH]")
+	fmt.Fprintln(out, "       aevrelctl delete migration NAME [--purge-target] [--dry-run]")
+	fmt.Fprintln(out, "       aevrelctl cancel|retry migration NAME")
 	fmt.Fprintln(out, "global: -n/--namespace NAMESPACE, --json")
 }
 
@@ -127,7 +127,7 @@ func execute(
 	out io.Writer,
 ) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: shardferryctl migrate|get|describe|cancel|retry")
+		return fmt.Errorf("usage: aevrelctl migrate|get|describe|cancel|retry")
 	}
 	switch args[0] {
 	case "migrate":
@@ -150,7 +150,7 @@ func execute(
 		if len(args) >= 2 && args[1] == "add" {
 			return executeClusterAdd(jsonOut, namespace, args[2:], out)
 		}
-		return fmt.Errorf("usage: shardferryctl cluster add NAME --endpoint URL")
+		return fmt.Errorf("usage: aevrelctl cluster add NAME --endpoint URL")
 	case "delete":
 		return executeDelete(ctx, kubeClient, namespace, args[1:], out)
 	case "cancel":
@@ -170,7 +170,7 @@ func executeDelete(
 	out io.Writer,
 ) error {
 	if len(args) < 2 || args[0] != "migration" {
-		return fmt.Errorf("usage: shardferryctl delete migration NAME [--purge-target] [--dry-run]")
+		return fmt.Errorf("usage: aevrelctl delete migration NAME [--purge-target] [--dry-run]")
 	}
 	purgeTarget := false
 	dryRun := false
@@ -201,10 +201,10 @@ func executeDelete(
 		migration.Annotations = make(map[string]string)
 	}
 	if purgeTarget {
-		migration.Annotations["shardferry.io/purge-target"] = "true"
+		migration.Annotations["aevrel.dev/purge-target"] = "true"
 	}
-	if !containsFinalizer(migration, "shardferry.io/cleanup") {
-		migration.Finalizers = append(migration.Finalizers, "shardferry.io/cleanup")
+	if !containsFinalizer(migration, "aevrel.dev/cleanup") {
+		migration.Finalizers = append(migration.Finalizers, "aevrel.dev/cleanup")
 	}
 	if err := kubeClient.Update(ctx, migration); err != nil {
 		return err
@@ -217,7 +217,7 @@ func executeDelete(
 }
 
 func containsFinalizer(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	name string,
 ) bool {
 	for _, finalizer := range migration.Finalizers {
@@ -237,11 +237,11 @@ func executeGet(
 	out io.Writer,
 ) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: shardferryctl get RESOURCE [NAME]")
+		return fmt.Errorf("usage: aevrelctl get RESOURCE [NAME]")
 	}
 	switch args[0] {
 	case "migrations":
-		var list shardferryv1.CheckpointMigrationList
+		var list aevrelv1.CheckpointMigrationList
 		if err := kubeClient.List(
 			ctx,
 			&list,
@@ -258,7 +258,7 @@ func executeGet(
 		return writeTable(out, list.Items)
 	case "migration":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: shardferryctl get migration NAME")
+			return fmt.Errorf("usage: aevrelctl get migration NAME")
 		}
 		migration, err := getMigration(ctx, kubeClient, namespace, args[1])
 		if err != nil {
@@ -267,19 +267,19 @@ func executeGet(
 		if jsonOut {
 			return writeJSON(out, migration)
 		}
-		return writeTable(out, []shardferryv1.CheckpointMigration{*migration})
+		return writeTable(out, []aevrelv1.CheckpointMigration{*migration})
 	case "clusters":
 		return executeGetClusters(ctx, kubeClient, namespace, jsonOut, out)
 	case "cluster":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: shardferryctl get cluster NAME")
+			return fmt.Errorf("usage: aevrelctl get cluster NAME")
 		}
 		return executeGetCluster(ctx, kubeClient, namespace, args[1], jsonOut, out)
 	case "rescuedecisions":
 		return executeGetRescueDecisions(ctx, kubeClient, namespace, jsonOut, out)
 	case "rescuedecision":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: shardferryctl get rescuedecision NAME")
+			return fmt.Errorf("usage: aevrelctl get rescuedecision NAME")
 		}
 		return executeGetRescueDecision(
 			ctx,
@@ -312,13 +312,13 @@ func executeDescribe(
 		positional = append(positional, arg)
 	}
 	if len(positional) < 2 {
-		return fmt.Errorf("usage: shardferryctl describe migration|cluster NAME [--ranks]")
+		return fmt.Errorf("usage: aevrelctl describe migration|cluster NAME [--ranks]")
 	}
 	if positional[0] == "cluster" {
 		return executeDescribeCluster(ctx, kubeClient, namespace, positional[1], jsonOut, out)
 	}
 	if positional[0] != "migration" {
-		return fmt.Errorf("usage: shardferryctl describe migration|cluster NAME [--ranks]")
+		return fmt.Errorf("usage: aevrelctl describe migration|cluster NAME [--ranks]")
 	}
 	migration, err := getMigration(ctx, kubeClient, namespace, positional[1])
 	if err != nil {
@@ -337,7 +337,7 @@ func executeGetClusters(
 	jsonOut bool,
 	out io.Writer,
 ) error {
-	var list shardferryv1.ShardferryClusterList
+	var list aevrelv1.AevrelClusterList
 	if err := kubeClient.List(ctx, &list, client.InNamespace(namespace)); err != nil {
 		return err
 	}
@@ -406,7 +406,7 @@ type clusterView struct {
 func inspectCluster(
 	ctx context.Context,
 	kubeClient client.Client,
-	cluster *shardferryv1.ShardferryCluster,
+	cluster *aevrelv1.AevrelCluster,
 ) clusterView {
 	view := clusterView{
 		Name:      cluster.Name,
@@ -432,9 +432,9 @@ func inspectCluster(
 }
 
 func newClusterClient() *clusterclient.Client {
-	ca := os.Getenv("SHARDFERRY_TLS_CA")
-	cert := os.Getenv("SHARDFERRY_TLS_CERT")
-	key := os.Getenv("SHARDFERRY_TLS_KEY")
+	ca := os.Getenv("AEVREL_TLS_CA")
+	cert := os.Getenv("AEVREL_TLS_CERT")
+	key := os.Getenv("AEVREL_TLS_KEY")
 	if ca != "" || cert != "" || key != "" {
 		if client, err := clusterclient.NewWithTLS("", ca, cert, key); err == nil {
 			return client
@@ -448,8 +448,8 @@ func getCluster(
 	kubeClient client.Client,
 	namespace string,
 	name string,
-) (*shardferryv1.ShardferryCluster, error) {
-	var cluster shardferryv1.ShardferryCluster
+) (*aevrelv1.AevrelCluster, error) {
+	var cluster aevrelv1.AevrelCluster
 	if err := kubeClient.Get(
 		ctx,
 		client.ObjectKey{Namespace: namespace, Name: name},
@@ -464,7 +464,7 @@ func clusterToken(
 	ctx context.Context,
 	kubeClient client.Client,
 	namespace string,
-	ref shardferryv1.ClusterSecretRef,
+	ref aevrelv1.ClusterSecretRef,
 ) (string, error) {
 	if ref.Name == "" {
 		return "", fmt.Errorf("cluster secretRef.name is required")
@@ -533,7 +533,7 @@ func executeCancel(
 	out io.Writer,
 ) error {
 	if len(args) < 2 || args[0] != "migration" {
-		return fmt.Errorf("usage: shardferryctl cancel migration NAME")
+		return fmt.Errorf("usage: aevrelctl cancel migration NAME")
 	}
 	migration, err := getMigration(ctx, kubeClient, namespace, args[1])
 	if err != nil {
@@ -542,7 +542,7 @@ func executeCancel(
 	if migration.Annotations == nil {
 		migration.Annotations = make(map[string]string)
 	}
-	migration.Annotations["shardferry.io/cancel"] = "true"
+	migration.Annotations["aevrel.dev/cancel"] = "true"
 	if err := kubeClient.Update(ctx, migration); err != nil {
 		return err
 	}
@@ -558,7 +558,7 @@ func executeRetry(
 	out io.Writer,
 ) error {
 	if len(args) < 2 || args[0] != "migration" {
-		return fmt.Errorf("usage: shardferryctl retry migration NAME")
+		return fmt.Errorf("usage: aevrelctl retry migration NAME")
 	}
 	migration, err := getMigration(ctx, kubeClient, namespace, args[1])
 	if err != nil {
@@ -567,7 +567,7 @@ func executeRetry(
 	if migration.Annotations == nil {
 		migration.Annotations = make(map[string]string)
 	}
-	migration.Annotations["shardferry.io/retry"] = "true"
+	migration.Annotations["aevrel.dev/retry"] = "true"
 	if err := kubeClient.Update(ctx, migration); err != nil {
 		return err
 	}
@@ -580,8 +580,8 @@ func getMigration(
 	kubeClient client.Client,
 	namespace string,
 	name string,
-) (*shardferryv1.CheckpointMigration, error) {
-	var migration shardferryv1.CheckpointMigration
+) (*aevrelv1.CheckpointMigration, error) {
+	var migration aevrelv1.CheckpointMigration
 	if err := kubeClient.Get(
 		ctx,
 		client.ObjectKey{Namespace: namespace, Name: name},
@@ -594,7 +594,7 @@ func getMigration(
 
 func writeTable(
 	out io.Writer,
-	migrations []shardferryv1.CheckpointMigration,
+	migrations []aevrelv1.CheckpointMigration,
 ) error {
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	defer writer.Flush()
@@ -603,7 +603,7 @@ func writeTable(
 		migration := &migrations[index]
 		mode := migration.Spec.Mode
 		if mode == "" {
-			mode = shardferryv1.MigrationModeStatic
+			mode = aevrelv1.MigrationModeStatic
 		}
 		fmt.Fprintf(
 			writer,
@@ -623,7 +623,7 @@ func writeTable(
 
 func writeDescribe(
 	out io.Writer,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	showRanks bool,
 ) error {
 	fmt.Fprintf(out, "Name:       %s\n", migration.Name)
@@ -631,7 +631,7 @@ func writeDescribe(
 	fmt.Fprintf(out, "Phase:      %s\n", migration.Status.Phase)
 	mode := migration.Spec.Mode
 	if mode == "" {
-		mode = shardferryv1.MigrationModeStatic
+		mode = aevrelv1.MigrationModeStatic
 	}
 	fmt.Fprintf(out, "Mode:       %s\n", mode)
 	fmt.Fprintf(out, "Next:       %s\n", nextAction(migration))
@@ -739,7 +739,7 @@ func writeDescribe(
 	return nil
 }
 
-func writeRankTable(out io.Writer, ranks []shardferryv1.RankStatus) error {
+func writeRankTable(out io.Writer, ranks []aevrelv1.RankStatus) error {
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	defer writer.Flush()
 	fmt.Fprintln(writer, "RANK\tPHASE\tTASK\tRETRIES\tERROR")
@@ -759,7 +759,7 @@ func writeRankTable(out io.Writer, ranks []shardferryv1.RankStatus) error {
 
 func writeTargetRankTable(
 	out io.Writer,
-	ranks []shardferryv1.TargetReadyRankStatus,
+	ranks []aevrelv1.TargetReadyRankStatus,
 ) error {
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	defer writer.Flush()
@@ -785,7 +785,7 @@ func writeTargetRankTable(
 
 func writeLiveRankTable(
 	out io.Writer,
-	ranks []shardferryv1.LiveRankStatus,
+	ranks []aevrelv1.LiveRankStatus,
 ) error {
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	defer writer.Flush()

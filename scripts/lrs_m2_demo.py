@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import numpy as np  # noqa: E402
 
-from shardferry.lrs import LRSSimulator, Migration, ToyConfig  # noqa: E402
+from aevrel.lrs import LRSSimulator, Migration, ToyConfig  # noqa: E402
 
 
 def _digest(values) -> str:
@@ -169,7 +169,7 @@ def main() -> int:
     evidence.write_text(
         json.dumps(
             {
-                "schema": "shardferry.lrs.m2.proof.v1",
+                "schema": "aevrel.lrs.m2.proof.v1",
                 "config": {
                     "world_size": 8,
                     "shard_size": 1,

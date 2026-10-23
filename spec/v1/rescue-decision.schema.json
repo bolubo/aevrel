@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/rescue-decision-v1.json",
-  "title": "ShardferryRescueDecision",
+  "$id": "https://aevrel.dev/schemas/rescue-decision-v1.json",
+  "title": "AevrelRescueDecision",
   "type": "object",
   "additionalProperties": false,
   "required": ["event", "action", "reason"],

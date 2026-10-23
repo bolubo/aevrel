@@ -1,4 +1,4 @@
-# shardferry 架构：Training State Control Plane
+# Aevrel 架构：Training State Control Plane
 
 状态：架构冻结候选
 定位：训练状态的事实、判断、决策、事务和证明
@@ -31,14 +31,14 @@ Go 是控制面权威实现：
 - CRD/API、controller、leader election、watch/reconcile；
 - CheckpointRecord/Readiness/RescueDecision 状态机；
 - policy、quorum/coverage、事务和 proof 引用；
-- `shardferryctl`、gateway、event adapters、target-ready 门禁。
+- `aevrelctl`、gateway、event adapters、target-ready 门禁。
 
 Python 只负责训练运行时和数据面：
 
 - DCP/PyTorch metadata、rank/local shard inventory；
 - restore drill 的实际 model/optimizer load；
 - state bundle、RNG/sampler、LRS 数据面；
-- `shardferry` 本地一次性 CLI 和 Python agent。
+- `aevrel` 本地一次性 CLI 和 Python agent。
 
 边界：
 
@@ -152,7 +152,7 @@ scan
 ## 4. 分层与模块
 
 ```text
-CLI / shardferryctl
+CLI / aevrelctl
         |
 commands / API / CRD
         |
@@ -168,7 +168,7 @@ local disk / HTTP / object storage / Kubernetes
 ### Python 目标结构
 
 ```text
-src/shardferry/
+src/aevrel/
   local/             # local CLI adapter: DCP inventory/provider/readiness
   mobility/          # static/live transaction orchestration
   state/             # rank-local state bundle
@@ -263,7 +263,7 @@ API 规则：
 
 ```text
 CLI-only
-  shardferry -> local provider -> one-shot transaction
+  aevrel -> local provider -> one-shot transaction
 
 Operator
   controller + agent

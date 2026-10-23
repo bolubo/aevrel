@@ -1,4 +1,4 @@
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: CheckpointRecord
 metadata:
   name: training-step-100
@@ -13,9 +13,9 @@ spec:
   sourceWorldSize: 8
   agentSelector:
     matchLabels:
-      app.kubernetes.io/name: shardferry-agent
+      app.kubernetes.io/name: aevrel-agent
     port: 9443
     scheme: http
-  # Optional. If omitted, the controller uses SHARDFERRY_AGENT_TOKEN.
+  # Optional. If omitted, the controller uses AEVREL_AGENT_TOKEN.
   agentSecretRef:
-    name: shardferry-agent-token
+    name: aevrel-agent-token

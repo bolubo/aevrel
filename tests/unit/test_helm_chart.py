@@ -8,7 +8,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CHART = ROOT / "deploy" / "helm" / "shardferry"
+CHART = ROOT / "deploy" / "helm" / "aevrel"
 
 
 def test_chart_lints_and_renders_source_and_target_agents() -> None:
@@ -26,7 +26,7 @@ def test_chart_lints_and_renders_source_and_target_agents() -> None:
         [
             helm,
             "template",
-            "shardferry",
+            "aevrel",
             str(CHART),
             "--set",
             "target.enabled=true",

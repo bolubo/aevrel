@@ -14,11 +14,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/controller"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/controller"
 )
 
-const defaultArtifactClaim = "shardferry-artifacts"
+const defaultArtifactClaim = "aevrel-artifacts"
 
 type migrateOptions struct {
 	file          string
@@ -52,10 +52,10 @@ func executeMigrate(
 	if err := applyMaxInFlight(migration, options.maxInFlight); err != nil {
 		return err
 	}
-	if !containsFinalizer(migration, "shardferry.io/cleanup") {
+	if !containsFinalizer(migration, "aevrel.dev/cleanup") {
 		migration.Finalizers = append(
 			migration.Finalizers,
-			"shardferry.io/cleanup",
+			"aevrel.dev/cleanup",
 		)
 	}
 	if err := validateProductMigration(migration); err != nil {
@@ -95,7 +95,7 @@ func executeMigrate(
 		}
 		fmt.Fprintf(
 			out,
-			"created migration %s/%s\nnext: shardferryctl describe migration %s -n %s\n",
+			"created migration %s/%s\nnext: aevrelctl describe migration %s -n %s\n",
 			migration.Namespace,
 			migration.Name,
 			migration.Name,
@@ -150,7 +150,7 @@ func parseMigrate(args []string) (migrateOptions, error) {
 			options.maxInFlight = value
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl migrate -f migration.yaml [--wait] [--dry-run] [--no-progress] [--timeout 1h] [--artifact-claim NAME] [--max-in-flight N]",
+				"usage: aevrelctl migrate -f migration.yaml [--wait] [--dry-run] [--no-progress] [--timeout 1h] [--artifact-claim NAME] [--max-in-flight N]",
 			)
 		default:
 			return options, fmt.Errorf("unknown migrate option: %s", args[index])
@@ -171,13 +171,13 @@ func parseMaxInFlight(value string) (int32, error) {
 }
 
 func applyMaxInFlight(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	value int32,
 ) error {
 	if value <= 0 {
 		return nil
 	}
-	if migration.Spec.Mode != shardferryv1.MigrationModeLiveRankSplit ||
+	if migration.Spec.Mode != aevrelv1.MigrationModeLiveRankSplit ||
 		migration.Spec.Live == nil {
 		return fmt.Errorf("--max-in-flight requires mode: live-rank-split")
 	}
@@ -185,25 +185,25 @@ func applyMaxInFlight(
 	return nil
 }
 
-func loadMigration(path, namespace string) (*shardferryv1.CheckpointMigration, error) {
+func loadMigration(path, namespace string) (*aevrelv1.CheckpointMigration, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var migration shardferryv1.CheckpointMigration
+	var migration aevrelv1.CheckpointMigration
 	if err := yaml.Unmarshal(data, &migration); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	if migration.APIVersion == "" {
-		migration.APIVersion = "shardferry.io/v1"
+		migration.APIVersion = "aevrel.dev/v1"
 	}
 	if migration.Kind == "" {
 		migration.Kind = "CheckpointMigration"
 	}
-	if migration.APIVersion != "shardferry.io/v1" ||
+	if migration.APIVersion != "aevrel.dev/v1" ||
 		migration.Kind != "CheckpointMigration" {
 		return nil, fmt.Errorf(
-			"expected shardferry.io/v1 CheckpointMigration, got %s %s",
+			"expected aevrel.dev/v1 CheckpointMigration, got %s %s",
 			migration.APIVersion,
 			migration.Kind,
 		)
@@ -219,7 +219,7 @@ func loadMigration(path, namespace string) (*shardferryv1.CheckpointMigration, e
 }
 
 func migrationDocument(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (map[string]any, error) {
 	document, err := runtime.DefaultUnstructuredConverter.ToUnstructured(migration)
 	if err != nil {
@@ -229,14 +229,14 @@ func migrationDocument(
 	return document, nil
 }
 
-func applyMigrationDefaults(migration *shardferryv1.CheckpointMigration) {
+func applyMigrationDefaults(migration *aevrelv1.CheckpointMigration) {
 	spec := &migration.Spec
 	if spec.Mode == "" {
-		spec.Mode = shardferryv1.MigrationModeStatic
+		spec.Mode = aevrelv1.MigrationModeStatic
 	}
 	if spec.Live != nil {
 		if spec.Live.StateMode == "" {
-			spec.Live.StateMode = shardferryv1.LiveStateModeL4
+			spec.Live.StateMode = aevrelv1.LiveStateModeL4
 		}
 		if spec.Live.Cutover.Quorum == 0 && spec.Source.WorldSize > 0 {
 			spec.Live.Cutover.Quorum = spec.Source.WorldSize/2 + 1
@@ -291,7 +291,7 @@ func applyMigrationDefaults(migration *shardferryv1.CheckpointMigration) {
 }
 
 func validateProductMigration(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) error {
 	spec := migration.Spec
 	if spec.Checkpoint.Format != "dcp" {
@@ -349,7 +349,7 @@ func validateProductMigration(
 	return controller.ValidateMigration(migration)
 }
 
-func validateTargetValidation(spec shardferryv1.CheckpointMigrationSpec) error {
+func validateTargetValidation(spec aevrelv1.CheckpointMigrationSpec) error {
 	validation := spec.Target.Validation
 	if validation == nil {
 		return nil
@@ -385,8 +385,8 @@ func validateTargetValidation(spec shardferryv1.CheckpointMigrationSpec) error {
 
 func validateAgentConfig(
 	role string,
-	rankMap []shardferryv1.RankEndpoint,
-	selector *shardferryv1.AgentSelector,
+	rankMap []aevrelv1.RankEndpoint,
+	selector *aevrelv1.AgentSelector,
 	clusterRef string,
 ) error {
 	if clusterRef != "" {
@@ -430,7 +430,7 @@ func validateAgentConfig(
 func waitForMigration(
 	ctx context.Context,
 	kubeClient client.Client,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	options migrateOptions,
 	jsonOut bool,
 	out io.Writer,
@@ -442,7 +442,7 @@ func waitForMigration(
 	if !jsonOut && !options.noProgress {
 		fmt.Fprintf(
 			out,
-			"watching migration %s/%s; inspect with `shardferryctl describe migration %s -n %s`\n",
+			"watching migration %s/%s; inspect with `aevrelctl describe migration %s -n %s`\n",
 			migration.Namespace,
 			migration.Name,
 			migration.Name,
@@ -452,7 +452,7 @@ func waitForMigration(
 	lastPhase := ""
 	lastBucket := -1
 	for {
-		var current shardferryv1.CheckpointMigration
+		var current aevrelv1.CheckpointMigration
 		if err := kubeClient.Get(waitCtx, key, &current); err != nil {
 			return err
 		}
@@ -470,7 +470,7 @@ func waitForMigration(
 			lastPhase = current.Status.Phase
 		}
 		switch current.Status.Phase {
-		case shardferryv1.MigrationPhaseSucceeded:
+		case aevrelv1.MigrationPhaseSucceeded:
 			if jsonOut {
 				return writeJSON(out, &current)
 			}
@@ -485,12 +485,12 @@ func waitForMigration(
 				emptyDash(current.Status.ReportRef),
 			)
 			return nil
-		case shardferryv1.MigrationPhaseFailed,
-			shardferryv1.MigrationPhaseTargetFailed,
-			shardferryv1.MigrationPhaseCancelled,
-			shardferryv1.MigrationPhaseCommitIncomplete:
+		case aevrelv1.MigrationPhaseFailed,
+			aevrelv1.MigrationPhaseTargetFailed,
+			aevrelv1.MigrationPhaseCancelled,
+			aevrelv1.MigrationPhaseCommitIncomplete:
 			conditionType := "Accepted"
-			if current.Status.Phase == shardferryv1.MigrationPhaseTargetFailed {
+			if current.Status.Phase == aevrelv1.MigrationPhaseTargetFailed {
 				conditionType = "TargetReady"
 			}
 			if jsonOut {
@@ -521,7 +521,7 @@ func waitForMigration(
 }
 
 func conditionMessage(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	conditionType string,
 ) string {
 	for _, condition := range migration.Status.Conditions {

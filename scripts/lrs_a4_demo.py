@@ -19,14 +19,14 @@ import torch.nn.functional as F  # noqa: E402
 import numpy as np  # noqa: E402
 from torch import nn  # noqa: E402
 
-from shardferry.lrs.handoff import (  # noqa: E402
+from aevrel.lrs.handoff import (  # noqa: E402
     HandoffServer,
     local_ip,
     send_state,
 )
-from shardferry.lrs.memory import onload_model_and_optimizer  # noqa: E402
-from shardferry.lrs.sampler import RankSampler  # noqa: E402
-from shardferry.lrs.state_closure import (  # noqa: E402
+from aevrel.lrs.memory import onload_model_and_optimizer  # noqa: E402
+from aevrel.lrs.sampler import RankSampler  # noqa: E402
+from aevrel.lrs.state_closure import (  # noqa: E402
     capture_state,
     restore_state,
 )
@@ -244,7 +244,7 @@ def main() -> int:
     evidence.write_text(
         json.dumps(
             {
-                "schema": "shardferry.lrs.a4.proof.v1",
+                "schema": "aevrel.lrs.a4.proof.v1",
                 "device": args.device,
                 "checks": checks,
                 "parameter_max_abs_delta": param_diff,

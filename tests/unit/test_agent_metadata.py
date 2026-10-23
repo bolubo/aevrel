@@ -8,8 +8,8 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from shardferry.agent import build_agent_server
-from shardferry.agent.server import AgentApp
+from aevrel.agent import build_agent_server
+from aevrel.agent.server import AgentApp
 
 
 def _local_ip() -> str:

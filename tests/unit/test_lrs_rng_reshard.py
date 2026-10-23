@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shardferry.lrs.rng_reshard import (
+from aevrel.lrs.rng_reshard import (
     RNGStream,
     RNGStreamKey,
     RNGStreamRegistry,

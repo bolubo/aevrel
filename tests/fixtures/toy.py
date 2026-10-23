@@ -27,11 +27,11 @@ def make_toy_spec() -> dict:
         },
         "source": {
             "mesh": make_mesh((2, 2), ("Shard(0)", "Shard(1)")),
-            "storage": {"uri": "file:///tmp/shardferry/source"},
+            "storage": {"uri": "file:///tmp/aevrel/source"},
             "shards": [],
         },
         "target": {
             "mesh": make_mesh((3, 1), ("Shard(0)", "Replicate()")),
-            "storage": {"uri": "file:///tmp/shardferry/target"},
+            "storage": {"uri": "file:///tmp/aevrel/target"},
         },
     }

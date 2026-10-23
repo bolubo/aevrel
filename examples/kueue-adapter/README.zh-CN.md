@@ -4,7 +4,7 @@
 不修改 Kueue 源码。安装生产路径优先使用 Helm：
 
 ```bash
-helm upgrade --install shardferry deploy/helm/shardferry \
+helm upgrade --install aevrel deploy/helm/aevrel \
   --set kueueAdapter.enabled=true \
   --set kueueAdapter.strict=true \
   --set kueueAdapter.createPreemptionConfig=true
@@ -18,15 +18,15 @@ helm upgrade --install shardferry deploy/helm/shardferry \
 - Kubernetes 集群；
 - Kueue，并启用 `ConfigurablePreemptions`；
 - 一个已经存在的 LocalQueue / ClusterQueue；
-- 训练 Job 能写 `shardferry.io/*` annotations。
+- 训练 Job 能写 `aevrel.dev/*` annotations。
 
 ## 1. 构建并加载镜像
 
 ```bash
 docker build \
   -f deploy/docker/Dockerfile.kueue-adapter \
-  -t shardferry-kueue-adapter:dev .
-kind load docker-image shardferry-kueue-adapter:dev
+  -t aevrel-kueue-adapter:dev .
+kind load docker-image aevrel-kueue-adapter:dev
 ```
 
 ## 2. 安装 RBAC 和 adapter
@@ -34,7 +34,7 @@ kind load docker-image shardferry-kueue-adapter:dev
 ```bash
 kubectl apply -f examples/kueue-adapter/rbac.yaml
 kubectl apply -f examples/kueue-adapter/deployment.yaml
-kubectl -n shardferry-system rollout status deploy/shardferry-kueue-adapter
+kubectl -n aevrel-system rollout status deploy/aevrel-kueue-adapter
 ```
 
 示例 Deployment 使用 `--strict=true`：启动前会校验 `checkpoint-guard`
@@ -72,17 +72,17 @@ kubectl get workloads.kueue.x-k8s.io -w
 Workload 上应出现：
 
 ```text
-shardferry.io/preemption-protected=1
-shardferry.io/preemption-reason=ProgressThreshold
-shardferry.io/training-progress-percent=85
-shardferry.io/checkpoint-complete=1
+aevrel.dev/preemption-protected=1
+aevrel.dev/preemption-reason=ProgressThreshold
+aevrel.dev/training-progress-percent=85
+aevrel.dev/checkpoint-complete=1
 ```
 
 查看产品化状态：
 
 ```bash
-shardferryctl kueue status
-shardferryctl kueue explain training
+aevrelctl kueue status
+aevrelctl kueue explain training
 ```
 
 ## 验收边界

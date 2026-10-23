@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.adaptive import AdaptiveRateRegistry
-from shardferry.storage.file import StorageError
-from shardferry.storage.http import HttpRateLimitError, HttpStorage
-from shardferry.storage.router import StorageRouter
+from aevrel.adaptive import AdaptiveRateRegistry
+from aevrel.storage.file import StorageError
+from aevrel.storage.http import HttpRateLimitError, HttpStorage
+from aevrel.storage.router import StorageRouter
 
 
 class _Response:
@@ -57,7 +57,7 @@ def test_storage_router_propagates_source_token() -> None:
 
 
 def test_http_storage_honors_retry_after_hint(monkeypatch) -> None:
-    from shardferry.adaptive import AdaptiveRateController
+    from aevrel.adaptive import AdaptiveRateController
 
     limiter = AdaptiveRateController(rate=10, burst=10)
     storage = HttpStorage(retries=1, backoff=0, rate_controller=limiter)
@@ -75,7 +75,7 @@ def test_http_storage_honors_retry_after_hint(monkeypatch) -> None:
 
     monkeypatch.setattr(storage, "_open", throttled_then_ok)
     monkeypatch.setattr(
-        "shardferry.storage.http.time.sleep",
+        "aevrel.storage.http.time.sleep",
         lambda seconds: sleeps.append(seconds),
     )
     assert storage.read_range("http://example.test/shard/w/0", 0, 2) == b"ok"

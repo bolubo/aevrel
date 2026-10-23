@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.planning.mesh import parse_mesh, parse_placement, validate_placement_dims
+from aevrel.planning.mesh import parse_mesh, parse_placement, validate_placement_dims
 
 
 def test_parse_placements() -> None:

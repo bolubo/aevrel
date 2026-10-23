@@ -15,21 +15,21 @@ import torch  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
 from torch import nn  # noqa: E402
 
-from shardferry.lrs.memory import (  # noqa: E402
+from aevrel.lrs.memory import (  # noqa: E402
     offload_model_and_optimizer,
     onload_model_and_optimizer,
 )
-from shardferry.lrs.rng_reshard import (  # noqa: E402
+from aevrel.lrs.rng_reshard import (  # noqa: E402
     RNGStream,
     RNGStreamKey,
     RNGStreamRegistry,
 )
-from shardferry.lrs.sampler import RankSampler  # noqa: E402
-from shardferry.lrs.snapshot_ring import (  # noqa: E402
+from aevrel.lrs.sampler import RankSampler  # noqa: E402
+from aevrel.lrs.snapshot_ring import (  # noqa: E402
     NeighborBackup,
     SnapshotRing,
 )
-from shardferry.lrs.state_closure import (  # noqa: E402
+from aevrel.lrs.state_closure import (  # noqa: E402
     TrainingState,
     capture_state,
     restore_state,
@@ -182,7 +182,7 @@ def main() -> int:
     evidence.write_text(
         json.dumps(
             {
-                "schema": "shardferry.lrs.a3.proof.v1",
+                "schema": "aevrel.lrs.a3.proof.v1",
                 "checks": checks,
                 "parameter_max_abs_delta": param_diff,
                 "loss_max_abs_delta": loss_diff,

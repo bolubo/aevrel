@@ -7,7 +7,7 @@ import time
 import tracemalloc
 from pathlib import Path
 
-from shardferry.dcp import export_dcp
+from aevrel.dcp import export_dcp
 
 
 def rss_kb() -> int:
@@ -28,7 +28,7 @@ def main() -> None:
 
     size = args.size_mb * 1024 * 1024
     elements = size // 4
-    root = Path(tempfile.mkdtemp(prefix="shardferry-dcp-export-"))
+    root = Path(tempfile.mkdtemp(prefix="aevrel-dcp-export-"))
     target = root / "target"
     shard = target / "w" / "rank0.bin"
     shard.parent.mkdir(parents=True)

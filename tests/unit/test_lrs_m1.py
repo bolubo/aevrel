@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from shardferry.lrs import (
+from aevrel.lrs import (
     Cluster,
     CoverageError,
     DigestMismatchError,

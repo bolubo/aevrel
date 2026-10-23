@@ -11,8 +11,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/execution"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/execution"
 )
 
 type PreparationRunner struct {
@@ -87,7 +87,7 @@ func (p *PreparationRunner) process(
 	ctx context.Context,
 	key types.NamespacedName,
 ) error {
-	var migration shardferryv1.CheckpointMigration
+	var migration aevrelv1.CheckpointMigration
 	if err := p.client.Get(ctx, key, &migration); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
@@ -120,7 +120,7 @@ func (p *PreparationRunner) process(
 	if err := p.execution.Persist(ctx, run); err != nil {
 		return p.setFailed(ctx, &migration, err)
 	}
-	migration.Status.Phase = shardferryv1.MigrationPhasePending
+	migration.Status.Phase = aevrelv1.MigrationPhasePending
 	migration.Status.PlanHash = prepared.PlanHash
 	migration.Status.ExecutionRef = run.ExecutionRef()
 	meta.SetStatusCondition(&migration.Status.Conditions, metav1.Condition{
@@ -142,10 +142,10 @@ func (p *PreparationRunner) process(
 
 func (p *PreparationRunner) setFailed(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	err error,
 ) error {
-	migration.Status.Phase = shardferryv1.MigrationPhaseFailed
+	migration.Status.Phase = aevrelv1.MigrationPhaseFailed
 	meta.SetStatusCondition(&migration.Status.Conditions, metav1.Condition{
 		Type:               "Accepted",
 		Status:             metav1.ConditionFalse,
@@ -157,7 +157,7 @@ func (p *PreparationRunner) setFailed(
 }
 
 func buildExecutionRun(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	prepared Prepared,
 ) *execution.Run {
 	run := execution.NewRun(execution.RunConfig{
@@ -180,7 +180,7 @@ func buildExecutionRun(
 	return run
 }
 
-func targetEndpoints(migration *shardferryv1.CheckpointMigration) map[int32]string {
+func targetEndpoints(migration *aevrelv1.CheckpointMigration) map[int32]string {
 	endpoints := make(map[int32]string, len(migration.Spec.Target.RankMap))
 	for _, entry := range migration.Spec.Target.RankMap {
 		endpoints[entry.Rank] = entry.Endpoint

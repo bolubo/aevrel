@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shardferry.agent.state import AgentStateError, TaskPhase, TaskStore
+from aevrel.agent.state import AgentStateError, TaskPhase, TaskStore
 
 
 def _task(

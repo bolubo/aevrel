@@ -7,12 +7,12 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from shardferry.lrs.state_closure import (
+from aevrel.lrs.state_closure import (
     TrainingState,
     capture_state,
     restore_state,
 )
-from shardferry.lrs.sampler import RankSampler
+from aevrel.lrs.sampler import RankSampler
 
 
 def _make():

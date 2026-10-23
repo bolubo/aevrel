@@ -14,11 +14,11 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.remote import fetch_spec
-from shardferry.serve import build_server, _public_spec
-from shardferry.verification import verify
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.remote import fetch_spec
+from aevrel.serve import build_server, _public_spec
+from aevrel.verification import verify
 
 
 def local_ip() -> str:

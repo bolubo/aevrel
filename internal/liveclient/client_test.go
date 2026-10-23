@@ -12,7 +12,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestClientObservesLiveRankSplitContract(t *testing.T) {
@@ -31,7 +31,7 @@ func TestClientObservesLiveRankSplitContract(t *testing.T) {
 				StateMode   string `json:"stateMode"`
 			} `json:"live"`
 		} `json:"spec"`
-		PreviousStatus *shardferryv1.LiveRankSplitStatus `json:"previousStatus"`
+		PreviousStatus *aevrelv1.LiveRankSplitStatus `json:"previousStatus"`
 	}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -93,16 +93,16 @@ func TestClientObservesLiveRankSplitContract(t *testing.T) {
 		observation.ProofRef == "" {
 		t.Fatalf("observation = %+v", observation)
 	}
-	if received.APIVersion != "shardferry.io/v1" ||
+	if received.APIVersion != "aevrel.dev/v1" ||
 		received.Kind != "LiveRankSplitReconcile" ||
 		received.Migration.Namespace != "default" ||
 		received.Migration.Name != "live-demo" ||
 		received.Migration.Generation != 4 {
 		t.Fatalf("request identity = %+v", received)
 	}
-	if received.Spec.Mode != shardferryv1.MigrationModeLiveRankSplit ||
+	if received.Spec.Mode != aevrelv1.MigrationModeLiveRankSplit ||
 		received.Spec.Live.MaxInFlight != 1 ||
-		received.Spec.Live.StateMode != shardferryv1.LiveStateModeL4 {
+		received.Spec.Live.StateMode != aevrelv1.LiveStateModeL4 {
 		t.Fatalf("request spec = %+v", received.Spec)
 	}
 	if received.PreviousStatus == nil ||
@@ -147,23 +147,23 @@ func TestClientRejectsServiceFailure(t *testing.T) {
 	}
 }
 
-func liveMigration(endpoint string) *shardferryv1.CheckpointMigration {
-	return &shardferryv1.CheckpointMigration{
+func liveMigration(endpoint string) *aevrelv1.CheckpointMigration {
+	return &aevrelv1.CheckpointMigration{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:  "default",
 			Name:       "live-demo",
 			Generation: 4,
 		},
-		Spec: shardferryv1.CheckpointMigrationSpec{
-			Mode: shardferryv1.MigrationModeLiveRankSplit,
-			Live: &shardferryv1.LiveRankSplitSpec{
+		Spec: aevrelv1.CheckpointMigrationSpec{
+			Mode: aevrelv1.MigrationModeLiveRankSplit,
+			Live: &aevrelv1.LiveRankSplitSpec{
 				MaxInFlight:     1,
-				StateMode:       shardferryv1.LiveStateModeL4,
+				StateMode:       aevrelv1.LiveStateModeL4,
 				HandoffEndpoint: endpoint,
 			},
 		},
-		Status: shardferryv1.CheckpointMigrationStatus{
-			Live: &shardferryv1.LiveRankSplitStatus{
+		Status: aevrelv1.CheckpointMigrationStatus{
+			Live: &aevrelv1.LiveRankSplitStatus{
 				CutoverPhase: "following",
 			},
 		},

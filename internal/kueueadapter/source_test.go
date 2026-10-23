@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestCheckpointRecordSourceUsesVerifiedReadiness(t *testing.T) {
@@ -23,8 +23,8 @@ func TestCheckpointRecordSourceUsesVerifiedReadiness(t *testing.T) {
 	})
 	loadable := true
 	record := sourceRecord(job, "step-100")
-	record.Status.Readiness = shardferryv1.CheckpointReadinessStatus{
-		Status:     shardferryv1.ReadinessReady,
+	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
+		Status:     aevrelv1.ReadinessReady,
 		Complete:   true,
 		Fresh:      true,
 		Loadable:   &loadable,
@@ -61,8 +61,8 @@ func TestCheckpointRecordSourceProtectsUnverifiedRecord(t *testing.T) {
 		AnnotationCheckpointComplete: "1",
 	})
 	record := sourceRecord(job, "step-99")
-	record.Status.Readiness = shardferryv1.CheckpointReadinessStatus{
-		Status:   shardferryv1.ReadinessUnverified,
+	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
+		Status:   aevrelv1.ReadinessUnverified,
 		Complete: true,
 		Fresh:    true,
 	}
@@ -166,8 +166,8 @@ func TestReconcilerUsesCheckpointRecordDecision(t *testing.T) {
 	workload := testWorkload(job)
 	loadable := true
 	record := sourceRecord(job, "step-100")
-	record.Status.Readiness = shardferryv1.CheckpointReadinessStatus{
-		Status:     shardferryv1.ReadinessReady,
+	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
+		Status:     aevrelv1.ReadinessReady,
 		Complete:   true,
 		Fresh:      true,
 		Loadable:   &loadable,
@@ -230,7 +230,7 @@ func sourceClient(
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	AddToScheme(scheme, DefaultWorkloadGVK)
@@ -243,13 +243,13 @@ func sourceClient(
 func sourceRecord(
 	job *batchv1.Job,
 	version string,
-) *shardferryv1.CheckpointRecord {
-	return &shardferryv1.CheckpointRecord{
+) *aevrelv1.CheckpointRecord {
+	return &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "training-checkpoint",
 			Namespace: job.Namespace,
 		},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          job.Name,
 			Version:         version,
 			Provider:        "dcp",
@@ -257,7 +257,7 @@ func sourceRecord(
 			Checkpoint:      "/checkpoints/" + version,
 			SourceWorldSize: 4,
 		},
-		Status: shardferryv1.CheckpointRecordStatus{
+		Status: aevrelv1.CheckpointRecordStatus{
 			LatestMtime: time.Now().Add(-5 * time.Second).UTC().Format(
 				time.RFC3339,
 			),

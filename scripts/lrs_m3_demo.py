@@ -12,8 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.lrs import HttpDeltaServer, run_m3_scenario  # noqa: E402
-from shardferry.lrs.faults import DroppingProxy  # noqa: E402
+from aevrel.lrs import HttpDeltaServer, run_m3_scenario  # noqa: E402
+from aevrel.lrs.faults import DroppingProxy  # noqa: E402
 
 
 def _local_ip() -> str:
@@ -67,7 +67,7 @@ def main() -> int:
         evidence.write_text(
             json.dumps(
                 {
-                    "schema": "shardferry.lrs.m3.proof.v1",
+                    "schema": "aevrel.lrs.m3.proof.v1",
                     "proxy_dropped": proxy.dropped,
                     "server_acks": server_acks,
                     "result": result,

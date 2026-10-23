@@ -1,0 +1,17 @@
+{{- if .Values.liveWorker.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "aevrel.fullname" . }}-live-worker
+  labels:
+    {{- include "aevrel.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.liveWorker.stateStorageClassName }}
+  storageClassName: {{ .Values.liveWorker.stateStorageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.liveWorker.stateSize }}
+{{- end }}

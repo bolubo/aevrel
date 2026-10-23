@@ -4,17 +4,17 @@ import (
 	"strings"
 	"testing"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestStaticProgressLine(t *testing.T) {
-	migration := &shardferryv1.CheckpointMigration{
-		Spec: shardferryv1.CheckpointMigrationSpec{
-			Target: shardferryv1.TargetSpec{WorldSize: 4},
+	migration := &aevrelv1.CheckpointMigration{
+		Spec: aevrelv1.CheckpointMigrationSpec{
+			Target: aevrelv1.TargetSpec{WorldSize: 4},
 		},
-		Status: shardferryv1.CheckpointMigrationStatus{
-			Phase: shardferryv1.MigrationPhaseTransferring,
-			Counts: shardferryv1.RankCounts{
+		Status: aevrelv1.CheckpointMigrationStatus{
+			Phase: aevrelv1.MigrationPhaseTransferring,
+			Counts: aevrelv1.RankCounts{
 				Prepared:  4,
 				Staged:    3,
 				Committed: 2,
@@ -35,15 +35,15 @@ func TestStaticProgressLine(t *testing.T) {
 }
 
 func TestLiveProgressLine(t *testing.T) {
-	migration := &shardferryv1.CheckpointMigration{
-		Spec: shardferryv1.CheckpointMigrationSpec{
-			Target: shardferryv1.TargetSpec{WorldSize: 4},
-			Live: &shardferryv1.LiveRankSplitSpec{
+	migration := &aevrelv1.CheckpointMigration{
+		Spec: aevrelv1.CheckpointMigrationSpec{
+			Target: aevrelv1.TargetSpec{WorldSize: 4},
+			Live: &aevrelv1.LiveRankSplitSpec{
 				MaxInFlight: 2,
 			},
 		},
-		Status: shardferryv1.CheckpointMigrationStatus{
-			Live: &shardferryv1.LiveRankSplitStatus{
+		Status: aevrelv1.CheckpointMigrationStatus{
+			Live: &aevrelv1.LiveRankSplitStatus{
 				CutoverPhase:  "following",
 				InFlight:      []int32{2},
 				Coverage:      []int32{0, 1, 3},

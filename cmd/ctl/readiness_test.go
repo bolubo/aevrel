@@ -10,28 +10,28 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestReadinessCommandShowsStatus(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:     "job42",
 			Version:    "step-100",
 			Provider:   "dcp",
 			Checkpoint: "/checkpoints/job42",
 		},
-		Status: shardferryv1.CheckpointRecordStatus{
-			Readiness: shardferryv1.CheckpointReadinessStatus{
-				Status:   shardferryv1.ReadinessUnverified,
+		Status: aevrelv1.CheckpointRecordStatus{
+			Readiness: aevrelv1.CheckpointReadinessStatus{
+				Status:   aevrelv1.ReadinessUnverified,
 				Complete: true,
 				Fresh:    true,
-				Reasons: []shardferryv1.ControlReason{{
+				Reasons: []aevrelv1.ControlReason{{
 					Code:   "DRILL_MISSING",
 					Detail: "no restore drill",
 				}},
@@ -40,7 +40,7 @@ func TestReadinessCommandShowsStatus(t *testing.T) {
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointRecord{}).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
 		WithObjects(record).
 		Build()
 	var output bytes.Buffer

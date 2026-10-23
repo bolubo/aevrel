@@ -20,7 +20,7 @@ First public release under the clean-room repository history.
 - Rescue decisions from generic Kubernetes Warning events, without requiring
   Kueue.
 - Optional Kueue adapter with CheckpointRecord-first readiness, strict profile
-  validation, and `shardferryctl kueue status|explain`.
+  validation, and `aevrelctl kueue status|explain`.
 - CPU-contract LRS worker and live-rank-split control path; GPU collective
   continuity remains experimental.
 - Rank-local state closure, RNG/sampler continuity, and restore verification.
@@ -48,5 +48,5 @@ First public release under the clean-room repository history.
 - Real multi-node Kubernetes, large-scale GPU, and cross-machine GPU transfer
   still require environment-specific validation.
 - LRS does not yet prove GPU collective continuity.
-- Kueue is an adapter; shardferry does not replace scheduler policy.
+- Kueue is an adapter; Aevrel does not replace scheduler policy.
 - Arbitrary CUDA context or Python heap hot migration is not claimed.

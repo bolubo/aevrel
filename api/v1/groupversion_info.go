@@ -1,7 +1,7 @@
-// Package v1 contains the shardferry.io/v1 API.
+// Package v1 contains the aevrel.dev/v1 API.
 //
 // +kubebuilder:object:generate=true
-// +groupName=shardferry.io
+// +groupName=aevrel.dev
 package v1
 
 import (
@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	GroupVersion  = schema.GroupVersion{Group: "shardferry.io", Version: "v1"}
+	GroupVersion  = schema.GroupVersion{Group: "aevrel.dev", Version: "v1"}
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
 	AddToScheme   = SchemeBuilder.AddToScheme
 )

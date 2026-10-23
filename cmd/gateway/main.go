@@ -15,8 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/gateway"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/gateway"
 )
 
 func main() {
@@ -45,12 +45,12 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(false)))
-	gatewayToken := os.Getenv("SHARDFERRY_GATEWAY_TOKEN")
-	agentToken := os.Getenv("SHARDFERRY_AGENT_TOKEN")
+	gatewayToken := os.Getenv("AEVREL_GATEWAY_TOKEN")
+	agentToken := os.Getenv("AEVREL_AGENT_TOKEN")
 	if gatewayToken == "" || agentToken == "" {
 		ctrl.Log.Error(
 			nil,
-			"SHARDFERRY_GATEWAY_TOKEN and SHARDFERRY_AGENT_TOKEN are required",
+			"AEVREL_GATEWAY_TOKEN and AEVREL_AGENT_TOKEN are required",
 		)
 		os.Exit(1)
 	}

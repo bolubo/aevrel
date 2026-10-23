@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from shardferry.manifest import load_spec
+from aevrel.manifest import load_spec
 
 EXAMPLE = (
     Path(__file__).resolve().parents[2] / "examples" / "toy-4to3" / "checkpoint.yaml"
@@ -13,7 +13,7 @@ EXAMPLE = (
 
 def test_inspect_requires_input_process_exit_code() -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "shardferry.cli", "inspect"],
+        [sys.executable, "-m", "aevrel.cli", "inspect"],
         capture_output=True,
         text=True,
         check=False,
@@ -24,7 +24,7 @@ def test_inspect_requires_input_process_exit_code() -> None:
 
 def test_version_process_exit_code() -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "shardferry.cli", "--version"],
+        [sys.executable, "-m", "aevrel.cli", "--version"],
         capture_output=True,
         text=True,
         check=False,
@@ -35,13 +35,13 @@ def test_version_process_exit_code() -> None:
 
 def test_module_entrypoint_and_product_help() -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "shardferry", "--help"],
+        [sys.executable, "-m", "aevrel", "--help"],
         capture_output=True,
         text=True,
         check=False,
     )
     assert result.returncode == 0
-    assert "shardferry demo" in result.stdout
+    assert "aevrel demo" in result.stdout
     assert "readiness" in result.stdout
     assert "state" in result.stdout
     assert "dcp-migrate" not in result.stdout
@@ -53,7 +53,7 @@ def test_inspect_process_writes_valid_spec(tmp_path) -> None:
         [
             sys.executable,
             "-m",
-            "shardferry.cli",
+            "aevrel.cli",
             "inspect",
             "--input",
             str(EXAMPLE),

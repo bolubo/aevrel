@@ -17,9 +17,9 @@ if str(ROOT / "src") not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shardferry.dcp import export_dcp, inspect_dcp, migrate_dcp
-from shardferry.executor import apply
-from shardferry.planning import plan
+from aevrel.dcp import export_dcp, inspect_dcp, migrate_dcp
+from aevrel.executor import apply
+from aevrel.planning import plan
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,
@@ -113,7 +113,7 @@ def main() -> int:
     parser.add_argument("--skip-legacy", action="store_true")
     parser.add_argument("--keep", action="store_true")
     args = parser.parse_args()
-    root = Path(tempfile.mkdtemp(prefix="shardferry-migrate-bench-"))
+    root = Path(tempfile.mkdtemp(prefix="aevrel-migrate-bench-"))
     result: dict[str, object] = {
         "size_mb": args.size_mb,
         "source_world": args.source_world,

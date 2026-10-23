@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.lrs.worker import LiveWorker, LiveWorkerError, LiveWorkerServer
+from aevrel.lrs.worker import LiveWorker, LiveWorkerError, LiveWorkerServer
 
 
 def _request(
@@ -19,7 +19,7 @@ def _request(
     ranks: list[int] | None = None,
 ) -> dict:
     return {
-        "apiVersion": "shardferry.io/v1",
+        "apiVersion": "aevrel.dev/v1",
         "kind": "LiveRankSplitReconcile",
         "migration": {
             "namespace": "default",

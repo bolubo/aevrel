@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from shardferry.cdp import ChunkingPolicy
-from shardferry.policy import AdaptiveChunkingPolicy
+from aevrel.cdp import ChunkingPolicy
+from aevrel.policy import AdaptiveChunkingPolicy
 
 
 def test_speed_objective_uses_file_chunks() -> None:

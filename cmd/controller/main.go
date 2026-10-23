@@ -15,13 +15,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/artifactstore"
-	"github.com/shardferry/shardferry/internal/clusterclient"
-	"github.com/shardferry/shardferry/internal/controller"
-	"github.com/shardferry/shardferry/internal/execution"
-	"github.com/shardferry/shardferry/internal/liveclient"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/artifactstore"
+	"github.com/bolubo/aevrel/internal/clusterclient"
+	"github.com/bolubo/aevrel/internal/controller"
+	"github.com/bolubo/aevrel/internal/execution"
+	"github.com/bolubo/aevrel/internal/liveclient"
 )
 
 func main() {
@@ -42,7 +42,7 @@ func main() {
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "health probe address")
 	flag.StringVar(&artifactAddr, "artifact-bind-address", ":8082", "artifact endpoint address")
 	flag.StringVar(&artifactPublicURL, "artifact-public-url", "", "artifact URL visible to agents")
-	flag.StringVar(&artifactDir, "artifact-dir", "/var/lib/shardferry/artifacts", "persistent artifact directory")
+	flag.StringVar(&artifactDir, "artifact-dir", "/var/lib/aevrel/artifacts", "persistent artifact directory")
 	flag.StringVar(&agentCA, "agent-ca", "", "CA for agent mTLS")
 	flag.StringVar(&agentCert, "agent-cert", "", "client certificate for agent mTLS")
 	flag.StringVar(&agentKey, "agent-key", "", "client key for agent mTLS")
@@ -58,12 +58,12 @@ func main() {
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		os.Exit(1)
 	}
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		os.Exit(1)
 	}
-	agentToken := os.Getenv("SHARDFERRY_AGENT_TOKEN")
+	agentToken := os.Getenv("AEVREL_AGENT_TOKEN")
 	if agentToken == "" {
-		ctrl.Log.Error(nil, "SHARDFERRY_AGENT_TOKEN is required for agent communication")
+		ctrl.Log.Error(nil, "AEVREL_AGENT_TOKEN is required for agent communication")
 		os.Exit(1)
 	}
 	if artifactPublicURL == "" {
@@ -135,7 +135,7 @@ func main() {
 
 	var live controller.LiveRankSplitExecutor
 	if liveURL != "" {
-		liveToken := os.Getenv("SHARDFERRY_LIVE_TOKEN")
+		liveToken := os.Getenv("AEVREL_LIVE_TOKEN")
 		if liveToken == "" {
 			liveToken = agentToken
 		}
@@ -161,7 +161,7 @@ func main() {
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "shardferry-controller.shardferry.io",
+		LeaderElectionID:       "aevrel-controller.aevrel.dev",
 	})
 	if err != nil {
 		ctrl.Log.Error(err, "unable to create manager")
@@ -219,7 +219,7 @@ func main() {
 		Artifacts:    artifacts,
 		Orchestrator: orchestrator,
 		Live:         live,
-		Recorder:     mgr.GetEventRecorderFor("shardferry-controller"),
+		Recorder:     mgr.GetEventRecorderFor("aevrel-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create controller")
 		os.Exit(1)

@@ -17,8 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/targetready"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/targetready"
 )
 
 const (
@@ -39,7 +39,7 @@ type targetValidationSettings struct {
 }
 
 func parseTargetValidationSettings(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (targetValidationSettings, bool, error) {
 	spec := migration.Spec.Target.Validation
 	if spec == nil {
@@ -97,7 +97,7 @@ func parseTargetValidationSettings(
 }
 
 func renderTargetValidationJob(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	settings targetValidationSettings,
 ) (*batchv1.Job, error) {
 	raw := migration.Spec.Target.Validation.JobTemplate
@@ -173,18 +173,18 @@ func renderTargetValidationJob(
 	if job.Labels == nil {
 		job.Labels = map[string]string{}
 	}
-	job.Labels["app.kubernetes.io/managed-by"] = "shardferry"
-	job.Labels["shardferry.io/target-ready"] = "true"
+	job.Labels["app.kubernetes.io/managed-by"] = "aevrel"
+	job.Labels["aevrel.dev/target-ready"] = "true"
 	if job.Annotations == nil {
 		job.Annotations = map[string]string{}
 	}
-	job.Annotations["shardferry.io/migration-uid"] = migrationUID(migration)
-	job.Annotations["shardferry.io/target-version"] = settings.Version
+	job.Annotations["aevrel.dev/migration-uid"] = migrationUID(migration)
+	job.Annotations["aevrel.dev/target-version"] = settings.Version
 	if migration.UID != "" {
 		controller := true
 		blockOwnerDeletion := true
 		job.OwnerReferences = append(job.OwnerReferences, metav1.OwnerReference{
-			APIVersion:         shardferryv1.GroupVersion.String(),
+			APIVersion:         aevrelv1.GroupVersion.String(),
 			Kind:               "CheckpointMigration",
 			Name:               migration.Name,
 			UID:                migration.UID,
@@ -194,32 +194,32 @@ func renderTargetValidationJob(
 	}
 
 	env := []corev1.EnvVar{
-		{Name: "SHARDFERRY_TARGET_READY", Value: "1"},
-		{Name: "SHARDFERRY_REPORT_SCHEMA_VERSION", Value: targetready.SchemaVersion},
-		{Name: "SHARDFERRY_REPORT_PATH", Value: targetReadyReportPath},
-		{Name: "SHARDFERRY_MIGRATION_UID", Value: migrationUID(migration)},
-		{Name: "SHARDFERRY_VERSION", Value: settings.Version},
-		{Name: "SHARDFERRY_TARGET_WORLD_SIZE", Value: strconv.Itoa(
+		{Name: "AEVREL_TARGET_READY", Value: "1"},
+		{Name: "AEVREL_REPORT_SCHEMA_VERSION", Value: targetready.SchemaVersion},
+		{Name: "AEVREL_REPORT_PATH", Value: targetReadyReportPath},
+		{Name: "AEVREL_MIGRATION_UID", Value: migrationUID(migration)},
+		{Name: "AEVREL_VERSION", Value: settings.Version},
+		{Name: "AEVREL_TARGET_WORLD_SIZE", Value: strconv.Itoa(
 			int(migration.Spec.Target.WorldSize),
 		)},
-		{Name: "SHARDFERRY_VALIDATION_STEPS", Value: strconv.Itoa(
+		{Name: "AEVREL_VALIDATION_STEPS", Value: strconv.Itoa(
 			int(settings.Steps),
 		)},
-		{Name: "SHARDFERRY_CHECKPOINT_TEMPLATE", Value: migration.Spec.Target.RootTemplate},
+		{Name: "AEVREL_CHECKPOINT_TEMPLATE", Value: migration.Spec.Target.RootTemplate},
 	}
 	if settings.StateTemplate != "" {
 		env = append(
 			env,
 			corev1.EnvVar{
-				Name:  "SHARDFERRY_STATE_TEMPLATE",
+				Name:  "AEVREL_STATE_TEMPLATE",
 				Value: settings.StateTemplate,
 			},
 			corev1.EnvVar{
-				Name:  "SHARDFERRY_STATE_PROVIDERS",
+				Name:  "AEVREL_STATE_PROVIDERS",
 				Value: settings.StateProviders,
 			},
 			corev1.EnvVar{
-				Name:  "SHARDFERRY_REQUIRE_STATE",
+				Name:  "AEVREL_REQUIRE_STATE",
 				Value: boolEnv(settings.RequireState),
 			},
 		)
@@ -264,7 +264,7 @@ func rawExtensionPayloadFor(
 	return nil, fmt.Errorf("%s is empty", field)
 }
 
-func targetValidationJobName(migration *shardferryv1.CheckpointMigration) string {
+func targetValidationJobName(migration *aevrelv1.CheckpointMigration) string {
 	if name := migration.Spec.Target.Validation.JobName; name != "" {
 		return name
 	}

@@ -2,16 +2,16 @@
 
 ## Versioning
 
-shardferry uses SemVer. Pre-release versions such as `X.Y.Z-rc.N` are labeled
+aevrel uses SemVer. Pre-release versions such as `X.Y.Z-rc.N` are labeled
 as pre-releases and must not be described as production-ready.
 
 ## Before tagging
 
 1. Add or update `CHANGELOG.md`.
 2. Add `docs/RELEASE-NOTES-<version>.md`.
-3. Update the version in `pyproject.toml`, `src/shardferry/__init__.py`,
-   `deploy/helm/shardferry/Chart.yaml`, and the image tags in
-   `deploy/helm/shardferry/values.yaml`.
+3. Update the version in `pyproject.toml`, `src/aevrel/__init__.py`,
+   `deploy/helm/aevrel/Chart.yaml`, and the image tags in
+   `deploy/helm/aevrel/values.yaml`.
 4. Run the repository gate:
 
 ```bash
@@ -21,10 +21,10 @@ python -m pytest -q
 go test ./...
 go vet ./...
 go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
-helm lint deploy/helm/shardferry
-helm template shardferry deploy/helm/shardferry --include-crds \
+helm lint deploy/helm/aevrel
+helm template aevrel deploy/helm/aevrel --include-crds \
   --set liveWorker.enabled=true --set kueueAdapter.enabled=true \
-  >/tmp/shardferry-all-components.yaml
+  >/tmp/aevrel-all-components.yaml
 python scripts/product_acceptance.py
 ```
 
@@ -35,7 +35,7 @@ run.
 ## Tag and publish
 
 ```bash
-git tag -a vX.Y.Z -m "shardferry vX.Y.Z"
+git tag -a vX.Y.Z -m "aevrel vX.Y.Z"
 git push origin vX.Y.Z
 ```
 

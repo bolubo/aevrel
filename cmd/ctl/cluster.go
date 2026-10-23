@@ -53,8 +53,8 @@ func executeClusterAdd(
 		},
 	}
 	cluster := map[string]any{
-		"apiVersion": "shardferry.io/v1",
-		"kind":       "ShardferryCluster",
+		"apiVersion": "aevrel.dev/v1",
+		"kind":       "AevrelCluster",
 		"metadata": map[string]any{
 			"name":      options.name,
 			"namespace": namespace,
@@ -107,12 +107,12 @@ func parseClusterAdd(args []string) (clusterAddOptions, error) {
 	options := clusterAddOptions{role: "both"}
 	if len(args) == 0 {
 		return options, fmt.Errorf(
-			"usage: shardferryctl cluster add NAME --endpoint URL [--role source|target|both] [--secret NAME] [--file PATH] [--token TOKEN]",
+			"usage: aevrelctl cluster add NAME --endpoint URL [--role source|target|both] [--secret NAME] [--file PATH] [--token TOKEN]",
 		)
 	}
 	if args[0] == "" || args[0][0] == '-' {
 		return options, fmt.Errorf(
-			"usage: shardferryctl cluster add NAME --endpoint URL",
+			"usage: aevrelctl cluster add NAME --endpoint URL",
 		)
 	}
 	options.name = args[0]
@@ -150,7 +150,7 @@ func parseClusterAdd(args []string) (clusterAddOptions, error) {
 			options.file = args[index]
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl cluster add NAME --endpoint URL [--role source|target|both] [--secret NAME] [--file PATH] [--token TOKEN]",
+				"usage: aevrelctl cluster add NAME --endpoint URL [--role source|target|both] [--secret NAME] [--file PATH] [--token TOKEN]",
 			)
 		default:
 			return options, fmt.Errorf("unknown cluster add option: %s", args[index])

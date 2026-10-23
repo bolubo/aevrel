@@ -7,8 +7,8 @@ import threading
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from shardferry.agent import build_agent_server
-from shardferry.agent.state import TaskStore
+from aevrel.agent import build_agent_server
+from aevrel.agent.state import TaskStore
 
 
 def _post(base: str, path: str, payload: dict) -> dict:

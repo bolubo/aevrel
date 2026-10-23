@@ -6,14 +6,14 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestNextActionForTargetFailure(t *testing.T) {
-	migration := &shardferryv1.CheckpointMigration{
+	migration := &aevrelv1.CheckpointMigration{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "team-a"},
-		Status: shardferryv1.CheckpointMigrationStatus{
-			Phase: shardferryv1.MigrationPhaseTargetFailed,
+		Status: aevrelv1.CheckpointMigrationStatus{
+			Phase: aevrelv1.MigrationPhaseTargetFailed,
 			Conditions: []metav1.Condition{{
 				Type:   "TargetReady",
 				Reason: "Incomplete",
@@ -29,10 +29,10 @@ func TestNextActionForTargetFailure(t *testing.T) {
 }
 
 func TestNextActionForLiveExecutorUnavailable(t *testing.T) {
-	migration := &shardferryv1.CheckpointMigration{
+	migration := &aevrelv1.CheckpointMigration{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "team-a"},
-		Status: shardferryv1.CheckpointMigrationStatus{
-			Phase: shardferryv1.MigrationPhaseFailed,
+		Status: aevrelv1.CheckpointMigrationStatus{
+			Phase: aevrelv1.MigrationPhaseFailed,
 			Conditions: []metav1.Condition{{
 				Type:   "LiveReady",
 				Reason: "LiveExecutorUnavailable",

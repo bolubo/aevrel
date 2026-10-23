@@ -9,17 +9,17 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.dcp import export_dcp, inspect_dcp
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.remote import fetch_spec
-from shardferry.serve import build_server
-from shardferry.verification import verify
+from aevrel.dcp import export_dcp, inspect_dcp
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.remote import fetch_spec
+from aevrel.serve import build_server
+from aevrel.verification import verify
 
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("SHARDFERRY_RUN_DCP_HTTP") != "1",
-    reason="set SHARDFERRY_RUN_DCP_HTTP=1 to run the DCP HTTP test",
+    os.environ.get("AEVREL_RUN_DCP_HTTP") != "1",
+    reason="set AEVREL_RUN_DCP_HTTP=1 to run the DCP HTTP test",
 )
 
 

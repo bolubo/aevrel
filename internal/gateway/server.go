@@ -16,8 +16,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/clusterclient"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/clusterclient"
 )
 
 var agentPath = regexp.MustCompile(`^/v1/agents/([^/]+)(/.*)?$`)

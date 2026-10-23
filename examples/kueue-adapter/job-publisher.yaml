@@ -6,11 +6,11 @@ metadata:
   labels:
     kueue.x-k8s.io/queue-name: user-queue
   annotations:
-    shardferry.io/preemption-protection: "enabled"
-    shardferry.io/training-progress-percent: "85"
-    shardferry.io/checkpoint-complete: "1"
-    shardferry.io/checkpoint-version: "step-8500"
-    shardferry.io/checkpoint-age-seconds: "12"
+    aevrel.dev/preemption-protection: "enabled"
+    aevrel.dev/training-progress-percent: "85"
+    aevrel.dev/checkpoint-complete: "1"
+    aevrel.dev/checkpoint-version: "step-8500"
+    aevrel.dev/checkpoint-age-seconds: "12"
 spec:
   suspend: true
   template:

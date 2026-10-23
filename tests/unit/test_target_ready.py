@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from shardferry.verification import (
+from aevrel.verification import (
     CommandTargetReady,
     HttpTargetReady,
     TargetReadyChain,

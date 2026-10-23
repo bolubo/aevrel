@@ -4,7 +4,7 @@ from math import prod
 
 import numpy as np
 
-from shardferry.identity import resolve_source, source_id_for_shard, source_maps
+from aevrel.identity import resolve_source, source_id_for_shard, source_maps
 
 
 def gather_to_global(shards: list[dict], shape: tuple[int, ...]) -> np.ndarray:

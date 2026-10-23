@@ -10,8 +10,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/clusterclient"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/clusterclient"
 )
 
 type RankAPI interface {
@@ -37,7 +37,7 @@ type AgentResolver struct {
 
 func (r *AgentResolver) EnsureTokens(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) error {
 	for _, ref := range []string{
 		migration.Spec.Source.ClusterRef,
@@ -61,11 +61,11 @@ func (r *AgentResolver) EnsureTokens(
 
 func (r *AgentResolver) Resolve(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
-) (*shardferryv1.CheckpointMigration, error) {
+	migration *aevrelv1.CheckpointMigration,
+) (*aevrelv1.CheckpointMigration, error) {
 	effective := migration.DeepCopy()
 	if len(effective.Spec.Source.RankMap) == 0 {
-		var ranks []shardferryv1.RankEndpoint
+		var ranks []aevrelv1.RankEndpoint
 		var err error
 		if effective.Spec.Source.ClusterRef != "" {
 			ranks, err = r.remoteRanks(
@@ -87,7 +87,7 @@ func (r *AgentResolver) Resolve(
 		effective.Spec.Source.ClusterRef = ""
 	}
 	if len(effective.Spec.Target.RankMap) == 0 {
-		var ranks []shardferryv1.RankEndpoint
+		var ranks []aevrelv1.RankEndpoint
 		var err error
 		if effective.Spec.Target.ClusterRef != "" {
 			ranks, err = r.remoteRanks(
@@ -113,10 +113,10 @@ func (r *AgentResolver) Resolve(
 
 func (r *AgentResolver) ResolveTarget(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
-) ([]shardferryv1.RankEndpoint, error) {
+	migration *aevrelv1.CheckpointMigration,
+) ([]aevrelv1.RankEndpoint, error) {
 	if len(migration.Spec.Target.RankMap) > 0 {
-		return append([]shardferryv1.RankEndpoint(nil), migration.Spec.Target.RankMap...), nil
+		return append([]aevrelv1.RankEndpoint(nil), migration.Spec.Target.RankMap...), nil
 	}
 	if migration.Spec.Target.ClusterRef != "" {
 		return r.remoteRanks(
@@ -133,12 +133,12 @@ func (r *AgentResolver) ResolveTarget(
 
 func (r *AgentResolver) remoteRanks(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	role string,
 	clusterRef string,
-	selector *shardferryv1.AgentSelector,
+	selector *aevrelv1.AgentSelector,
 	worldSize int32,
-) ([]shardferryv1.RankEndpoint, error) {
+) ([]aevrelv1.RankEndpoint, error) {
 	if r.Clusters == nil {
 		return nil, fmt.Errorf("cluster gateway client is not configured")
 	}
@@ -192,7 +192,7 @@ func (r *AgentResolver) remoteRanks(
 			worldSize,
 		)
 	}
-	result := make([]shardferryv1.RankEndpoint, 0, len(response.Ranks))
+	result := make([]aevrelv1.RankEndpoint, 0, len(response.Ranks))
 	for _, entry := range response.Ranks {
 		if entry.Rank < 0 || entry.Rank >= worldSize {
 			return nil, fmt.Errorf(
@@ -210,7 +210,7 @@ func (r *AgentResolver) remoteRanks(
 				entry.Rank,
 			)
 		}
-		result = append(result, shardferryv1.RankEndpoint{
+		result = append(result, aevrelv1.RankEndpoint{
 			Rank:     entry.Rank,
 			Endpoint: entry.Endpoint,
 		})
@@ -225,22 +225,22 @@ func (r *AgentResolver) clusterCredential(
 	ctx context.Context,
 	namespace string,
 	clusterRef string,
-) (shardferryv1.ShardferryCluster, string, error) {
+) (aevrelv1.AevrelCluster, string, error) {
 	reader := r.Reader
 	if reader == nil {
 		reader = r.Client
 	}
-	var cluster shardferryv1.ShardferryCluster
+	var cluster aevrelv1.AevrelCluster
 	if err := reader.Get(
 		ctx,
 		client.ObjectKey{Namespace: namespace, Name: clusterRef},
 		&cluster,
 	); err != nil {
-		return shardferryv1.ShardferryCluster{}, "", err
+		return aevrelv1.AevrelCluster{}, "", err
 	}
 	token, err := r.clusterToken(ctx, reader, namespace, cluster.Spec.SecretRef)
 	if err != nil {
-		return shardferryv1.ShardferryCluster{}, "", err
+		return aevrelv1.AevrelCluster{}, "", err
 	}
 	return cluster, token, nil
 }
@@ -255,7 +255,7 @@ func (r *AgentResolver) clusterToken(
 	ctx context.Context,
 	reader client.Reader,
 	namespace string,
-	ref shardferryv1.ClusterSecretRef,
+	ref aevrelv1.ClusterSecretRef,
 ) (string, error) {
 	if ref.Name == "" {
 		return "", fmt.Errorf("secretRef.name is required")
@@ -281,9 +281,9 @@ func (r *AgentResolver) clusterToken(
 
 func (r *AgentResolver) sourceRanks(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
-	selector *shardferryv1.AgentSelector,
-) ([]shardferryv1.RankEndpoint, error) {
+	migration *aevrelv1.CheckpointMigration,
+	selector *aevrelv1.AgentSelector,
+) ([]aevrelv1.RankEndpoint, error) {
 	pods, err := r.agentPods(ctx, migration.Namespace, selector)
 	if err != nil {
 		return nil, fmt.Errorf("discover source agents: %w", err)
@@ -325,9 +325,9 @@ func (r *AgentResolver) sourceRanks(
 
 func (r *AgentResolver) targetRanks(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
-	selector *shardferryv1.AgentSelector,
-) ([]shardferryv1.RankEndpoint, error) {
+	migration *aevrelv1.CheckpointMigration,
+	selector *aevrelv1.AgentSelector,
+) ([]aevrelv1.RankEndpoint, error) {
 	pods, err := r.agentPods(ctx, migration.Namespace, selector)
 	if err != nil {
 		return nil, fmt.Errorf("discover target agents: %w", err)
@@ -340,9 +340,9 @@ func (r *AgentResolver) targetRanks(
 		}
 		endpoints = append(endpoints, endpoint)
 	}
-	result := make([]shardferryv1.RankEndpoint, 0, migration.Spec.Target.WorldSize)
+	result := make([]aevrelv1.RankEndpoint, 0, migration.Spec.Target.WorldSize)
 	for rank := int32(0); rank < migration.Spec.Target.WorldSize; rank++ {
-		result = append(result, shardferryv1.RankEndpoint{
+		result = append(result, aevrelv1.RankEndpoint{
 			Rank:     rank,
 			Endpoint: endpoints[int(rank)%len(endpoints)],
 		})
@@ -353,7 +353,7 @@ func (r *AgentResolver) targetRanks(
 func (r *AgentResolver) agentPods(
 	ctx context.Context,
 	migrationNamespace string,
-	selector *shardferryv1.AgentSelector,
+	selector *aevrelv1.AgentSelector,
 ) ([]corev1.Pod, error) {
 	if selector == nil || len(selector.MatchLabels) == 0 {
 		return nil, fmt.Errorf("agentSelector.matchLabels is required")
@@ -411,7 +411,7 @@ func podReady(pod corev1.Pod) bool {
 
 func agentEndpoint(
 	pod corev1.Pod,
-	selector *shardferryv1.AgentSelector,
+	selector *aevrelv1.AgentSelector,
 ) (string, error) {
 	if selector == nil {
 		return "", fmt.Errorf("agentSelector is required")
@@ -437,8 +437,8 @@ func orderedRanks(
 	role string,
 	worldSize int32,
 	assigned map[int32]string,
-) ([]shardferryv1.RankEndpoint, error) {
-	result := make([]shardferryv1.RankEndpoint, 0, worldSize)
+) ([]aevrelv1.RankEndpoint, error) {
+	result := make([]aevrelv1.RankEndpoint, 0, worldSize)
 	missing := make([]int32, 0)
 	for rank := int32(0); rank < worldSize; rank++ {
 		endpoint, exists := assigned[rank]
@@ -446,7 +446,7 @@ func orderedRanks(
 			missing = append(missing, rank)
 			continue
 		}
-		result = append(result, shardferryv1.RankEndpoint{
+		result = append(result, aevrelv1.RankEndpoint{
 			Rank:     rank,
 			Endpoint: endpoint,
 		})

@@ -13,11 +13,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 const minimalMigration = `
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: CheckpointMigration
 metadata:
   name: job42
@@ -27,14 +27,14 @@ spec:
     checkpointRoot: /checkpoints/job42
     agentSelector:
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: source
   target:
     worldSize: 64
     rootTemplate: /targets/job42/rank{rank}
     agentSelector:
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: target
 `
 
@@ -94,12 +94,12 @@ func TestMigrateDryRunDoesNotNeedCluster(t *testing.T) {
 func TestMigrateCreatesCheckpointMigration(t *testing.T) {
 	path := writeMigration(t, minimalMigration)
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		Build()
 	var output bytes.Buffer
 	err := execute(
@@ -113,7 +113,7 @@ func TestMigrateCreatesCheckpointMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var migration shardferryv1.CheckpointMigration
+	var migration aevrelv1.CheckpointMigration
 	if err := kubeClient.Get(
 		context.Background(),
 		client.ObjectKey{Namespace: "team-a", Name: "job42"},
@@ -132,7 +132,7 @@ func TestMigrateCreatesCheckpointMigration(t *testing.T) {
 func TestPreflightAcceptsExplicitRankMap(t *testing.T) {
 	// Preflight with explicit rank endpoints does not contact agents.
 	const explicit = `
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: CheckpointMigration
 metadata:
   name: preflight
@@ -152,7 +152,7 @@ spec:
 `
 	path := writeMigration(t, explicit)
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
@@ -204,12 +204,12 @@ func TestLiveRankSplitExampleIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if migration.Spec.Mode != shardferryv1.MigrationModeLiveRankSplit {
+	if migration.Spec.Mode != aevrelv1.MigrationModeLiveRankSplit {
 		t.Fatalf("mode = %q", migration.Spec.Mode)
 	}
 	if migration.Spec.Live == nil ||
 		migration.Spec.Live.MaxInFlight != 2 ||
-		migration.Spec.Live.StateMode != shardferryv1.LiveStateModeL4 {
+		migration.Spec.Live.StateMode != aevrelv1.LiveStateModeL4 {
 		t.Fatalf("live = %+v", migration.Spec.Live)
 	}
 	if migration.Spec.Live.Cutover.RequireStateComplete == nil ||
@@ -219,8 +219,8 @@ func TestLiveRankSplitExampleIsValid(t *testing.T) {
 	if err := validateProductMigration(migration); err != nil {
 		t.Fatal(err)
 	}
-	migration.Status.Phase = shardferryv1.MigrationPhaseTransferring
-	migration.Status.Live = &shardferryv1.LiveRankSplitStatus{
+	migration.Status.Phase = aevrelv1.MigrationPhaseTransferring
+	migration.Status.Live = &aevrelv1.LiveRankSplitStatus{
 		CutoverPhase: "following",
 		InFlight:     []int32{2},
 		Coverage:     []int32{0, 1, 2, 3},
@@ -281,7 +281,7 @@ func TestLiveRankSplitPlanIsProductSummary(t *testing.T) {
 		"migration.yaml",
 	)
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()

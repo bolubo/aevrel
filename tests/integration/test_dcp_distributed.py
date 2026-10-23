@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.dcp import export_dcp, inspect_dcp
-from shardferry.executor import apply
-from shardferry.planning import plan
+from aevrel.dcp import export_dcp, inspect_dcp
+from aevrel.executor import apply
+from aevrel.planning import plan
 
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("SHARDFERRY_RUN_DCP_DIST") != "1",
-    reason="set SHARDFERRY_RUN_DCP_DIST=1 to run the distributed DCP test",
+    os.environ.get("AEVREL_RUN_DCP_DIST") != "1",
+    reason="set AEVREL_RUN_DCP_DIST=1 to run the distributed DCP test",
 )
 
 

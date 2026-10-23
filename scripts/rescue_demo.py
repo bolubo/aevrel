@@ -19,9 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.dcp import export_dcp, migrate_dcp  # noqa: E402
-from shardferry.executor import apply  # noqa: E402
-from shardferry.planning import plan  # noqa: E402
+from aevrel.dcp import export_dcp, migrate_dcp  # noqa: E402
+from aevrel.executor import apply  # noqa: E402
+from aevrel.planning import plan  # noqa: E402
 from tests.fixtures.generated import (  # noqa: E402
     generate_sharded_spec,
     materialize_source_files,
@@ -89,7 +89,7 @@ def _timeline_html(events: list[dict[str, Any]]) -> str:
     return f"""<!doctype html>
 <html lang="zh-CN">
 <meta charset="utf-8">
-<title>shardferry rescue timeline</title>
+<title>aevrel rescue timeline</title>
 <style>
 body {{ font: 14px/1.5 system-ui, sans-serif; margin: 32px; color: #18212b; }}
 table {{ border-collapse: collapse; width: 100%; }}
@@ -97,7 +97,7 @@ th, td {{ border-bottom: 1px solid #d8dee7; padding: 8px; text-align: left; }}
 th {{ background: #f4f7fa; }}
 .ok {{ color: #18794e; font-weight: 600; }}
 </style>
-<h1>shardferry rescue timeline</h1>
+<h1>aevrel rescue timeline</h1>
 <p class="ok">interruption → journal preserved → resume → target verified</p>
 <table>
 <thead><tr><th>Time</th><th>Attempt</th><th>Phase</th><th>Detail</th></tr></thead>
@@ -111,7 +111,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Interrupt a real local DCP migration and resume it."
     )
-    parser.add_argument("--work-dir", default="shardferry-rescue")
+    parser.add_argument("--work-dir", default="aevrel-rescue")
     parser.add_argument("--dim", type=int, default=512)
     parser.add_argument("--interrupt-after-nodes", type=int, default=1)
     args = parser.parse_args()
@@ -226,7 +226,7 @@ def main() -> int:
         [
             sys.executable,
             "-m",
-            "shardferry.commands.target_load",
+            "aevrel.commands.target_load",
             "--checkpoint",
             str(output),
             "--json",
@@ -244,7 +244,7 @@ def main() -> int:
         raise RuntimeError(f"target load was not ok: {load_result}")
 
     proof = {
-        "schema": "shardferry.rescue.local.v1",
+        "schema": "aevrel.rescue.local.v1",
         "work_dir": str(root),
         "source": str(source),
         "target": str(output),

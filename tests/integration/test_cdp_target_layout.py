@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from shardferry.cdp import (
+from aevrel.cdp import (
     CheckpointFollower,
     ChunkingPolicy,
     VersionMarker,
     VersionTarget,
     write_marker,
 )
-from shardferry.planning import plan
-from shardferry.target_layout import ApplyFileProvider
+from aevrel.planning import plan
+from aevrel.target_layout import ApplyFileProvider
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 from tests.oracle.reference import assert_bitwise_equal, reference_reshard
 

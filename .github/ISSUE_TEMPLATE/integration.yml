@@ -20,7 +20,7 @@ body:
     id: contract
     attributes:
       label: Integration contract
-      description: What data/events/actions must move between shardferry and the upstream project?
+      description: What data/events/actions must move between aevrel and the upstream project?
     validations:
       required: true
   - type: dropdown
@@ -28,8 +28,8 @@ body:
     attributes:
       label: Direction
       options:
-        - shardferry consumes upstream state
-        - shardferry publishes state to upstream
+        - aevrel consumes upstream state
+        - aevrel publishes state to upstream
         - bidirectional
   - type: checkboxes
     id: safety

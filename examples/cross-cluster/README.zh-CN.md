@@ -4,7 +4,7 @@
 
 ## 角色
 
-- 管理集群：controller、artifact store、`ShardferryCluster`；
+- 管理集群：controller、artifact store、`AevrelCluster`；
 - source 集群：source agents + gateway；
 - target 集群：target agents + gateway。
 
@@ -15,13 +15,13 @@ gateway 只做本集群 agent 发现和反向代理，不是 overlay/VPN/service
 管理集群：
 
 ```bash
-helm upgrade --install shardferry-control deploy/helm/shardferry \
-  -n shardferry-control --create-namespace \
+helm upgrade --install aevrel-control deploy/helm/aevrel \
+  -n aevrel-control --create-namespace \
   --set source.enabled=false \
   --set target.enabled=false \
   --set tls.enabled=true \
-  --set tls.controllerSecretName=shardferry-tls \
-  --set tls.agentSecretName=shardferry-tls \
+  --set tls.controllerSecretName=aevrel-tls \
+  --set tls.agentSecretName=aevrel-tls \
   --set controller.serviceType=LoadBalancer \
   --set controller.artifactPublicURL=https://CONTROL_ARTIFACT_HOST:8082
 ```
@@ -29,15 +29,15 @@ helm upgrade --install shardferry-control deploy/helm/shardferry \
 source 集群：
 
 ```bash
-helm upgrade --install shardferry deploy/helm/shardferry \
-  -n shardferry --create-namespace \
+helm upgrade --install aevrel deploy/helm/aevrel \
+  -n aevrel --create-namespace \
   --set controller.enabled=false \
   --set gateway.enabled=true \
   --set gateway.publicURL=https://SOURCE_GATEWAY_HOST:9445 \
   --set gateway.serviceType=LoadBalancer \
   --set tls.enabled=true \
-  --set tls.controllerSecretName=shardferry-tls \
-  --set tls.agentSecretName=shardferry-tls \
+  --set tls.controllerSecretName=aevrel-tls \
+  --set tls.agentSecretName=aevrel-tls \
   --set source.enabled=true \
   --set target.enabled=false \
   --set controller.artifactPublicURL=https://CONTROL_ARTIFACT_HOST:8082
@@ -65,27 +65,27 @@ agent 节点 IP 和 artifact endpoint。
 在管理集群：
 
 ```bash
-export SHARDFERRY_AGENT_TOKEN='replace-with-the-agent-token'
-export SHARDFERRY_TLS_CA=/path/to/ca.crt
-export SHARDFERRY_TLS_CERT=/path/to/tls.crt
-export SHARDFERRY_TLS_KEY=/path/to/tls.key
+export AEVREL_AGENT_TOKEN='replace-with-the-agent-token'
+export AEVREL_TLS_CA=/path/to/ca.crt
+export AEVREL_TLS_CERT=/path/to/tls.crt
+export AEVREL_TLS_KEY=/path/to/tls.key
 kubectl --context management apply -f clusters.yaml
-kubectl --context management -n shardferry-control get shardferryclusters -o wide
-shardferryctl get clusters -n shardferry-control
-shardferryctl describe cluster source -n shardferry-control
-shardferryctl plan -f migration.yaml
-shardferryctl preflight -f migration.yaml --json
-shardferryctl migrate -f migration.yaml --wait
-shardferryctl describe migration job42-16-to-8 -n shardferry-control --ranks
+kubectl --context management -n aevrel-control get aevrelclusters -o wide
+aevrelctl get clusters -n aevrel-control
+aevrelctl describe cluster source -n aevrel-control
+aevrelctl plan -f migration.yaml
+aevrelctl preflight -f migration.yaml --json
+aevrelctl migrate -f migration.yaml --wait
+aevrelctl describe migration job42-16-to-8 -n aevrel-control --ranks
 ```
 
 生命周期命令：
 
 ```bash
-shardferryctl cancel migration job42-16-to-8 -n shardferry-control
-shardferryctl retry migration job42-16-to-8 -n shardferry-control
-shardferryctl delete migration job42-16-to-8 -n shardferry-control
-shardferryctl delete migration job42-16-to-8 -n shardferry-control --purge-target
+aevrelctl cancel migration job42-16-to-8 -n aevrel-control
+aevrelctl retry migration job42-16-to-8 -n aevrel-control
+aevrelctl delete migration job42-16-to-8 -n aevrel-control
+aevrelctl delete migration job42-16-to-8 -n aevrel-control --purge-target
 ```
 
 `cancel` 只允许在 commit intent 前；`retry` 当前只修复
@@ -99,9 +99,9 @@ gateway 的 `ready/version/lastSeen`。
 
 ### 凭据模型
 
-- `ShardferryCluster.secretRef` 的 token 是该集群 gateway token；
+- `AevrelCluster.secretRef` 的 token 是该集群 gateway token；
 - controller 按 gateway endpoint 绑定各自 token，不再依赖全局 gateway token；
-- `SHARDFERRY_AGENT_TOKEN` 只用于本地 agent 和 source shard 数据路径；
+- `AEVREL_AGENT_TOKEN` 只用于本地 agent 和 source shard 数据路径；
 - gateway 的 `/v1/shards/*` 允许 agent token，其他 proxy 路径要求本集群
   gateway token。
 
@@ -111,10 +111,10 @@ gateway 的 `ready/version/lastSeen`。
 
 使用新的 cluster health/status controller 和 mTLS gateway 实际跑过：
 
-- `source` 和 `target` 的 `ShardferryCluster.status.ready=true`；
+- `source` 和 `target` 的 `AevrelCluster.status.ready=true`；
 - preflight：16/16 source ranks、8/8 target ranks；
 - `p0-live-16-to-8`：`phase=succeeded`，8/8 committed；
-- target 复制的 8 个 rank-local DCP 全部通过 `shardferry-target-load`；
+- target 复制的 8 个 rank-local DCP 全部通过 `aevrel-target-load`；
 - 使用 per-cluster gateway token + mTLS，不依赖远程 Pod IP。
 
 ### 注册集群
@@ -122,21 +122,21 @@ gateway 的 `ready/version/lastSeen`。
 `cluster add` 只生成本地 manifest，不连接、不扫描、也不会自动修改任何集群：
 
 ```bash
-shardferryctl cluster add source \
+aevrelctl cluster add source \
   --endpoint https://source-gateway.example:9445 \
   --role source \
   --secret source-auth \
   --file clusters-source.yaml
 ```
 
-输出是一份多文档 YAML：`Secret` 只含 `token`，`ShardferryCluster` 指向该
+输出是一份多文档 YAML：`Secret` 只含 `token`，`AevrelCluster` 指向该
 Secret。`role` 默认 `both`；省略 `--secret` 时使用
 `<cluster-name>-gateway-auth`；省略 `--token` 时生成 32 字节随机 token。
 文件以 `0600` 创建且拒绝覆盖。`--json` 输出等价的 Kubernetes `List`。
 确认内容后再显式应用：
 
 ```bash
-kubectl apply -f clusters-source.yaml -n shardferry-control
+kubectl apply -f clusters-source.yaml -n aevrel-control
 ```
 
 ## 已验证（2026-10-22，两套 kind）
@@ -161,7 +161,7 @@ kubectl apply -f clusters-source.yaml -n shardferry-control
   ready、endpoint、version 和错误信息。
 - rank observability：`describe migration --ranks` 显示每个 target rank 的
   phase、task、retries 和 error。
-- plan preview：`shardferryctl plan -f ...` 已实测输出 bytes、
+- plan preview：`aevrelctl plan -f ...` 已实测输出 bytes、
   theoretical min、full gather、nodes、range/fan-in 和 target roots，不创建资源。
 - mTLS：controller/gateway/agent 使用同一 CA；16→8 全链路成功，target
   8/8 load；无客户端证书访问受保护 resolve 返回 401，health 保持 200。
@@ -172,6 +172,6 @@ kubectl apply -f clusters-source.yaml -n shardferry-control
 清理测试集群：
 
 ```bash
-kind delete cluster --name shardferry-e2e-source
-kind delete cluster --name shardferry-e2e-target
+kind delete cluster --name aevrel-e2e-source
+kind delete cluster --name aevrel-e2e-target
 ```

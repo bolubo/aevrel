@@ -1,0 +1,18 @@
+{{- if .Values.liveWorker.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aevrel.fullname" . }}-live-worker
+  labels:
+    {{- include "aevrel.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "aevrel.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: live-worker
+  ports:
+    - name: http
+      port: {{ .Values.liveWorker.servicePort }}
+      targetPort: http
+{{- end }}

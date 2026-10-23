@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the cross-cluster user acceptance path against an existing management cluster.
 
-This wrapper deliberately delegates to kubectl and shardferryctl. It does not
+This wrapper deliberately delegates to kubectl and aevrelctl. It does not
 create clusters, install releases, or mutate source/target data.
 """
 
@@ -50,9 +50,9 @@ def _parser() -> argparse.ArgumentParser:
         description="Run the cross-cluster live acceptance path."
     )
     parser.add_argument("--management-kubeconfig", required=True)
-    parser.add_argument("--namespace", default="shardferry-control")
+    parser.add_argument("--namespace", default="aevrel-control")
     parser.add_argument("--migration", required=True)
-    parser.add_argument("--shardferryctl", default="shardferryctl")
+    parser.add_argument("--aevrelctl", default="aevrelctl")
     parser.add_argument("--kubectl", default="kubectl")
     parser.add_argument("--tls-ca", default="")
     parser.add_argument("--tls-cert", default="")
@@ -79,13 +79,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     env = dict(os.environ)
     env["KUBECONFIG"] = str(Path(args.management_kubeconfig).expanduser())
-    env.setdefault("SHARDFERRY_AGENT_TOKEN", os.environ.get("SHARDFERRY_AGENT_TOKEN", ""))
+    env.setdefault("AEVREL_AGENT_TOKEN", os.environ.get("AEVREL_AGENT_TOKEN", ""))
     if args.tls_ca:
-        env["SHARDFERRY_TLS_CA"] = args.tls_ca
+        env["AEVREL_TLS_CA"] = args.tls_ca
     if args.tls_cert:
-        env["SHARDFERRY_TLS_CERT"] = args.tls_cert
+        env["AEVREL_TLS_CERT"] = args.tls_cert
     if args.tls_key:
-        env["SHARDFERRY_TLS_KEY"] = args.tls_key
+        env["AEVREL_TLS_KEY"] = args.tls_key
     report: dict[str, Any] = {
         "status": "running",
         "migration": str(migration),
@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
                 "-n",
                 args.namespace,
                 "get",
-                "shardferryclusters",
+                "aevrelclusters",
                 "-o",
                 "json",
             ],
@@ -121,18 +121,18 @@ def main(argv: list[str] | None = None) -> int:
             for ref in (source_ref, target_ref):
                 item = items.get(ref)
                 if item is None:
-                    raise RuntimeError(f"ShardferryCluster {ref!r} not found")
+                    raise RuntimeError(f"AevrelCluster {ref!r} not found")
                 status = item.get("status", {})
                 if not status.get("ready"):
                     raise RuntimeError(
-                        f"ShardferryCluster {ref!r} is not ready: "
+                        f"AevrelCluster {ref!r} is not ready: "
                         f"{status.get('message', '')}"
                     )
         report["steps"].append({"name": "clusters", "ok": True})
 
         preflight = _run(
             [
-                args.shardferryctl,
+                args.aevrelctl,
                 "preflight",
                 "-f",
                 str(migration),
@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.wait:
             migrate = _run(
                 [
-                    args.shardferryctl,
+                    args.aevrelctl,
                     "migrate",
                     "-f",
                     str(migration),

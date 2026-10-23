@@ -5,7 +5,7 @@ import hashlib
 import shutil
 from pathlib import Path
 
-from shardferry.cdp import VersionMarker, write_marker
+from aevrel.cdp import VersionMarker, write_marker
 
 
 def sha256_file(path: Path) -> str:

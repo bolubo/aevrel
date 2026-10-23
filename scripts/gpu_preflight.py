@@ -43,7 +43,7 @@ print(json.dumps({
     return json.loads(result.stdout)
 
 
-def _probe_shardferry() -> str | None:
+def _probe_aevrel() -> str | None:
     env = dict(os.environ)
     env["PYTHONPATH"] = (
         str(REPO / "src")
@@ -51,7 +51,7 @@ def _probe_shardferry() -> str | None:
         + env.get("PYTHONPATH", "")
     ).rstrip(os.pathsep)
     result = subprocess.run(
-        [sys.executable, "-c", "import shardferry; print(shardferry.__version__)"],
+        [sys.executable, "-c", "import aevrel; print(aevrel.__version__)"],
         capture_output=True,
         text=True,
         env=env,
@@ -100,8 +100,8 @@ def main(argv: list[str] | None = None) -> int:
     checks.append("bf16 supported" if probe.get("bf16") else "bf16 unsupported")
     checks.append("nccl available" if probe.get("nccl") else "nccl unavailable")
     checks.append("torchrun available" if shutil.which("torchrun") else "torchrun missing")
-    shardferry_version = _probe_shardferry()
-    checks.append("shardferry import " + (shardferry_version or "failed"))
+    aevrel_version = _probe_aevrel()
+    checks.append("aevrel import " + (aevrel_version or "failed"))
     checks.append(
         "source script available"
         if (REPO / "scripts/gpu_source_save.py").is_file()
@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             and bool(probe.get("nccl"))
             and (not args.require_bf16 or bool(probe.get("bf16")))
             and shutil.which("torchrun") is not None
-            and shardferry_version is not None
+            and aevrel_version is not None
             and free >= args.min_disk_gb * 1024**3
         ),
         "probe": probe,

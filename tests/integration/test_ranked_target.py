@@ -4,10 +4,10 @@ from pathlib import Path
 
 import numpy as np
 
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.targets import target_file_path
-from shardferry.verification import verify
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.targets import target_file_path
+from aevrel.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

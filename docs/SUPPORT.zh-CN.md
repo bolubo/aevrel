@@ -8,17 +8,17 @@
 在管理集群的 kubeconfig 上执行：
 
 ```bash
-shardferry-support-bundle \
+aevrel-support-bundle \
   --context management \
-  --namespace shardferry-control \
-  --output ./shardferry-support.tar.gz
+  --namespace aevrel-control \
+  --output ./aevrel-support.tar.gz
 ```
 
 它会收集：
 
 - kubectl 客户端版本和当前 context；
 - node、Pod、Deployment、DaemonSet、Service、PVC；
-- `CheckpointMigration`、`ShardferryCluster`、events；
+- `CheckpointMigration`、`AevrelCluster`、events；
 - 每个 Pod 最近 2000 行日志；
 - Secret 的名字列表，不是 Secret 内容；
 - helm release 列表。
@@ -31,7 +31,7 @@ shardferry-support-bundle \
 1. `manifest.json`：哪条命令失败、超时或缺少工具；
 2. `commands/kubectl_checkpoint_migrations*`：migration phase、失败 rank；
 3. `commands/kubectl_events*`：调度、镜像拉取、挂载和权限错误；
-4. `commands/kubectl_shardferry_clusters*`：gateway 是否 ready；
+4. `commands/kubectl_aevrel_clusters*`：gateway 是否 ready；
 5. `commands/logs_*`：agent/gateway/controller 的具体错误。
 
 ## 3. 常见错误方向
@@ -56,11 +56,11 @@ shardferry-support-bundle \
 ## 5. 用户自助链路
 
 ```bash
-shardferryctl preflight -f migration.yaml --json
-shardferryctl describe migration <name> -o json
-shardferryctl logs migration <name>
-shardferry-support-bundle --namespace shardferry-control
-shardferry-target-load --checkpoint /targets/... --rank 0
+aevrelctl preflight -f migration.yaml --json
+aevrelctl describe migration <name> -o json
+aevrelctl logs migration <name>
+aevrel-support-bundle --namespace aevrel-control
+aevrel-target-load --checkpoint /targets/... --rank 0
 ```
 
 目标是让用户在发 issue 前就能排除：没装好、认证错、rank 缺失、target

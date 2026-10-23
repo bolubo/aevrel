@@ -2,7 +2,7 @@
 
 ## Our commitment
 
-shardferry is a technical project for people with different backgrounds,
+aevrel is a technical project for people with different backgrounds,
 experience levels, employers, and opinions. We want participation to be
 professional, direct, and safe.
 
@@ -24,7 +24,7 @@ professional, direct, and safe.
 ## Scope
 
 This policy applies in repository discussions, issues, pull requests, reviews,
-and other project spaces where someone is representing shardferry.
+and other project spaces where someone is representing aevrel.
 
 ## Reporting and enforcement
 

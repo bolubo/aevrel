@@ -7,6 +7,6 @@
 /cmd/controller/ @bolubo
 /internal/controller/ @bolubo
 /internal/kueueadapter/ @bolubo
-/src/shardferry/commands/ @bolubo
+/src/aevrel/commands/ @bolubo
 /deploy/ @bolubo
 /docs/ @bolubo

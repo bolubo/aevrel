@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from shardferry.lrs.layout import LayoutError
-from shardferry.lrs.model_vps import (
+from aevrel.lrs.layout import LayoutError
+from aevrel.lrs.model_vps import (
     FlatBufferLayout,
     FlatBufferSpec,
     FlatCopy,
@@ -13,7 +13,7 @@ from shardferry.lrs.model_vps import (
     ParallelStrategy,
     ParamSpec,
 )
-from shardferry.lrs.planning import (
+from aevrel.lrs.planning import (
     CostMatrix,
     coalesce_flat_copies,
     coalesce_model_copies,

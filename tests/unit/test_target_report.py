@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from shardferry.verification.target_report import (
+from aevrel.verification.target_report import (
     TargetReadyReport,
     TargetReportError,
     environment_rank,
@@ -148,9 +148,9 @@ def test_target_report_cli(tmp_path: Path) -> None:
     env.update(
         {
             "PYTHONPATH": str(ROOT / "src"),
-            "SHARDFERRY_REPORT_PATH": str(path),
-            "SHARDFERRY_MIGRATION_UID": "default/job42",
-            "SHARDFERRY_VERSION": "step-100",
+            "AEVREL_REPORT_PATH": str(path),
+            "AEVREL_MIGRATION_UID": "default/job42",
+            "AEVREL_VERSION": "step-100",
             "JOB_COMPLETION_INDEX": "2",
         }
     )
@@ -158,7 +158,7 @@ def test_target_report_cli(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "shardferry.commands.target_report",
+            "aevrel.commands.target_report",
             "--model-loaded",
             "--optimizer-loaded",
             "--steps-ran",

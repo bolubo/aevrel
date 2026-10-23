@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from hypothesis import given, settings, strategies as st
 
-from shardferry.planning import plan, validate_plan
+from aevrel.planning import plan, validate_plan
 from tests.fixtures.generated import generate_sharded_spec
 from tests.oracle.reference import (
     assert_bitwise_equal,

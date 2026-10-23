@@ -7,9 +7,9 @@ from pathlib import Path
 
 import yaml
 
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.verification import verify
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.verification import verify
 
 
 GIB = 1024**3

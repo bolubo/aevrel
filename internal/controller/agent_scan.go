@@ -16,7 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 const maxAgentCheckpointResponseBytes int64 = 16 * 1024 * 1024
@@ -70,7 +70,7 @@ type checkpointAgentObservation struct {
 
 func (r *CheckpointReadinessReconciler) discoverAgent(
 	ctx context.Context,
-	record *shardferryv1.CheckpointRecord,
+	record *aevrelv1.CheckpointRecord,
 ) error {
 	if record.Spec.AgentEndpoint != "" && record.Spec.AgentSelector != nil {
 		return fmt.Errorf("agentEndpoint and agentSelector are mutually exclusive")
@@ -102,7 +102,7 @@ func (r *CheckpointReadinessReconciler) discoverAgent(
 
 func (r *CheckpointReadinessReconciler) checkpointAgentEndpoints(
 	ctx context.Context,
-	record *shardferryv1.CheckpointRecord,
+	record *aevrelv1.CheckpointRecord,
 ) ([]string, error) {
 	if endpoint := strings.TrimSpace(record.Spec.AgentEndpoint); endpoint != "" {
 		return []string{strings.TrimRight(endpoint, "/")}, nil
@@ -130,7 +130,7 @@ func (r *CheckpointReadinessReconciler) checkpointAgentEndpoints(
 
 func (r *CheckpointReadinessReconciler) checkpointAgentToken(
 	ctx context.Context,
-	record *shardferryv1.CheckpointRecord,
+	record *aevrelv1.CheckpointRecord,
 ) (string, error) {
 	token := r.AgentToken
 	if record.Spec.AgentSecretRef == nil {
@@ -161,7 +161,7 @@ func (r *CheckpointReadinessReconciler) checkpointAgentToken(
 
 func (r *CheckpointReadinessReconciler) queryCheckpointAgent(
 	ctx context.Context,
-	record *shardferryv1.CheckpointRecord,
+	record *aevrelv1.CheckpointRecord,
 	endpoint string,
 	token string,
 ) (agentCheckpointFact, error) {
@@ -219,16 +219,16 @@ func (r *CheckpointReadinessReconciler) queryCheckpointAgent(
 }
 
 func applyAgentCheckpointFacts(
-	record *shardferryv1.CheckpointRecord,
+	record *aevrelv1.CheckpointRecord,
 	observations []checkpointAgentObservation,
 ) error {
 	if len(observations) == 0 {
 		return fmt.Errorf("no checkpoint agent observations")
 	}
-	reasons := make(map[string]shardferryv1.ControlReason)
+	reasons := make(map[string]aevrelv1.ControlReason)
 	addReason := func(code, detail string) {
 		key := code + "\x00" + detail
-		reasons[key] = shardferryv1.ControlReason{Code: code, Detail: detail}
+		reasons[key] = aevrelv1.ControlReason{Code: code, Detail: detail}
 	}
 
 	metadataDigest := ""
@@ -236,7 +236,7 @@ func applyAgentCheckpointFacts(
 	formatVersion := record.Spec.FormatVersion
 	latest := time.Time{}
 	latestText := ""
-	ranks := make(map[int32]map[string]shardferryv1.CheckpointShardStatus)
+	ranks := make(map[int32]map[string]aevrelv1.CheckpointShardStatus)
 	agentReasons := make([]agentReasonFact, 0)
 
 	for _, observation := range observations {
@@ -331,7 +331,7 @@ func applyAgentCheckpointFacts(
 			}
 			if ranks[rank.Rank] == nil {
 				ranks[rank.Rank] = make(
-					map[string]shardferryv1.CheckpointShardStatus,
+					map[string]aevrelv1.CheckpointShardStatus,
 				)
 			}
 			for _, shard := range rank.Shards {
@@ -359,7 +359,7 @@ func applyAgentCheckpointFacts(
 					)
 					continue
 				}
-				converted := shardferryv1.CheckpointShardStatus{
+				converted := aevrelv1.CheckpointShardStatus{
 					Name:         shard.Name,
 					RelativePath: relativePath,
 					Rank:         shard.Rank,
@@ -390,7 +390,7 @@ func applyAgentCheckpointFacts(
 		}
 	}
 
-	resultRanks := make([]shardferryv1.CheckpointRankStatus, 0, len(ranks))
+	resultRanks := make([]aevrelv1.CheckpointRankStatus, 0, len(ranks))
 	for rank := int32(0); rank < record.Spec.SourceWorldSize; rank++ {
 		shardsByPath, ok := ranks[rank]
 		if !ok {
@@ -398,7 +398,7 @@ func applyAgentCheckpointFacts(
 			continue
 		}
 		shards := make(
-			[]shardferryv1.CheckpointShardStatus,
+			[]aevrelv1.CheckpointShardStatus,
 			0,
 			len(shardsByPath),
 		)
@@ -416,14 +416,14 @@ func applyAgentCheckpointFacts(
 		if len(shards) == 0 {
 			addReason("SHARD_MISSING", fmt.Sprintf("rank %d has no shards", rank))
 		}
-		resultRanks = append(resultRanks, shardferryv1.CheckpointRankStatus{
+		resultRanks = append(resultRanks, aevrelv1.CheckpointRankStatus{
 			Rank:   rank,
 			Shards: shards,
 			Bytes:  bytes,
 		})
 	}
 
-	resultReasons := make([]shardferryv1.ControlReason, 0, len(reasons))
+	resultReasons := make([]aevrelv1.ControlReason, 0, len(reasons))
 	for _, reason := range reasons {
 		resultReasons = append(resultReasons, reason)
 	}
@@ -444,7 +444,7 @@ func applyAgentCheckpointFacts(
 
 func carryAgentReason(
 	reason agentReasonFact,
-	merged map[int32]map[string]shardferryv1.CheckpointShardStatus,
+	merged map[int32]map[string]aevrelv1.CheckpointShardStatus,
 ) bool {
 	switch reason.Code {
 	case "RANK_MISSING":

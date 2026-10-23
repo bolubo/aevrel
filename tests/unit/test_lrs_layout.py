@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from shardferry.lrs.layout import (
+from aevrel.lrs.layout import (
     LayoutError,
     Partial,
     Replicate,

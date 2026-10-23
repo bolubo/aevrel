@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/restore-drill-v1.json",
-  "title": "ShardferryRestoreDrill",
+  "$id": "https://aevrel.dev/schemas/restore-drill-v1.json",
+  "title": "AevrelRestoreDrill",
   "type": "object",
   "additionalProperties": false,
   "required": [

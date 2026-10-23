@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/shardferry/shardferry/internal/kueueadapter"
+	"github.com/bolubo/aevrel/internal/kueueadapter"
 )
 
 func TestExecuteKueueStatusAndExplain(t *testing.T) {

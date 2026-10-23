@@ -16,12 +16,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestApplyAgentCheckpointFactsMerges128Ranks(t *testing.T) {
-	record := &shardferryv1.CheckpointRecord{
-		Spec: shardferryv1.CheckpointRecordSpec{
+	record := &aevrelv1.CheckpointRecord{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
@@ -76,8 +76,8 @@ func TestApplyAgentCheckpointFactsMerges128Ranks(t *testing.T) {
 }
 
 func TestApplyAgentCheckpointFactsFailsClosedOnConflicts(t *testing.T) {
-	record := &shardferryv1.CheckpointRecord{
-		Spec: shardferryv1.CheckpointRecordSpec{
+	record := &aevrelv1.CheckpointRecord{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
@@ -138,23 +138,23 @@ func TestCheckpointReadinessReconcilerUsesAgentSelector(t *testing.T) {
 	port := int32(listener.Addr().(*net.TCPAddr).Port)
 
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
 			FormatVersion:   "1.0.0",
 			Checkpoint:      "/checkpoints/job42",
 			SourceWorldSize: 2,
-			AgentSelector: &shardferryv1.AgentSelector{
-				MatchLabels: map[string]string{"app": "shardferry-agent"},
+			AgentSelector: &aevrelv1.AgentSelector{
+				MatchLabels: map[string]string{"app": "aevrel-agent"},
 				Port:        port,
 				Scheme:      "http",
 			},
@@ -164,7 +164,7 @@ func TestCheckpointReadinessReconcilerUsesAgentSelector(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "agent-a",
 			Namespace: "default",
-			Labels:    map[string]string{"app": "shardferry-agent"},
+			Labels:    map[string]string{"app": "aevrel-agent"},
 		},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
@@ -177,7 +177,7 @@ func TestCheckpointReadinessReconcilerUsesAgentSelector(t *testing.T) {
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointRecord{}).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
 		WithObjects(record, pod).
 		Build()
 	reconciler := &CheckpointReadinessReconciler{
@@ -194,7 +194,7 @@ func TestCheckpointReadinessReconcilerUsesAgentSelector(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.CheckpointRecord
+	var got aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -205,19 +205,19 @@ func TestCheckpointReadinessReconcilerUsesAgentSelector(t *testing.T) {
 	if !got.Status.Complete || len(got.Status.Ranks) != 2 {
 		t.Fatalf("selector facts not merged: %+v", got.Status)
 	}
-	if got.Status.Readiness.Status != shardferryv1.ReadinessUnverified {
+	if got.Status.Readiness.Status != aevrelv1.ReadinessUnverified {
 		t.Fatalf("readiness = %q", got.Status.Readiness.Status)
 	}
 }
 
 func TestCheckpointReadinessReconcilerPreservesFactsWhenAgentUnavailable(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
@@ -226,11 +226,11 @@ func TestCheckpointReadinessReconcilerPreservesFactsWhenAgentUnavailable(t *test
 			SourceWorldSize: 1,
 			AgentEndpoint:   "http://127.0.0.1:1",
 		},
-		Status: shardferryv1.CheckpointRecordStatus{
+		Status: aevrelv1.CheckpointRecordStatus{
 			MetadataDigest: "sha256:last-known",
 			LatestMtime:    "2026-10-22T00:00:00+00:00",
 			Complete:       true,
-			Ranks: []shardferryv1.CheckpointRankStatus{{
+			Ranks: []aevrelv1.CheckpointRankStatus{{
 				Rank:  0,
 				Bytes: 16,
 			}},
@@ -238,7 +238,7 @@ func TestCheckpointReadinessReconcilerPreservesFactsWhenAgentUnavailable(t *test
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointRecord{}).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
 		WithObjects(record).
 		Build()
 	reconciler := &CheckpointReadinessReconciler{
@@ -255,7 +255,7 @@ func TestCheckpointReadinessReconcilerPreservesFactsWhenAgentUnavailable(t *test
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.CheckpointRecord
+	var got aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -268,7 +268,7 @@ func TestCheckpointReadinessReconcilerPreservesFactsWhenAgentUnavailable(t *test
 		!got.Status.Complete {
 		t.Fatalf("last known facts were lost: %+v", got.Status)
 	}
-	if got.Status.Readiness.Status != shardferryv1.ReadinessUnknown {
+	if got.Status.Readiness.Status != aevrelv1.ReadinessUnknown {
 		t.Fatalf("readiness = %q", got.Status.Readiness.Status)
 	}
 	if len(got.Status.Readiness.Reasons) != 1 ||

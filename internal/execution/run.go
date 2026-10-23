@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/shardferry/shardferry/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/agentclient"
 )
 
 type Phase string

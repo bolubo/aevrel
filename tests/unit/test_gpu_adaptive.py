@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import random
 
-from shardferry.gpu_adaptive import AdaptiveRangeCodec
-from shardferry.gpu_codec import IdentityCodec, ZlibCodec, decode_frame
+from aevrel.gpu_adaptive import AdaptiveRangeCodec
+from aevrel.gpu_codec import IdentityCodec, ZlibCodec, decode_frame
 
 
 def test_adaptive_codec_compresses_compressible_range_on_slow_wan() -> None:

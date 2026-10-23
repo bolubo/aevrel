@@ -1,4 +1,4 @@
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: CheckpointMigration
 metadata:
   name: job42-128-to-64
@@ -9,7 +9,7 @@ spec:
     checkpointRoot: /checkpoints
     agentSelector:
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: source
       port: 9443
       scheme: http
@@ -18,7 +18,7 @@ spec:
     rootTemplate: /targets/job42/rank{rank}
     agentSelector:
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: target
       port: 9444
       scheme: http

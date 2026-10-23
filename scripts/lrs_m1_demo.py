@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.lrs import LRSSimulator, Migration, ToyConfig  # noqa: E402
+from aevrel.lrs import LRSSimulator, Migration, ToyConfig  # noqa: E402
 
 
 def _digest(values) -> str:
@@ -70,7 +70,7 @@ def main() -> int:
     evidence.write_text(
         json.dumps(
             {
-                "schema": "shardferry.lrs.m1.proof.v1",
+                "schema": "aevrel.lrs.m1.proof.v1",
                 "config": {
                     "world_size": config.world_size,
                     "shard_size": config.shard_size,

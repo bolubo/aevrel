@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.manifest import ManifestError, load_spec
+from aevrel.manifest import ManifestError, load_spec
 
 
 def test_load_spec_missing_file_raises() -> None:

@@ -11,7 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from shardferry.commands import support_bundle, target_load  # noqa: E402
+from aevrel.commands import support_bundle, target_load  # noqa: E402
 
 
 def test_redact_text_removes_common_credentials() -> None:
@@ -94,9 +94,9 @@ def test_target_load_smoke_loads_generated_dcp(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     pytest.importorskip("torch")
-    from shardferry.dcp import export_dcp
-    from shardferry.executor import apply
-    from shardferry.planning import plan
+    from aevrel.dcp import export_dcp
+    from aevrel.executor import apply
+    from aevrel.planning import plan
     from tests.fixtures.generated import (
         generate_sharded_spec,
         materialize_source_files,
@@ -135,9 +135,9 @@ def test_target_load_smoke_loads_rank_local_dcp(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     pytest.importorskip("torch")
-    from shardferry.dcp import export_dcp_local
-    from shardferry.executor import apply
-    from shardferry.planning import plan
+    from aevrel.dcp import export_dcp_local
+    from aevrel.executor import apply
+    from aevrel.planning import plan
     from tests.fixtures.generated import (
         generate_sharded_spec,
         materialize_source_files,

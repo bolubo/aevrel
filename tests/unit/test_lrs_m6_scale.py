@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.lrs import (
+from aevrel.lrs import (
     CoverageError,
     LRSSimulator,
     Migration,

@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from shardferry.lrs import CoverageError, LrsError, RankPhase
-from shardferry.lrs.tp_pp import (
+from aevrel.lrs import CoverageError, LrsError, RankPhase
+from aevrel.lrs.tp_pp import (
     TPPPBaseline,
     TPPPConfig,
     TPPPSimulator,

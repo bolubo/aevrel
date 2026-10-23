@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/shardferry/shardferry/internal/kueueadapter"
+	"github.com/bolubo/aevrel/internal/kueueadapter"
 )
 
 func executeKueue(
@@ -32,12 +32,12 @@ func executeKueue(
 	switch action {
 	case "status":
 		if len(args) > 1 {
-			return fmt.Errorf("usage: shardferryctl kueue status")
+			return fmt.Errorf("usage: aevrelctl kueue status")
 		}
 		return executeKueueStatus(ctx, kubeClient, namespace, jsonOut, out)
 	case "explain":
 		if len(args) != 2 {
-			return fmt.Errorf("usage: shardferryctl kueue explain NAME")
+			return fmt.Errorf("usage: aevrelctl kueue explain NAME")
 		}
 		return executeKueueExplain(
 			ctx,

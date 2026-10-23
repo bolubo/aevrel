@@ -10,10 +10,10 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/clusterclient"
-	"github.com/shardferry/shardferry/internal/controller"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/clusterclient"
+	"github.com/bolubo/aevrel/internal/controller"
 )
 
 type planOptions struct {
@@ -46,18 +46,18 @@ func executePlan(
 	if err := validateProductMigration(migration); err != nil {
 		return fmt.Errorf("invalid migration: %w", err)
 	}
-	if migration.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit {
+	if migration.Spec.Mode == aevrelv1.MigrationModeLiveRankSplit {
 		return writeLivePlan(out, jsonOut, migration)
 	}
-	token := os.Getenv("SHARDFERRY_AGENT_TOKEN")
+	token := os.Getenv("AEVREL_AGENT_TOKEN")
 	if token == "" {
-		return fmt.Errorf("SHARDFERRY_AGENT_TOKEN is required for plan")
+		return fmt.Errorf("AEVREL_AGENT_TOKEN is required for plan")
 	}
 	agents := agentclient.New(token)
 	clusterAPI := clusterclient.New("")
-	tlsCA := os.Getenv("SHARDFERRY_TLS_CA")
-	tlsCert := os.Getenv("SHARDFERRY_TLS_CERT")
-	tlsKey := os.Getenv("SHARDFERRY_TLS_KEY")
+	tlsCA := os.Getenv("AEVREL_TLS_CA")
+	tlsCert := os.Getenv("AEVREL_TLS_CERT")
+	tlsKey := os.Getenv("AEVREL_TLS_KEY")
 	if tlsCA != "" || tlsCert != "" || tlsKey != "" {
 		agents, err = agentclient.NewWithTLS(token, tlsCA, tlsCert, tlsKey)
 		if err != nil {
@@ -129,7 +129,7 @@ func parsePlan(args []string) (planOptions, error) {
 			options.file = args[index]
 		case "--dry-run":
 			return options, fmt.Errorf(
-				"plan is read-only; use `shardferryctl migrate -f FILE --dry-run` for offline spec validation",
+				"plan is read-only; use `aevrelctl migrate -f FILE --dry-run` for offline spec validation",
 			)
 		case "--max-in-flight":
 			index++
@@ -143,7 +143,7 @@ func parsePlan(args []string) (planOptions, error) {
 			options.maxInFlight = value
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl plan -f migration.yaml [--max-in-flight N]",
+				"usage: aevrelctl plan -f migration.yaml [--max-in-flight N]",
 			)
 		default:
 			return options, fmt.Errorf("unknown plan option: %s", args[index])
@@ -188,7 +188,7 @@ type livePlanSummary struct {
 func writeLivePlan(
 	out io.Writer,
 	jsonOut bool,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) error {
 	live := migration.Spec.Live
 	if live == nil {
@@ -206,7 +206,7 @@ func writeLivePlan(
 	summary := livePlanSummary{
 		Name:           migration.Name,
 		Namespace:      migration.Namespace,
-		Mode:           shardferryv1.MigrationModeLiveRankSplit,
+		Mode:           aevrelv1.MigrationModeLiveRankSplit,
 		HandoffURL:     live.HandoffEndpoint,
 		MaxInFlight:    live.MaxInFlight,
 		StateMode:      live.StateMode,
@@ -234,11 +234,11 @@ func writeLivePlan(
 	}
 	fmt.Fprintln(out, "Prereq:         controller --live-url (token optional)")
 	fmt.Fprintln(out, "Prereq:         executor must implement POST /v1/live/reconcile")
-	if summary.StateMode == shardferryv1.LiveStateModeL4 {
+	if summary.StateMode == aevrelv1.LiveStateModeL4 {
 		fmt.Fprintln(out, "Prereq:         target.validation is required for L4")
 	}
 	fmt.Fprintln(out, "Fallback:       none; switch to mode: static explicitly if live is unavailable")
-	fmt.Fprintln(out, "Next:           shardferryctl preflight -f <file>; shardferryctl migrate -f <file> --wait")
+	fmt.Fprintln(out, "Next:           aevrelctl preflight -f <file>; aevrelctl migrate -f <file> --wait")
 	fmt.Fprintln(out, "Plan:           delegated to live executor (POST /v1/live/reconcile)")
 	return nil
 }

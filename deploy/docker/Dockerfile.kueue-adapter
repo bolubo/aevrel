@@ -13,8 +13,8 @@ COPY api ./api
 COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
-    -o /out/shardferry-kueue-adapter ./cmd/kueue-adapter
+    -o /out/aevrel-kueue-adapter ./cmd/kueue-adapter
 
 FROM ${RUNTIME_IMAGE}
-COPY --from=build /out/shardferry-kueue-adapter /shardferry-kueue-adapter
-ENTRYPOINT ["/shardferry-kueue-adapter"]
+COPY --from=build /out/aevrel-kueue-adapter /aevrel-kueue-adapter
+ENTRYPOINT ["/aevrel-kueue-adapter"]

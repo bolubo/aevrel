@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.lrs.transport import HttpDeltaServer  # noqa: E402
+from aevrel.lrs.transport import HttpDeltaServer  # noqa: E402
 
 
 def main() -> int:

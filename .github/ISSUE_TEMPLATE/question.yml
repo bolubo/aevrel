@@ -1,5 +1,5 @@
 name: Usage question
-description: Ask how to use or operate shardferry
+description: Ask how to use or operate aevrel
 labels: ["question"]
 body:
   - type: textarea

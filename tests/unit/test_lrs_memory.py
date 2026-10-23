@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from shardferry.lrs.memory import (
+from aevrel.lrs.memory import (
     offload_model_and_optimizer,
     onload_model_and_optimizer,
 )

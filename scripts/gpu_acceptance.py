@@ -2,7 +2,7 @@
 """Run the one-shot 4-GPU -> 2-GPU acceptance flow.
 
 This script intentionally does not hide the individual steps: it invokes the
-existing source-save, shardferry migrate, and target-load commands, keeps
+existing source-save, aevrel migrate, and target-load commands, keeps
 their logs, and writes one JSON report. It must be run only on a machine where
 the owner has approved the GPU spend.
 """
@@ -134,7 +134,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Run one 4->2 GPU acceptance flow: source FSDP DCP save, "
-            "shardferry migration, and target FSDP load."
+            "aevrel migration, and target FSDP load."
         )
     )
     parser.add_argument("--work-dir", default=None)
@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     work_dir = (
         Path(args.work_dir).expanduser().resolve()
         if args.work_dir
-        else Path.cwd() / "shardferry-gpu-acceptance"
+        else Path.cwd() / "aevrel-gpu-acceptance"
     )
     if not args.dry_run and work_dir.exists() and any(work_dir.iterdir()):
         print(
@@ -194,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
             [
                 sys.executable,
                 "-m",
-                "shardferry",
+                "aevrel",
                 "migrate",
                 "--checkpoint",
                 str(source),

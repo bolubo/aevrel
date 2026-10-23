@@ -5,20 +5,20 @@ import random
 
 import pytest
 
-from shardferry.agent import AgentApp
-from shardferry.gpu_adaptive import AdaptiveRangeCodec
-from shardferry.gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
-from shardferry.gpu_codec import ZlibCodec
-from shardferry.gpu_transport import (
+from aevrel.agent import AgentApp
+from aevrel.gpu_adaptive import AdaptiveRangeCodec
+from aevrel.gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
+from aevrel.gpu_codec import ZlibCodec
+from aevrel.gpu_transport import (
     RANGE_ENCODING,
     RANGE_ENCODING_HEADER,
     RANGE_RAW_LENGTH_HEADER,
     RangeCodec,
     encode_response,
 )
-from shardferry.storage.file import StorageError
-from shardferry.storage.http import HttpStorage
-from shardferry.storage.router import StorageRouter
+from aevrel.storage.file import StorageError
+from aevrel.storage.http import HttpStorage
+from aevrel.storage.router import StorageRouter
 
 
 def _range_codec() -> RangeCodec:
@@ -134,8 +134,8 @@ def test_http_storage_rejects_encoded_response_without_decoder(
 def test_storage_router_reads_range_codec_from_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("SHARDFERRY_GPU_CODEC", "zlib")
-    monkeypatch.setenv("SHARDFERRY_GPU_CODEC_NETWORK_GBPS", "0.01")
+    monkeypatch.setenv("AEVREL_GPU_CODEC", "zlib")
+    monkeypatch.setenv("AEVREL_GPU_CODEC_NETWORK_GBPS", "0.01")
     router = StorageRouter(source_base="http://source")
 
     assert router.range_codec is not None

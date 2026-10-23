@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/migration-spec-v1.json",
+  "$id": "https://aevrel.dev/schemas/migration-spec-v1.json",
   "title": "MigrationSpec",
   "type": "object",
   "additionalProperties": false,

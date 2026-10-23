@@ -20,8 +20,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/targetready"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/targetready"
 )
 
 const targetReadyPendingRequeue = 2 * time.Second
@@ -49,14 +49,14 @@ func isTargetValidationConfigError(err error) bool {
 
 func (r *Reconciler) reconcileTargetReady(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (ctrl.Result, error) {
-	var latest shardferryv1.CheckpointMigration
+	var latest aevrelv1.CheckpointMigration
 	if err := r.Get(ctx, client.ObjectKeyFromObject(migration), &latest); err != nil {
 		return ctrl.Result{}, err
 	}
-	if latest.Status.Phase == shardferryv1.MigrationPhaseTargetFailed ||
-		latest.Status.Phase == shardferryv1.MigrationPhaseSucceeded {
+	if latest.Status.Phase == aevrelv1.MigrationPhaseTargetFailed ||
+		latest.Status.Phase == aevrelv1.MigrationPhaseSucceeded {
 		return ctrl.Result{}, nil
 	}
 	settings, enabled, err := parseTargetValidationSettings(&latest)
@@ -162,7 +162,7 @@ func (r *Reconciler) reconcileTargetReady(
 	status, err := r.updateTargetReadyStatus(
 		ctx,
 		&latest,
-		func(current *shardferryv1.CheckpointMigration) bool {
+		func(current *aevrelv1.CheckpointMigration) bool {
 			before := current.Status.DeepCopy()
 			target := ensureTargetReadyStatus(current)
 			target.Condition = "Pending"
@@ -172,7 +172,7 @@ func (r *Reconciler) reconcileTargetReady(
 			target.JobName = jobName
 			target.StartedAt = startedAt
 			target.Message = "waiting for target validation Job"
-			current.Status.Phase = shardferryv1.MigrationPhaseTargetValidating
+			current.Status.Phase = aevrelv1.MigrationPhaseTargetValidating
 			meta.SetStatusCondition(&current.Status.Conditions, metav1.Condition{
 				Type:               targetReadyCondition,
 				Status:             metav1.ConditionUnknown,
@@ -277,7 +277,7 @@ func (r *Reconciler) reconcileTargetReady(
 
 func (r *Reconciler) ensureTargetValidationJob(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	settings targetValidationSettings,
 ) (*batchv1.Job, error) {
 	desired, err := renderTargetValidationJob(migration, settings)
@@ -324,15 +324,15 @@ func (r *Reconciler) ensureTargetValidationJob(
 }
 
 func verifyTargetValidationJob(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	job *batchv1.Job,
 	version string,
 ) error {
 	uid := ""
 	jobVersion := ""
 	if job.Annotations != nil {
-		uid = job.Annotations["shardferry.io/migration-uid"]
-		jobVersion = job.Annotations["shardferry.io/target-version"]
+		uid = job.Annotations["aevrel.dev/migration-uid"]
+		jobVersion = job.Annotations["aevrel.dev/target-version"]
 	}
 	if uid != migrationUID(migration) {
 		return fmt.Errorf(
@@ -355,7 +355,7 @@ func verifyTargetValidationJob(
 
 func (r *Reconciler) collectTargetReadyReports(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	jobName string,
 	expectedRanks []int32,
 ) ([]targetready.RankReport, []string, error) {
@@ -563,7 +563,7 @@ func targetValidationJobComplete(job *batchv1.Job) bool {
 }
 
 func targetValidationRanks(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) ([]int32, error) {
 	worldSize := migration.Spec.Target.WorldSize
 	if worldSize <= 0 {
@@ -613,7 +613,7 @@ func targetValidationRanks(
 
 func (r *Reconciler) finishTargetReady(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	settings targetValidationSettings,
 	jobName string,
 	startedAt string,
@@ -670,14 +670,14 @@ func (r *Reconciler) finishTargetReady(
 			proofHash = ref.Hash
 		}
 	}
-	phase := shardferryv1.MigrationPhaseTargetFailed
+	phase := aevrelv1.MigrationPhaseTargetFailed
 	if ready {
-		phase = shardferryv1.MigrationPhaseSucceeded
+		phase = aevrelv1.MigrationPhaseSucceeded
 	}
 	updated, err := r.updateTargetReadyStatus(
 		ctx,
 		migration,
-		func(current *shardferryv1.CheckpointMigration) bool {
+		func(current *aevrelv1.CheckpointMigration) bool {
 			before := current.Status.DeepCopy()
 			now := time.Now().UTC().Format(time.RFC3339)
 			target := ensureTargetReadyStatus(current)
@@ -700,9 +700,9 @@ func (r *Reconciler) finishTargetReady(
 			target.Ranks = targetReadyRankStatuses(evaluation.Reports)
 			current.Status.Phase = phase
 			current.Status.CompletedAt = now
-			if current.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit {
+			if current.Spec.Mode == aevrelv1.MigrationModeLiveRankSplit {
 				if current.Status.Live == nil {
-					current.Status.Live = &shardferryv1.LiveRankSplitStatus{}
+					current.Status.Live = &aevrelv1.LiveRankSplitStatus{}
 				}
 				if ready {
 					current.Status.Live.CutoverPhase = "succeeded"
@@ -748,16 +748,16 @@ func (r *Reconciler) finishTargetReady(
 
 func (r *Reconciler) updateTargetReadyStatus(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
-	mutate func(*shardferryv1.CheckpointMigration) bool,
-) (*shardferryv1.CheckpointMigration, error) {
+	migration *aevrelv1.CheckpointMigration,
+	mutate func(*aevrelv1.CheckpointMigration) bool,
+) (*aevrelv1.CheckpointMigration, error) {
 	key := types.NamespacedName{
 		Namespace: migration.Namespace,
 		Name:      migration.Name,
 	}
-	var result *shardferryv1.CheckpointMigration
+	var result *aevrelv1.CheckpointMigration
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var latest shardferryv1.CheckpointMigration
+		var latest aevrelv1.CheckpointMigration
 		if err := r.Get(ctx, key, &latest); err != nil {
 			return err
 		}
@@ -778,20 +778,20 @@ func (r *Reconciler) updateTargetReadyStatus(
 }
 
 func ensureTargetReadyStatus(
-	migration *shardferryv1.CheckpointMigration,
-) *shardferryv1.TargetReadyStatus {
+	migration *aevrelv1.CheckpointMigration,
+) *aevrelv1.TargetReadyStatus {
 	if migration.Status.TargetReady == nil {
-		migration.Status.TargetReady = &shardferryv1.TargetReadyStatus{}
+		migration.Status.TargetReady = &aevrelv1.TargetReadyStatus{}
 	}
 	return migration.Status.TargetReady
 }
 
 func targetReadyRankStatuses(
 	reports []targetready.RankReport,
-) []shardferryv1.TargetReadyRankStatus {
-	result := make([]shardferryv1.TargetReadyRankStatus, 0, len(reports))
+) []aevrelv1.TargetReadyRankStatus {
+	result := make([]aevrelv1.TargetReadyRankStatus, 0, len(reports))
 	for _, report := range reports {
-		result = append(result, shardferryv1.TargetReadyRankStatus{
+		result = append(result, aevrelv1.TargetReadyRankStatus{
 			Rank:            report.Rank,
 			ModelLoaded:     report.ModelLoaded,
 			OptimizerLoaded: report.OptimizerLoaded,

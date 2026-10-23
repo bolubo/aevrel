@@ -5,7 +5,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from shardferry.contracts import (
+from aevrel.contracts import (
     ERROR_CODES,
     validate_capabilities,
     validate_error,
@@ -36,7 +36,7 @@ def test_capabilities_contract_accepts_agent_features() -> None:
     validate_capabilities(
         {
             "version": "1",
-            "apiVersion": "shardferry.io/v1",
+            "apiVersion": "aevrel.dev/v1",
             "agentVersion": "1.0.0",
             "roles": ["source", "target"],
             "features": ["dcp", "range-read", "bitwise-verify"],

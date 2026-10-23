@@ -8,7 +8,7 @@ import threading
 
 import pytest
 
-from shardferry.cdp import (
+from aevrel.cdp import (
     CDPError,
     CheckpointFollower,
     ChunkingPolicy,
@@ -707,7 +707,7 @@ def test_failed_shadow_publish_does_not_publish_current(tmp_path, monkeypatch) -
     def fail_materialize(*args, **kwargs):
         raise CDPError("injected shadow write failure")
 
-    monkeypatch.setattr("shardferry.cdp.materialize_manifest", fail_materialize)
+    monkeypatch.setattr("aevrel.cdp.materialize_manifest", fail_materialize)
     with pytest.raises(CDPError, match="shadow write failure"):
         target.promote(manifest)
     assert target.current() is None
@@ -737,7 +737,7 @@ def test_failed_shadow_publish_does_not_publish_current(tmp_path, monkeypatch) -
     def fail_materialize(*args, **kwargs):
         raise CDPError("injected shadow write failure")
 
-    monkeypatch.setattr("shardferry.cdp.materialize_manifest", fail_materialize)
+    monkeypatch.setattr("aevrel.cdp.materialize_manifest", fail_materialize)
     with pytest.raises(CDPError, match="shadow write failure"):
         target.promote(manifest)
     assert target.current() is None

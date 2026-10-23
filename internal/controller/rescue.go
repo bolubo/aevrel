@@ -18,8 +18,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/control"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/control"
 )
 
 const rescueDecisionPollInterval = 30 * time.Second
@@ -33,7 +33,7 @@ func (r *RescueDecisionReconciler) Reconcile(
 	ctx context.Context,
 	request ctrl.Request,
 ) (ctrl.Result, error) {
-	var decision shardferryv1.RescueDecision
+	var decision aevrelv1.RescueDecision
 	if err := r.Get(ctx, request.NamespacedName, &decision); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -109,16 +109,16 @@ func (r *RescueDecisionReconciler) Reconcile(
 
 func (r *RescueDecisionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&shardferryv1.RescueDecision{}).
+		For(&aevrelv1.RescueDecision{}).
 		Complete(r)
 }
 
 func (r *RescueDecisionReconciler) rescueReadiness(
 	ctx context.Context,
-	decision *shardferryv1.RescueDecision,
+	decision *aevrelv1.RescueDecision,
 ) (*control.CheckpointReadiness, bool, error) {
 	if decision.Spec.CheckpointRef != "" {
-		var record shardferryv1.CheckpointRecord
+		var record aevrelv1.CheckpointRecord
 		err := r.Get(ctx, client.ObjectKey{
 			Namespace: decision.Namespace,
 			Name:      decision.Spec.CheckpointRef,
@@ -134,7 +134,7 @@ func (r *RescueDecisionReconciler) rescueReadiness(
 	if decision.Spec.WorkloadRef == "" {
 		return nil, false, nil
 	}
-	var records shardferryv1.CheckpointRecordList
+	var records aevrelv1.CheckpointRecordList
 	if err := r.List(
 		ctx,
 		&records,
@@ -142,7 +142,7 @@ func (r *RescueDecisionReconciler) rescueReadiness(
 	); err != nil {
 		return nil, false, err
 	}
-	matches := make([]shardferryv1.CheckpointRecord, 0)
+	matches := make([]aevrelv1.CheckpointRecord, 0)
 	for _, record := range records.Items {
 		if record.Spec.JobRef == decision.Spec.WorkloadRef {
 			matches = append(matches, record)
@@ -162,7 +162,7 @@ func (r *RescueDecisionReconciler) rescueReadiness(
 }
 
 func rescueReadinessFromRecord(
-	record *shardferryv1.CheckpointRecord,
+	record *aevrelv1.CheckpointRecord,
 ) *control.CheckpointReadiness {
 	status := record.Status.Readiness
 	return &control.CheckpointReadiness{
@@ -178,7 +178,7 @@ func rescueReadinessFromRecord(
 
 func (r *RescueDecisionReconciler) writeRescueDecision(
 	ctx context.Context,
-	current *shardferryv1.RescueDecision,
+	current *aevrelv1.RescueDecision,
 	decision control.RescueDecision,
 	found bool,
 ) (ctrl.Result, error) {
@@ -275,22 +275,22 @@ func (r *RescueEventReconciler) Reconcile(
 	checkpointRef := ""
 	annotations := workloadObject.GetAnnotations()
 	if annotations != nil {
-		checkpointRef = annotations["shardferry.io/checkpoint-record"]
+		checkpointRef = annotations["aevrel.dev/checkpoint-record"]
 	}
 	name := rescueDecisionName(&event, workloadName)
-	decision := &shardferryv1.RescueDecision{
+	decision := &aevrelv1.RescueDecision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"shardferry.io/rescue-source": "kubernetes-event",
+				"aevrel.dev/rescue-source": "kubernetes-event",
 			},
 			Annotations: map[string]string{
-				"shardferry.io/source-event": event.Name,
-				"shardferry.io/event-reason": event.Reason,
+				"aevrel.dev/source-event": event.Name,
+				"aevrel.dev/event-reason": event.Reason,
 			},
 		},
-		Spec: shardferryv1.RescueDecisionSpec{
+		Spec: aevrelv1.RescueDecisionSpec{
 			Event:         event.Reason,
 			WorkloadRef:   workloadName,
 			CheckpointRef: checkpointRef,
@@ -352,9 +352,9 @@ func (r *RescueEventReconciler) rescueWorkload(
 					if pod.Annotations == nil {
 						pod.Annotations = map[string]string{}
 					}
-					if ref := job.Annotations["shardferry.io/checkpoint-record"]; ref != "" &&
-						pod.Annotations["shardferry.io/checkpoint-record"] == "" {
-						pod.Annotations["shardferry.io/checkpoint-record"] = ref
+					if ref := job.Annotations["aevrel.dev/checkpoint-record"]; ref != "" &&
+						pod.Annotations["aevrel.dev/checkpoint-record"] == "" {
+						pod.Annotations["aevrel.dev/checkpoint-record"] = ref
 					}
 					return job.Name, &pod, nil
 				}
@@ -378,16 +378,16 @@ func rescueOptedIn(object client.Object) bool {
 	if object == nil {
 		return false
 	}
-	if object.GetLabels()["shardferry.io/rescue"] == "enabled" {
+	if object.GetLabels()["aevrel.dev/rescue"] == "enabled" {
 		return true
 	}
 	annotations := object.GetAnnotations()
-	if annotations["shardferry.io/rescue"] == "enabled" ||
-		annotations["shardferry.io/checkpoint-record"] != "" {
+	if annotations["aevrel.dev/rescue"] == "enabled" ||
+		annotations["aevrel.dev/checkpoint-record"] != "" {
 		return true
 	}
 	for _, owner := range object.GetOwnerReferences() {
-		if owner.APIVersion == shardferryv1.GroupVersion.String() &&
+		if owner.APIVersion == aevrelv1.GroupVersion.String() &&
 			owner.Kind == "CheckpointMigration" {
 			return true
 		}

@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 from jsonschema import Draft202012Validator
 
-from shardferry.manifest import load_spec
-from shardferry.planning import PlannerError, plan, validate_plan
+from aevrel.manifest import load_spec
+from aevrel.planning import PlannerError, plan, validate_plan
 from tests.fixtures.generated import (
     checksum,
     generate_partial_source_spec,

@@ -12,27 +12,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/targetready"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/targetready"
 )
 
 func TestValidateMigrationMode(t *testing.T) {
 	tests := []struct {
 		name    string
-		mutate  func(*shardferryv1.CheckpointMigrationSpec)
+		mutate  func(*aevrelv1.CheckpointMigrationSpec)
 		wantErr string
 	}{
 		{
 			name: "static defaults when mode is empty",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Mode = ""
 				spec.Live = nil
 			},
 		},
 		{
 			name: "accepts L3 without target validation",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
-				spec.Live.StateMode = shardferryv1.LiveStateModeL3
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
+				spec.Live.StateMode = aevrelv1.LiveStateModeL3
 				spec.Live.Cutover.RequireStateComplete = boolPointer(false)
 				spec.Target.Validation = nil
 			},
@@ -42,28 +42,28 @@ func TestValidateMigrationMode(t *testing.T) {
 		},
 		{
 			name: "rejects live block in static mode",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
-				spec.Mode = shardferryv1.MigrationModeStatic
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
+				spec.Mode = aevrelv1.MigrationModeStatic
 			},
 			wantErr: "live is only valid",
 		},
 		{
 			name: "rejects live mode without live block",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live = nil
 			},
 			wantErr: "live is required",
 		},
 		{
 			name: "rejects unknown mode",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Mode = "teleport"
 			},
 			wantErr: "unsupported migration mode",
 		},
 		{
 			name: "rejects single-rank live split",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Source.WorldSize = 1
 				spec.Target.WorldSize = 1
 			},
@@ -71,91 +71,91 @@ func TestValidateMigrationMode(t *testing.T) {
 		},
 		{
 			name: "rejects world size change",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Target.WorldSize = 3
 			},
 			wantErr: "source.worldSize == target.worldSize",
 		},
 		{
 			name: "rejects zero in-flight ranks",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.MaxInFlight = 0
 			},
 			wantErr: "live.maxInFlight",
 		},
 		{
 			name: "rejects all ranks in flight",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.MaxInFlight = spec.Source.WorldSize
 			},
 			wantErr: "live.maxInFlight",
 		},
 		{
 			name: "rejects invalid state mode",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.StateMode = "L2"
 			},
 			wantErr: "live.stateMode",
 		},
 		{
 			name: "rejects empty state root",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.StateRoot = ""
 			},
 			wantErr: "live.stateRoot",
 		},
 		{
 			name: "rejects empty state providers",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.StateProviders = nil
 			},
 			wantErr: "live.stateProviders",
 		},
 		{
 			name: "rejects negative quorum",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.Cutover.Quorum = -1
 			},
 			wantErr: "quorum is out of range",
 		},
 		{
 			name: "rejects quorum above world size",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.Cutover.Quorum = spec.Source.WorldSize + 1
 			},
 			wantErr: "quorum is out of range",
 		},
 		{
 			name: "rejects minority quorum",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.Cutover.Quorum = 2
 			},
 			wantErr: "quorum must be at least",
 		},
 		{
 			name: "L4 requires target validation",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Target.Validation = nil
 			},
 			wantErr: "requires target.validation",
 		},
 		{
 			name: "rejects negative rank plan dimensions",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.RankPlan.TP = -1
 			},
 			wantErr: "tp/pp",
 		},
 		{
 			name: "rejects duplicate rank plan rank",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.RankPlan.Ranks = []int32{0, 1, 1}
 			},
 			wantErr: "duplicated",
 		},
 		{
 			name: "rejects out-of-range rank plan rank",
-			mutate: func(spec *shardferryv1.CheckpointMigrationSpec) {
+			mutate: func(spec *aevrelv1.CheckpointMigrationSpec) {
 				spec.Live.RankPlan.Ranks = []int32{0, 4}
 			},
 			wantErr: "out of range",
@@ -189,26 +189,26 @@ func TestValidateMigrationMode(t *testing.T) {
 func TestLiveRequiresState(t *testing.T) {
 	tests := []struct {
 		name   string
-		mutate func(*shardferryv1.CheckpointMigration)
+		mutate func(*aevrelv1.CheckpointMigration)
 		want   bool
 	}{
 		{
 			name: "static",
-			mutate: func(migration *shardferryv1.CheckpointMigration) {
-				migration.Spec.Mode = shardferryv1.MigrationModeStatic
+			mutate: func(migration *aevrelv1.CheckpointMigration) {
+				migration.Spec.Mode = aevrelv1.MigrationModeStatic
 			},
 		},
 		{
 			name: "L3 does not require state",
-			mutate: func(migration *shardferryv1.CheckpointMigration) {
-				migration.Spec.Live.StateMode = shardferryv1.LiveStateModeL3
+			mutate: func(migration *aevrelv1.CheckpointMigration) {
+				migration.Spec.Live.StateMode = aevrelv1.LiveStateModeL3
 				migration.Spec.Live.Cutover.RequireStateComplete = boolPointer(false)
 			},
 		},
 		{
 			name: "L3 can opt into state",
-			mutate: func(migration *shardferryv1.CheckpointMigration) {
-				migration.Spec.Live.StateMode = shardferryv1.LiveStateModeL3
+			mutate: func(migration *aevrelv1.CheckpointMigration) {
+				migration.Spec.Live.StateMode = aevrelv1.LiveStateModeL3
 				migration.Spec.Live.Cutover.RequireStateComplete = boolPointer(true)
 			},
 			want: true,
@@ -219,14 +219,14 @@ func TestLiveRequiresState(t *testing.T) {
 		},
 		{
 			name: "empty state mode defaults to L4",
-			mutate: func(migration *shardferryv1.CheckpointMigration) {
+			mutate: func(migration *aevrelv1.CheckpointMigration) {
 				migration.Spec.Live.StateMode = ""
 			},
 			want: true,
 		},
 		{
 			name: "missing live block",
-			mutate: func(migration *shardferryv1.CheckpointMigration) {
+			mutate: func(migration *aevrelv1.CheckpointMigration) {
 				migration.Spec.Live = nil
 			},
 		},
@@ -246,13 +246,13 @@ func TestLiveRequiresState(t *testing.T) {
 
 func TestLiveRankSplitFailsClosedWithoutExecutor(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validLiveMigration("missing-executor")
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{Client: kubeClient, Scheme: scheme}
@@ -265,11 +265,11 @@ func TestLiveRankSplitFailsClosedWithoutExecutor(t *testing.T) {
 	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := kubeClient.Get(context.Background(), request.NamespacedName, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Phase != shardferryv1.MigrationPhaseFailed {
+	if got.Status.Phase != aevrelv1.MigrationPhaseFailed {
 		t.Fatalf("phase = %q, want failed", got.Status.Phase)
 	}
 	if got.Status.Live == nil ||
@@ -296,7 +296,7 @@ func TestLiveRankSplitPersistsExecutorProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseTransferring {
+	if got.Status.Phase != aevrelv1.MigrationPhaseTransferring {
 		t.Fatalf("phase = %q, want transferring", got.Status.Phase)
 	}
 	if got.Status.Live == nil ||
@@ -317,7 +317,7 @@ func TestLiveRankSplitPromotesThroughTargetValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseTargetValidating {
+	if got.Status.Phase != aevrelv1.MigrationPhaseTargetValidating {
 		t.Fatalf("phase = %q, want target-validating", got.Status.Phase)
 	}
 	if got.Status.Live == nil ||
@@ -330,7 +330,7 @@ func TestLiveRankSplitPromotesThroughTargetValidation(t *testing.T) {
 
 func TestLiveRankSplitL3CanCompleteWithoutTargetValidation(t *testing.T) {
 	migration := validLiveMigration("l3")
-	migration.Spec.Live.StateMode = shardferryv1.LiveStateModeL3
+	migration.Spec.Live.StateMode = aevrelv1.LiveStateModeL3
 	migration.Spec.Live.Cutover.RequireStateComplete = boolPointer(false)
 	migration.Spec.Target.Validation = nil
 	reconciler, kubeClient, request := liveReconciler(
@@ -342,7 +342,7 @@ func TestLiveRankSplitL3CanCompleteWithoutTargetValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseSucceeded {
+	if got.Status.Phase != aevrelv1.MigrationPhaseSucceeded {
 		t.Fatalf("phase = %q, want succeeded", got.Status.Phase)
 	}
 }
@@ -397,7 +397,7 @@ func TestLiveRankSplitRejectsUnsafeCompletion(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := getMigration(t, kubeClient, migration)
-			if got.Status.Phase != shardferryv1.MigrationPhaseFailed {
+			if got.Status.Phase != aevrelv1.MigrationPhaseFailed {
 				t.Fatalf("phase = %q, want failed", got.Status.Phase)
 			}
 		})
@@ -419,7 +419,7 @@ func TestLiveRankSplitExecutorFailureIsRetryable(t *testing.T) {
 		t.Fatalf("requeue = %s", result.RequeueAfter)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseTransferring {
+	if got.Status.Phase != aevrelv1.MigrationPhaseTransferring {
 		t.Fatalf("phase = %q, want transferring", got.Status.Phase)
 	}
 	if got.Status.Live == nil ||
@@ -439,21 +439,21 @@ func TestFinishTargetReadyEnforcesL4StateClosure(t *testing.T) {
 		{
 			name:          "incomplete state fails closed",
 			stateComplete: false,
-			wantPhase:     shardferryv1.MigrationPhaseTargetFailed,
+			wantPhase:     aevrelv1.MigrationPhaseTargetFailed,
 			wantCondition: "StateIncomplete",
 			wantLivePhase: "failed",
 		},
 		{
 			name:          "complete state succeeds",
 			stateComplete: true,
-			wantPhase:     shardferryv1.MigrationPhaseSucceeded,
+			wantPhase:     aevrelv1.MigrationPhaseSucceeded,
 			wantCondition: "Ready",
 			wantLivePhase: "succeeded",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			migration := validLiveMigration("l4-gate")
-			migration.Status.Phase = shardferryv1.MigrationPhaseTargetValidating
+			migration.Status.Phase = aevrelv1.MigrationPhaseTargetValidating
 			reconciler, kubeClient := targetReadyReconciler(t, migration)
 			settings, enabled, err := parseTargetValidationSettings(migration)
 			if err != nil || !enabled {
@@ -507,25 +507,25 @@ func TestRenderTargetValidationJobInjectsL4StateContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := envMap(job.Spec.Template.Spec.Containers[0].Env)
-	if env["SHARDFERRY_STATE_TEMPLATE"] != "/state/step-100/rank{rank}" {
-		t.Fatalf("state template = %q", env["SHARDFERRY_STATE_TEMPLATE"])
+	if env["AEVREL_STATE_TEMPLATE"] != "/state/step-100/rank{rank}" {
+		t.Fatalf("state template = %q", env["AEVREL_STATE_TEMPLATE"])
 	}
-	if env["SHARDFERRY_STATE_PROVIDERS"] != "python.random,numpy.random" {
-		t.Fatalf("state providers = %q", env["SHARDFERRY_STATE_PROVIDERS"])
+	if env["AEVREL_STATE_PROVIDERS"] != "python.random,numpy.random" {
+		t.Fatalf("state providers = %q", env["AEVREL_STATE_PROVIDERS"])
 	}
-	if env["SHARDFERRY_REQUIRE_STATE"] != "1" {
-		t.Fatalf("require state = %q", env["SHARDFERRY_REQUIRE_STATE"])
+	if env["AEVREL_REQUIRE_STATE"] != "1" {
+		t.Fatalf("require state = %q", env["AEVREL_REQUIRE_STATE"])
 	}
 }
 
 const timeRFC3339 = "2006-01-02T15:04:05Z07:00"
 
-func validLiveMigration(name string) *shardferryv1.CheckpointMigration {
+func validLiveMigration(name string) *aevrelv1.CheckpointMigration {
 	migration := validMigration(name)
-	migration.Spec.Mode = shardferryv1.MigrationModeLiveRankSplit
+	migration.Spec.Mode = aevrelv1.MigrationModeLiveRankSplit
 	migration.Spec.Source.WorldSize = 4
 	migration.Spec.Source.Mesh.Shape = []int32{4}
-	migration.Spec.Source.RankMap = []shardferryv1.RankEndpoint{
+	migration.Spec.Source.RankMap = []aevrelv1.RankEndpoint{
 		{Rank: 0, Endpoint: "https://source-0:9443"},
 		{Rank: 1, Endpoint: "https://source-1:9443"},
 		{Rank: 2, Endpoint: "https://source-2:9443"},
@@ -533,27 +533,27 @@ func validLiveMigration(name string) *shardferryv1.CheckpointMigration {
 	}
 	migration.Spec.Target.WorldSize = 4
 	migration.Spec.Target.Mesh.Shape = []int32{4}
-	migration.Spec.Target.RankMap = []shardferryv1.RankEndpoint{
+	migration.Spec.Target.RankMap = []aevrelv1.RankEndpoint{
 		{Rank: 0, Endpoint: "https://target-0:9443"},
 		{Rank: 1, Endpoint: "https://target-1:9443"},
 		{Rank: 2, Endpoint: "https://target-2:9443"},
 		{Rank: 3, Endpoint: "https://target-3:9443"},
 	}
-	migration.Spec.Target.Validation = &shardferryv1.TargetValidationSpec{
+	migration.Spec.Target.Validation = &aevrelv1.TargetValidationSpec{
 		Version: "step-100",
 		Steps:   10,
 		JobName: "target-validation",
 	}
-	migration.Spec.Live = &shardferryv1.LiveRankSplitSpec{
+	migration.Spec.Live = &aevrelv1.LiveRankSplitSpec{
 		MaxInFlight:    1,
-		StateMode:      shardferryv1.LiveStateModeL4,
+		StateMode:      aevrelv1.LiveStateModeL4,
 		StateRoot:      "/state/step-100/rank{rank}",
 		StateProviders: []string{"python.random", "numpy.random"},
-		Cutover: shardferryv1.LiveCutoverSpec{
+		Cutover: aevrelv1.LiveCutoverSpec{
 			Quorum:               3,
 			RequireStateComplete: boolPointer(true),
 		},
-		RankPlan: &shardferryv1.LiveRankPlanSpec{
+		RankPlan: &aevrelv1.LiveRankPlanSpec{
 			TP:    2,
 			PP:    2,
 			Ranks: []int32{0, 1, 2, 3},
@@ -569,24 +569,24 @@ type fakeLiveExecutor struct {
 
 func (f *fakeLiveExecutor) Observe(
 	context.Context,
-	*shardferryv1.CheckpointMigration,
+	*aevrelv1.CheckpointMigration,
 ) (LiveRankSplitObservation, error) {
 	return f.observation, f.err
 }
 
 func liveReconciler(
 	t *testing.T,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	live LiveRankSplitExecutor,
 ) (*Reconciler, client.Client, ctrl.Request) {
 	t.Helper()
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{

@@ -30,7 +30,7 @@ jobs:
       - run: python scripts/check_repo.py
       - run: python -m pytest -q
       - run: python scripts/check_release.py --json
-      - run: python scripts/acceptance.py --work-dir /tmp/shardferry-acceptance
+      - run: python scripts/acceptance.py --work-dir /tmp/aevrel-acceptance
       - run: python scripts/product_acceptance.py
 
   go:
@@ -57,13 +57,13 @@ jobs:
       - uses: azure/setup-helm@v4
         with:
           version: v3.21.2
-      - run: helm lint deploy/helm/shardferry
-      - run: helm template shardferry deploy/helm/shardferry --include-crds > /tmp/shardferry.yaml
+      - run: helm lint deploy/helm/aevrel
+      - run: helm template aevrel deploy/helm/aevrel --include-crds > /tmp/aevrel.yaml
       - run: >-
-          helm template shardferry deploy/helm/shardferry --include-crds
+          helm template aevrel deploy/helm/aevrel --include-crds
           --set liveWorker.enabled=true
           --set kueueAdapter.enabled=true
-          > /tmp/shardferry-all-components.yaml
+          > /tmp/aevrel-all-components.yaml
 
   docker:
     runs-on: ubuntu-latest
@@ -75,4 +75,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - run: docker build --build-arg BUILDKIT_INLINE_CACHE=1 -f deploy/docker/Dockerfile.${{ matrix.component }} -t shardferry-${{ matrix.component }}:ci .
+      - run: docker build --build-arg BUILDKIT_INLINE_CACHE=1 -f deploy/docker/Dockerfile.${{ matrix.component }} -t aevrel-${{ matrix.component }}:ci .

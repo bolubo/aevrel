@@ -5,8 +5,8 @@ from pathlib import Path
 
 import yaml
 
-from shardferry.cli import main
-from shardferry.doctor import doctor
+from aevrel.cli import main
+from aevrel.doctor import doctor
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

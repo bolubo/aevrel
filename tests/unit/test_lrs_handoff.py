@@ -5,8 +5,8 @@ import threading
 import torch
 from torch import nn
 
-from shardferry.lrs.handoff import HandoffServer, local_ip, send_state
-from shardferry.lrs.state_closure import capture_state
+from aevrel.lrs.handoff import HandoffServer, local_ip, send_state
+from aevrel.lrs.state_closure import capture_state
 
 
 def test_socket_handoff_roundtrip() -> None:

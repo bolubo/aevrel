@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.lrs import (  # noqa: E402
+from aevrel.lrs import (  # noqa: E402
     CoverageError,
     LRSSimulator,
     Migration,
@@ -124,7 +124,7 @@ def main() -> int:
     evidence.write_text(
         json.dumps(
             {
-                "schema": "shardferry.lrs.m4.proof.v1",
+                "schema": "aevrel.lrs.m4.proof.v1",
                 "checks": checks,
                 "full_takeover": {
                     "checks": full_checks,

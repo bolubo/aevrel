@@ -1,14 +1,14 @@
-# shardferry
+# Aevrel
 
-[![CI](https://github.com/bolubo/shardferry/actions/workflows/ci.yml/badge.svg)](https://github.com/bolubo/shardferry/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/bolubo/shardferry?include_prereleases)](https://github.com/bolubo/shardferry/releases)
-[![License](https://img.shields.io/github/license/bolubo/shardferry)](LICENSE)
+[![CI](https://github.com/bolubo/aevrel/actions/workflows/ci.yml/badge.svg)](https://github.com/bolubo/aevrel/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bolubo/aevrel?include_prereleases)](https://github.com/bolubo/aevrel/releases)
+[![License](https://img.shields.io/github/license/bolubo/aevrel)](LICENSE)
 
 **Scheduler-neutral training-state control plane for AI infrastructure.**
 
 Kubernetes and AI schedulers see pods, GPUs, quotas, and priorities. Training
 runtimes see ranks, shards, DeviceMeshes, checkpoint versions, recovery cost,
-and whether a target can actually load the state. shardferry provides the
+and whether a target can actually load the state. Aevrel provides the
 portable state contract between those two worlds.
 
 ```text
@@ -27,13 +27,13 @@ Kueue and Live Rank Split (LRS) are adapters, not alternate sources of truth.
 
 | Capability | Question answered | Main surface |
 |---|---|---|
-| Inventory | Which checkpoint/version exists, and are all ranks/shards present? | `CheckpointRecord`, `shardferry readiness` |
+| Inventory | Which checkpoint/version exists, and are all ranks/shards present? | `CheckpointRecord`, `aevrel readiness` |
 | Readiness | Is it complete, fresh, loadable, and movable? | `CheckpointReadiness` |
 | Verification | Did a real target load and N training steps succeed? | `RestoreDrill`, `restore-drill` |
 | Rescue decision | After preemption/failure, should we restore, restart, migrate, or hold? | `RescueDecision` |
 | Mobility | Can A move to B, and can a different world size/mesh continue training? | `CheckpointMigration` |
 | Proof | Why should an operator or scheduler trust the result? | digest, coverage, load proof, timeline |
-| Integration | How do schedulers and platforms consume the facts? | Kueue adapter, CRDs, `shardferryctl` |
+| Integration | How do schedulers and platforms consume the facts? | Kueue adapter, CRDs, `aevrelctl` |
 
 The project owns the state semantics and safety boundaries. It reuses DCP,
 Kubernetes, storage systems, schedulers, and training frameworks instead of
@@ -61,7 +61,7 @@ environment-specific.
 
 ## Product form
 
-shardferry is not a standalone training platform. It is a control-plane layer
+Aevrel is not a standalone training platform. It is a control-plane layer
 that fits into an existing workflow:
 
 - **Local:** `pip install` plus the CLI/UI for demos and one-off checks.
@@ -77,7 +77,7 @@ truth.
 
 - Python 3.11+ for the local CLI and Python adapters;
 - PyTorch only for DCP commands, installed through the `dcp` extra;
-- Go 1.24+ for the controller, agents, gateway, and `shardferryctl`;
+- Go 1.24+ for the controller, agents, gateway, and `aevrelctl`;
 - Kubernetes and Helm only for the cluster control plane.
 
 ## Install
@@ -91,7 +91,7 @@ python -m pip install -e ".[dev]"
 For the published release, install the wheel from the release assets:
 
 ```bash
-python -m pip install shardferry-0.2.0-py3-none-any.whl
+python -m pip install aevrel-0.2.0-py3-none-any.whl
 ```
 
 ## Quick start
@@ -100,25 +100,25 @@ python -m pip install shardferry-0.2.0-py3-none-any.whl
 python -m pip install -e ".[dev]"
 
 # Dependency-free toy migration
-shardferry demo
+aevrel demo
 
 # Real CPU DCP pair and target-load proof
-shardferry demo --dcp
+aevrel demo --dcp
 
 # Terminal control plane
-shardferry tui
+aevrel tui
 
 # Inspect a checkpoint without modifying it
-shardferry readiness --checkpoint /data/job/source.dcp --target-world 3
+aevrel readiness --checkpoint /data/job/source.dcp --target-world 3
 
 # Static migration to a new world size
-shardferry migrate \
+aevrel migrate \
   --checkpoint /data/job/source.dcp \
   --target-world 3 \
   --output /data/job/target-3rank.dcp
 
 # Rank-local target load proof
-shardferry-target-load \
+aevrel-target-load \
   --checkpoint /data/job/target-3rank.dcp \
   --rank 0 \
   --json
@@ -127,18 +127,18 @@ shardferry-target-load \
 `demo` works without PyTorch. `demo --dcp` additionally requires the `dcp`
 extra and proves source/target DCP load.
 
-`shardferry tui` opens the terminal control plane.
+`aevrel tui` opens the terminal control plane.
 
 ### Real target drill
 
 ```bash
-shardferry restore-drill \
+aevrel restore-drill \
   --checkpoint /data/job/target-3rank.dcp \
   --target-command "python train_resume.py --checkpoint {checkpoint}" \
   --steps 10 \
   --report ./reports/rank0.json
 
-shardferry readiness \
+aevrel readiness \
   --checkpoint /data/job/target-3rank.dcp \
   --drill-report ./reports
 ```
@@ -150,21 +150,21 @@ becomes `READY`.
 ## Kubernetes control plane
 
 ```bash
-go build -o bin/shardferryctl ./cmd/ctl
+go build -o bin/aevrelctl ./cmd/ctl
 export PATH="$PWD/bin:$PATH"
 
 kubectl apply -f examples/checkpoint-control/checkpoint-record-selector.yaml
-shardferryctl readiness training-step-100
+aevrelctl readiness training-step-100
 
 kubectl apply -f examples/checkpoint-control/restore-drill.yaml
 kubectl get sfdrill training-step-100 -w
-shardferryctl readiness training-step-100
+aevrelctl readiness training-step-100
 ```
 
 Without a kubeconfig, use:
 
 ```bash
-shardferryctl migrate -f examples/k8s/migration.yaml --dry-run
+aevrelctl migrate -f examples/k8s/migration.yaml --dry-run
 ```
 
 `preflight`, `plan`, and live control-plane commands require a reachable
@@ -175,7 +175,7 @@ management cluster.
 Collect a redacted support bundle from a Kubernetes deployment:
 
 ```bash
-shardferry-support-bundle --namespace shardferry-control
+aevrel-support-bundle --namespace aevrel-control
 ```
 
 The bundle never collects Secret values by default. See
@@ -202,13 +202,13 @@ The optional `kueueAdapter` consumes checkpoint readiness and publishes
 preemption-protection labels. It never replaces Kueue scheduling.
 
 ```bash
-helm upgrade --install shardferry deploy/helm/shardferry \
+helm upgrade --install aevrel deploy/helm/aevrel \
   --set kueueAdapter.enabled=true \
   --set kueueAdapter.strict=true \
   --set kueueAdapter.createPreemptionConfig=true
 
-shardferryctl kueue status
-shardferryctl kueue explain <workload>
+aevrelctl kueue status
+aevrelctl kueue explain <workload>
 ```
 
 The ClusterQueue must reference the configured PreemptionConfig. See
@@ -216,7 +216,7 @@ The ClusterQueue must reference the configured PreemptionConfig. See
 
 ### Live Rank Split
 
-`shardferry-live-worker` implements the Go live path's
+`aevrel-live-worker` implements the Go live path's
 `POST /v1/live/reconcile` contract with durable tick state and CPU-contract
 proof. GPU collective continuity and real cross-node validation are pending.
 See [LRS worker](docs/LRS-WORKER.zh-CN.md) and
@@ -225,7 +225,7 @@ See [LRS worker](docs/LRS-WORKER.zh-CN.md) and
 ## Repository layout
 
 ```text
-src/shardferry/       Python CLI, DCP adapter, agents, readiness, state, LRS
+src/aevrel/       Python CLI, DCP adapter, agents, readiness, state, LRS
 cmd/                  Go controller, ctl, gateway, kueue-adapter
 internal/             control-plane models, reconcilers, providers, execution
 api/ + config/crd/    CRD types and generated definitions
@@ -246,7 +246,7 @@ docs/                 current product, usage, operator and integration docs
 - [Roadmap](docs/ROADMAP.zh-CN.md)
 - [Usage](docs/USAGE.zh-CN.md)
 - [Support](docs/SUPPORT.zh-CN.md)
-- [Helm installation](deploy/helm/shardferry/README.zh-CN.md)
+- [Helm installation](deploy/helm/aevrel/README.zh-CN.md)
 - [Checkpoint control-plane example](examples/checkpoint-control/README.zh-CN.md)
 - [Release notes](docs/RELEASE-NOTES-0.2.0.md)
 - [Changelog](CHANGELOG.md)
@@ -262,7 +262,7 @@ docs/                 current product, usage, operator and integration docs
 - [Security policy](SECURITY.md)
 - [Release process](RELEASING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Good first issues](https://github.com/bolubo/shardferry/labels/good%20first%20issue)
+- [Good first issues](https://github.com/bolubo/aevrel/labels/good%20first%20issue)
 
 Use GitHub issues for bugs, usage questions, feature requests, and integration
 requests. Do not post secrets or checkpoint contents.
@@ -276,10 +276,10 @@ python -m pytest -q
 go test ./...
 go vet ./...
 go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
-helm lint deploy/helm/shardferry
-helm template shardferry deploy/helm/shardferry --include-crds \
+helm lint deploy/helm/aevrel
+helm template aevrel deploy/helm/aevrel --include-crds \
   --set liveWorker.enabled=true --set kueueAdapter.enabled=true \
-  >/tmp/shardferry-all-components.yaml
+  >/tmp/aevrel-all-components.yaml
 python scripts/product_acceptance.py
 ```
 

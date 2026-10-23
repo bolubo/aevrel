@@ -10,6 +10,6 @@ spec:
     candidateSelectors:
     - scope: AnyClusterQueue
       numericLabels:
-      - key: shardferry.io/preemption-protected
+      - key: aevrel.dev/preemption-protected
         maxValue: 0
         fallbackValue: 1

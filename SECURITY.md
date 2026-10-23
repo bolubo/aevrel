@@ -45,8 +45,8 @@ Examples of in-scope issues include:
 
 ## Deployment boundary
 
-shardferry agents can read source checkpoints and write target checkpoints.
-Run them only on a trusted network, keep `SHARDFERRY_AGENT_TOKEN` in a Secret,
+aevrel agents can read source checkpoints and write target checkpoints.
+Run them only on a trusted network, keep `AEVREL_AGENT_TOKEN` in a Secret,
 and use mTLS when agents cross a network boundary. Do not expose the artifact
 server, gateway, or agent ports directly to the public Internet.
 

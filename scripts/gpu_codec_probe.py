@@ -13,7 +13,7 @@ from typing import Iterator
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.gpu_codec import (  # noqa: E402
+from aevrel.gpu_codec import (  # noqa: E402
     CodecError,
     NvcompCodec,
     decode_frame,
@@ -21,9 +21,9 @@ from shardferry.gpu_codec import (  # noqa: E402
     make_codec,
     nvcomp_status,
 )
-from shardferry.gpu_adaptive import AdaptiveRangeCodec  # noqa: E402
-from shardferry.gpu_batch import AdaptiveBatchCodec  # noqa: E402
-from shardferry.gpu_policy import decide_codec  # noqa: E402
+from aevrel.gpu_adaptive import AdaptiveRangeCodec  # noqa: E402
+from aevrel.gpu_batch import AdaptiveBatchCodec  # noqa: E402
+from aevrel.gpu_policy import decide_codec  # noqa: E402
 
 
 def _pattern_data(pattern: str, size: int, seed: int) -> bytes:
@@ -32,7 +32,7 @@ def _pattern_data(pattern: str, size: int, seed: int) -> bytes:
     if pattern == "zero":
         return bytes(size)
     if pattern == "repeat":
-        seed_bytes = b"shardferry-checkpoint-range"
+        seed_bytes = b"aevrel-checkpoint-range"
         return (seed_bytes * (size // len(seed_bytes) + 1))[:size]
     if pattern == "random":
         return random.Random(seed).randbytes(size)

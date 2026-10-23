@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve shardferry. By participating, you agree to follow
+Thanks for helping improve aevrel. By participating, you agree to follow
 the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Ways to contribute
@@ -11,7 +11,7 @@ the [Code of Conduct](CODE_OF_CONDUCT.md).
 - implement provider, scheduler, or runtime adapters;
 - review changes in an area where you have practical experience.
 
-Start with the [good first issue label](https://github.com/bolubo/shardferry/labels/good%20first%20issue)
+Start with the [good first issue label](https://github.com/bolubo/aevrel/labels/good%20first%20issue)
 for bounded tasks with explicit validation.
 
 Start with an issue for design changes, new providers, scheduler integrations,
@@ -33,7 +33,7 @@ opening an implementation PR first.
 
 ## Scope
 
-shardferry is a scheduler-neutral training-state control plane. Checkpoint
+Aevrel is a scheduler-neutral training-state control plane. Checkpoint
 readiness is the first complete vertical; transfer is one action.
 
 Keep core changes focused on:
@@ -55,7 +55,7 @@ python3 -m venv .venv
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
 go test ./...
-helm lint deploy/helm/shardferry
+helm lint deploy/helm/aevrel
 ```
 
 For real DCP work, install the CPU PyTorch extra:
@@ -82,10 +82,10 @@ python -m pytest -q
 go test ./...
 go vet ./...
 go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
-helm lint deploy/helm/shardferry
-helm template shardferry deploy/helm/shardferry --include-crds \
+helm lint deploy/helm/aevrel
+helm template aevrel deploy/helm/aevrel --include-crds \
   --set liveWorker.enabled=true --set kueueAdapter.enabled=true \
-  >/tmp/shardferry-all-components.yaml
+  >/tmp/aevrel-all-components.yaml
 python scripts/product_acceptance.py
 ```
 

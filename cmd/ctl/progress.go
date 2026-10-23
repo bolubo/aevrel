@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func isTerminalWriter(out io.Writer) bool {
@@ -48,7 +48,7 @@ func progressBar(ratio float64, tty bool, width int) string {
 	return result
 }
 
-func progressBucket(migration *shardferryv1.CheckpointMigration) int {
+func progressBucket(migration *aevrelv1.CheckpointMigration) int {
 	total, done := progressCounts(migration)
 	if total <= 0 {
 		return 0
@@ -56,7 +56,7 @@ func progressBucket(migration *shardferryv1.CheckpointMigration) int {
 	return int(float64(done) / float64(total) * 20)
 }
 
-func progressCounts(migration *shardferryv1.CheckpointMigration) (int, int) {
+func progressCounts(migration *aevrelv1.CheckpointMigration) (int, int) {
 	total := int(migration.Spec.Target.WorldSize)
 	if total < 1 {
 		total = 1
@@ -71,7 +71,7 @@ func progressCounts(migration *shardferryv1.CheckpointMigration) (int, int) {
 	return total, int(migration.Status.Counts.Committed)
 }
 
-func migrationProgressLine(migration *shardferryv1.CheckpointMigration, tty bool) string {
+func migrationProgressLine(migration *aevrelv1.CheckpointMigration, tty bool) string {
 	total, done := progressCounts(migration)
 	ratio := 0.0
 	if total > 0 {

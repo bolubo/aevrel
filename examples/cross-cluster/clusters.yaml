@@ -3,7 +3,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: source-gateway-auth
-  namespace: shardferry-control
+  namespace: aevrel-control
 stringData:
   token: replace-with-source-gateway-token
 ---
@@ -11,15 +11,15 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: target-gateway-auth
-  namespace: shardferry-control
+  namespace: aevrel-control
 stringData:
   token: replace-with-target-gateway-token
 ---
-apiVersion: shardferry.io/v1
-kind: ShardferryCluster
+apiVersion: aevrel.dev/v1
+kind: AevrelCluster
 metadata:
   name: source
-  namespace: shardferry-control
+  namespace: aevrel-control
 spec:
   role: source
   endpoint: https://SOURCE_GATEWAY_HOST:9445
@@ -28,11 +28,11 @@ spec:
     key: token
   description: source training cluster
 ---
-apiVersion: shardferry.io/v1
-kind: ShardferryCluster
+apiVersion: aevrel.dev/v1
+kind: AevrelCluster
 metadata:
   name: target
-  namespace: shardferry-control
+  namespace: aevrel-control
 spec:
   role: target
   endpoint: https://TARGET_GATEWAY_HOST:9445

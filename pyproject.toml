@@ -3,12 +3,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shardferry"
+name = "aevrel"
 version = "0.2.0"
 description = "Scheduler-neutral training-state control plane for AI infrastructure."
 readme = "README.md"
 license = { file = "LICENSE" }
-authors = [{ name = "shardferry contributors" }]
+authors = [{ name = "Aevrel contributors" }]
 keywords = [
   "ai-infrastructure",
   "checkpoint",
@@ -48,18 +48,18 @@ gpu = [
 ]
 
 [project.scripts]
-shardferry = "shardferry.cli:main"
-shardferry-target-load = "shardferry.commands.target_load:main"
-shardferry-target-report = "shardferry.commands.target_report:main"
-shardferry-support-bundle = "shardferry.commands.support_bundle:main"
-shardferry-live-worker = "shardferry.commands.live_worker:main"
+aevrel = "aevrel.cli:main"
+aevrel-target-load = "aevrel.commands.target_load:main"
+aevrel-target-report = "aevrel.commands.target_report:main"
+aevrel-support-bundle = "aevrel.commands.support_bundle:main"
+aevrel-live-worker = "aevrel.commands.live_worker:main"
 
 [project.urls]
-Homepage = "https://github.com/bolubo/shardferry"
-Repository = "https://github.com/bolubo/shardferry"
-Issues = "https://github.com/bolubo/shardferry/issues"
-Documentation = "https://github.com/bolubo/shardferry/blob/main/docs/INDEX.zh-CN.md"
-Changelog = "https://github.com/bolubo/shardferry/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/bolubo/aevrel"
+Repository = "https://github.com/bolubo/aevrel"
+Issues = "https://github.com/bolubo/aevrel/issues"
+Documentation = "https://github.com/bolubo/aevrel/blob/main/docs/INDEX.zh-CN.md"
+Changelog = "https://github.com/bolubo/aevrel/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -70,7 +70,7 @@ markers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/shardferry"]
+packages = ["src/aevrel"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"spec" = "shardferry/spec"
+"spec" = "aevrel/spec"

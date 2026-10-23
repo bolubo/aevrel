@@ -4,13 +4,13 @@ import random
 
 import pytest
 
-from shardferry.gpu_adaptive import AdaptiveRangeCodec
-from shardferry.gpu_batch import (
+from aevrel.gpu_adaptive import AdaptiveRangeCodec
+from aevrel.gpu_batch import (
     AdaptiveBatchCodec,
     BatchCodecError,
     decode_batch,
 )
-from shardferry.gpu_codec import (
+from aevrel.gpu_codec import (
     CodecError,
     IdentityCodec,
     ZlibCodec,

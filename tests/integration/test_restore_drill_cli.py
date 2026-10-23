@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from shardferry.cli import main
+from aevrel.cli import main
 
 
 FIXTURE = (

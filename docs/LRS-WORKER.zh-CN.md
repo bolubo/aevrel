@@ -21,19 +21,19 @@ Go controller 仍是 CR status 的唯一权威；worker 只返回观测，不修
 ## 启动
 
 ```bash
-shardferry-live-worker \
+aevrel-live-worker \
   --listen 0.0.0.0:9460 \
-  --state-dir /var/lib/shardferry/live-worker \
-  --token "$SHARDFERRY_LIVE_TOKEN"
+  --state-dir /var/lib/aevrel/live-worker \
+  --token "$AEVREL_LIVE_TOKEN"
 ```
 
 本地开发可以不设置 token；生产环境应设置 token，并让 controller 使用
 同一个 Secret。Helm：
 
 ```bash
-helm upgrade --install shardferry deploy/helm/shardferry \
+helm upgrade --install aevrel deploy/helm/aevrel \
   --set liveWorker.enabled=true \
-  --set liveWorker.token.existingSecret=shardferry-live-token
+  --set liveWorker.token.existingSecret=aevrel-live-token
 ```
 
 chart 会自动给 controller 注入同 release 的 worker Service URL；也可以

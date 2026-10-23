@@ -26,4 +26,4 @@ e2e/
 *.test
 *.out
 coverage.out
-native/shardferry-fast/target/
+native/aevrel-fast/target/

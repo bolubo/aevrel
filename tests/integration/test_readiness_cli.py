@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.cli import main
-from shardferry.dcp import export_dcp
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.verification import write_target_ready_report
+from aevrel.cli import main
+from aevrel.dcp import export_dcp
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.verification import write_target_ready_report
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

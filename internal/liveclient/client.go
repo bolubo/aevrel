@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/controller"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/controller"
 )
 
 const reconcilePath = "/v1/live/reconcile"
@@ -36,11 +36,11 @@ type migrationRef struct {
 }
 
 type reconcileRequest struct {
-	APIVersion     string                               `json:"apiVersion"`
-	Kind           string                               `json:"kind"`
-	Migration      migrationRef                         `json:"migration"`
-	Spec           shardferryv1.CheckpointMigrationSpec `json:"spec"`
-	PreviousStatus *shardferryv1.LiveRankSplitStatus    `json:"previousStatus,omitempty"`
+	APIVersion     string                           `json:"apiVersion"`
+	Kind           string                           `json:"kind"`
+	Migration      migrationRef                     `json:"migration"`
+	Spec           aevrelv1.CheckpointMigrationSpec `json:"spec"`
+	PreviousStatus *aevrelv1.LiveRankSplitStatus    `json:"previousStatus,omitempty"`
 }
 
 func New(baseURL, token string) *Client {
@@ -72,7 +72,7 @@ func NewWithTLS(
 
 func (c *Client) Observe(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (controller.LiveRankSplitObservation, error) {
 	if migration.Spec.Live == nil {
 		return controller.LiveRankSplitObservation{}, fmt.Errorf(
@@ -89,7 +89,7 @@ func (c *Client) Observe(
 		)
 	}
 	body := reconcileRequest{
-		APIVersion: "shardferry.io/v1",
+		APIVersion: "aevrel.dev/v1",
 		Kind:       "LiveRankSplitReconcile",
 		Migration: migrationRef{
 			Namespace:  migration.Namespace,

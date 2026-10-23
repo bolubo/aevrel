@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import socket
 
-from shardferry.lrs import HttpDeltaServer, run_m3_scenario
-from shardferry.lrs.faults import DroppingProxy
+from aevrel.lrs import HttpDeltaServer, run_m3_scenario
+from aevrel.lrs.faults import DroppingProxy
 
 
 def _local_ip() -> str:

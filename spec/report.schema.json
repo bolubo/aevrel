@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/report-v1.json",
+  "$id": "https://aevrel.dev/schemas/report-v1.json",
   "title": "MigrationReport",
   "type": "object",
   "additionalProperties": false,

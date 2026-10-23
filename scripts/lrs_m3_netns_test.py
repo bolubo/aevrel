@@ -232,7 +232,7 @@ def main() -> int:
             evidence.write_text(
                 json.dumps(
                     {
-                        "schema": "shardferry.lrs.m3.netns.v1",
+                        "schema": "aevrel.lrs.m3.netns.v1",
                         "ok": True,
                         "result": result,
                     },

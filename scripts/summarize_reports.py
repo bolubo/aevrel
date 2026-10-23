@@ -4,9 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
-from shardferry.coordinator import expected_rank_work
-from shardferry.manifest import load_spec
-from shardferry.reports import load_reports, summarize_reports
+from aevrel.coordinator import expected_rank_work
+from aevrel.manifest import load_spec
+from aevrel.reports import load_reports, summarize_reports
 
 
 def main() -> None:

@@ -8,10 +8,10 @@ from urllib.request import Request, urlopen
 
 import yaml
 
-from shardferry.agent import build_agent_server
-from shardferry.agent.executor import LocalArtifactResolver, TargetTaskExecutor
-from shardferry.planning import plan
-from shardferry.verification import verify_proof
+from aevrel.agent import build_agent_server
+from aevrel.agent.executor import LocalArtifactResolver, TargetTaskExecutor
+from aevrel.planning import plan
+from aevrel.verification import verify_proof
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 
 

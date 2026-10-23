@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.adaptive import (
+from aevrel.adaptive import (
     AdaptiveRateController,
     AdaptiveRateRegistry,
     RateLimitTimeout,

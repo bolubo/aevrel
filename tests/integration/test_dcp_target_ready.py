@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.dcp import export_dcp, export_dcp_local
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.verification import DcpTargetReady, TargetReadyError
-from shardferry.target_probe import main as target_probe_main
+from aevrel.dcp import export_dcp, export_dcp_local
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.verification import DcpTargetReady, TargetReadyError
+from aevrel.target_probe import main as target_probe_main
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

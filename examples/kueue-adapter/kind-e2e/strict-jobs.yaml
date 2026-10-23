@@ -6,10 +6,10 @@ metadata:
   labels:
     kueue.x-k8s.io/queue-name: user-queue
   annotations:
-    shardferry.io/preemption-protection: "enabled"
-    shardferry.io/training-progress-percent: "90"
-    shardferry.io/checkpoint-complete: "1"
-    shardferry.io/checkpoint-version: "step-9000"
+    aevrel.dev/preemption-protection: "enabled"
+    aevrel.dev/training-progress-percent: "90"
+    aevrel.dev/checkpoint-complete: "1"
+    aevrel.dev/checkpoint-version: "step-9000"
 spec:
   suspend: true
   backoffLimit: 0
@@ -34,10 +34,10 @@ metadata:
   labels:
     kueue.x-k8s.io/queue-name: user-queue
   annotations:
-    shardferry.io/preemption-protection: "enabled"
-    shardferry.io/training-progress-percent: "10"
-    shardferry.io/checkpoint-complete: "1"
-    shardferry.io/checkpoint-version: "step-1000"
+    aevrel.dev/preemption-protection: "enabled"
+    aevrel.dev/training-progress-percent: "10"
+    aevrel.dev/checkpoint-complete: "1"
+    aevrel.dev/checkpoint-version: "step-1000"
 spec:
   suspend: true
   backoffLimit: 0

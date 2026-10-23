@@ -5,7 +5,7 @@ based on observed work and are always optional.
 
 ## User
 
-- Uses shardferry, reports bugs, asks questions, and proposes use cases.
+- Uses aevrel, reports bugs, asks questions, and proposes use cases.
 - No permission is required to participate in issues.
 
 ## Contributor

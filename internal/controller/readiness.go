@@ -13,8 +13,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/control"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/control"
 )
 
 type CheckpointReadinessReconciler struct {
@@ -28,7 +28,7 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 	ctx context.Context,
 	request ctrl.Request,
 ) (ctrl.Result, error) {
-	var record shardferryv1.CheckpointRecord
+	var record aevrelv1.CheckpointRecord
 	if err := r.Get(ctx, request.NamespacedName, &record); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -37,13 +37,13 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 	}
 	if record.Spec.AgentEndpoint != "" || record.Spec.AgentSelector != nil {
 		if err := r.discoverAgent(ctx, &record); err != nil {
-			record.Status.Readiness.Status = shardferryv1.ReadinessUnknown
+			record.Status.Readiness.Status = aevrelv1.ReadinessUnknown
 			record.Status.Readiness.Complete = false
 			record.Status.Readiness.Fresh = false
 			record.Status.Readiness.Loadable = nil
 			record.Status.Readiness.Movable = nil
 			record.Status.Readiness.ObservedAt = time.Now().UTC().Format(time.RFC3339)
-			record.Status.Readiness.Reasons = []shardferryv1.ControlReason{{
+			record.Status.Readiness.Reasons = []aevrelv1.ControlReason{{
 				Code:   "AGENT_UNREACHABLE",
 				Detail: err.Error(),
 			}}
@@ -93,7 +93,7 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 	before := record.Status.DeepCopy()
 	record.Status.Complete = readiness.Complete
 	record.Status.Fresh = readiness.Fresh
-	record.Status.Readiness = shardferryv1.CheckpointReadinessStatus{
+	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
 		Status:              string(readiness.Status),
 		Complete:            readiness.Complete,
 		Fresh:               readiness.Fresh,
@@ -133,12 +133,12 @@ func (r *CheckpointReadinessReconciler) SetupWithManager(
 	mgr ctrl.Manager,
 ) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&shardferryv1.CheckpointRecord{}).
+		For(&aevrelv1.CheckpointRecord{}).
 		Complete(r)
 }
 
 func controlRanks(
-	ranks []shardferryv1.CheckpointRankStatus,
+	ranks []aevrelv1.CheckpointRankStatus,
 ) []control.RankInventory {
 	result := make([]control.RankInventory, 0, len(ranks))
 	for _, rank := range ranks {
@@ -162,7 +162,7 @@ func controlRanks(
 	return result
 }
 
-func controlReasons(reasons []shardferryv1.ControlReason) []control.Reason {
+func controlReasons(reasons []aevrelv1.ControlReason) []control.Reason {
 	result := make([]control.Reason, 0, len(reasons))
 	for _, reason := range reasons {
 		result = append(result, control.Reason{
@@ -173,10 +173,10 @@ func controlReasons(reasons []shardferryv1.ControlReason) []control.Reason {
 	return result
 }
 
-func apiReasons(reasons []control.Reason) []shardferryv1.ControlReason {
-	result := make([]shardferryv1.ControlReason, 0, len(reasons))
+func apiReasons(reasons []control.Reason) []aevrelv1.ControlReason {
+	result := make([]aevrelv1.ControlReason, 0, len(reasons))
 	for _, reason := range reasons {
-		result = append(result, shardferryv1.ControlReason{
+		result = append(result, aevrelv1.ControlReason{
 			Code:   reason.Code,
 			Detail: reason.Detail,
 		})
@@ -201,7 +201,7 @@ func apiTargetWorld(value *int) *int32 {
 }
 
 func controlDrill(
-	readiness shardferryv1.CheckpointReadinessStatus,
+	readiness aevrelv1.CheckpointReadinessStatus,
 ) *control.DrillOutcome {
 	if readiness.LastDrill == "" || readiness.Loadable == nil {
 		return nil
@@ -218,7 +218,7 @@ func controlDrill(
 }
 
 func controlDrillForRecord(
-	readiness shardferryv1.CheckpointReadinessStatus,
+	readiness aevrelv1.CheckpointReadinessStatus,
 	version string,
 	metadataDigest string,
 ) *control.DrillOutcome {

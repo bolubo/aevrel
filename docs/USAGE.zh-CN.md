@@ -1,4 +1,4 @@
-# shardferry 使用场景与验收口径
+# Aevrel 使用场景与验收口径
 
 日期：2026-10-23
 适用版本：`0.2.0`
@@ -17,7 +17,7 @@
 |---|---|---|
 | 单机、NFS、对象存储挂载后能看到完整 DCP 目录 | 是，三条命令 | 可以，前提是先有可安装包 |
 | 单机 DCP，2D mesh | 是，但需显式传 mesh/placement | 有条件可以 |
-| 128 个节点各自 local disk，没有共享路径 | `shardferryctl migrate + agentSelector` | 已有产品入口，待真实多节点验收 |
+| 128 个节点各自 local disk，没有共享路径 | `aevrelctl migrate + agentSelector` | 已有产品入口，待真实多节点验收 |
 | 训练不停机在线切换 | live-rank-split 契约 + CPU contract worker | 还不能，GPU 和跨机验证未闭环 |
 
 ## 2. 场景 A：一个人恢复一个 DCP checkpoint
@@ -49,7 +49,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -U pip
 pip install -e ".[dcp]"
-shardferry demo
+aevrel demo
 ```
 
 `demo` 成功说明 Python、文件写入、计划执行和 bitwise 校验链路正常。
@@ -57,7 +57,7 @@ shardferry demo
 ### 第二步：只读检查
 
 ```bash
-shardferry doctor \
+aevrel doctor \
   --checkpoint /data/job42/checkpoint \
   --output /data/job42/checkpoint-3rank
 ```
@@ -72,7 +72,7 @@ Ready to migrate.
 [ok  ] dcp-metadata: ...
 [ok  ] dcp-storage: ...
 [ok  ] output: /data/job42/checkpoint-3rank
-[ok  ] work-dir: /data/job42/checkpoint.shardferry
+[ok  ] work-dir: /data/job42/checkpoint.aevrel
 ```
 
 不满意时直接按 `hint` 修，不要先跑迁移。`doctor` 不创建目标目录。
@@ -82,7 +82,7 @@ Ready to migrate.
 1D `Shard(0)` 的常见 FSDP 场景：
 
 ```bash
-shardferry migrate \
+aevrel migrate \
   --checkpoint /data/job42/checkpoint \
   --target-world 3 \
   --output /data/job42/checkpoint-3rank
@@ -91,7 +91,7 @@ shardferry migrate \
 2D mesh：
 
 ```bash
-shardferry migrate \
+aevrel migrate \
   --checkpoint /data/job42/checkpoint \
   --source-mesh-shape 2,2 \
   --source-placements "Shard(0),Shard(1)" \
@@ -103,11 +103,11 @@ shardferry migrate \
 用户会看到：
 
 ```text
-shardferry: reading DCP metadata and indexing local shards
-shardferry: planning 4 -> 3 target ranks
-shardferry: transferring ...
-shardferry: verification passed; writing target DCP
-shardferry: migration complete
+aevrel: reading DCP metadata and indexing local shards
+aevrel: planning 4 -> 3 target ranks
+aevrel: transferring ...
+aevrel: verification passed; writing target DCP
+aevrel: migration complete
 
 Migration complete
   checkpoint:   /data/job42/checkpoint
@@ -116,7 +116,7 @@ Migration complete
   plan:         ... chunks, ...
   moved:        ...
   verification: bitwise passed
-  work dir:     /data/job42/checkpoint.shardferry
+  work dir:     /data/job42/checkpoint.aevrel
 ```
 
 机器调用加 `--json`；不要在 `--json` 里混入进度文本。
@@ -132,7 +132,7 @@ state，再走正常 DCP load。`scripts/gpu_target_load.py` 是一个 4 -> 3 FS
 ### 中断和失败
 
 - 直接重跑同一条命令；work dir 的 journal 会复用已完成节点；
-- 不要先删 `checkpoint.shardferry`；
+- 不要先删 `checkpoint.aevrel`；
 - source、work、output 三者不允许互相包含；
 - 未通过 bitwise 校验，不会产生最终 target DCP。
 
@@ -178,14 +178,14 @@ node-127:/local/ckpt/job42/...
 示意：
 
 ```bash
-kubectl create secret generic shardferry-agent-token \
+kubectl create secret generic aevrel-agent-token \
   --from-literal=token='replace-me'
 
-helm upgrade --install shardferry deploy/helm/shardferry \
-  --set source.checkpointHostPath=/data/shardferry/job42 \
-  --set source.metadataHostPath=/data/shardferry/job42-metadata \
+helm upgrade --install aevrel deploy/helm/aevrel \
+  --set source.checkpointHostPath=/data/aevrel/job42 \
+  --set source.metadataHostPath=/data/aevrel/job42-metadata \
   --set target.enabled=true \
-  --set target.checkpointHostPath=/data/shardferry/target
+  --set target.checkpointHostPath=/data/aevrel/target
 ```
 
 source agent 用 9443，target agent 用 9444，可以同节点共存。
@@ -195,7 +195,7 @@ source agent 用 9443，target agent 用 9444，可以同节点共存。
 用户只写一个短 YAML：
 
 ```yaml
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: CheckpointMigration
 metadata:
   name: job42-128-to-64
@@ -206,23 +206,23 @@ spec:
     checkpointRoot: /checkpoints
     agentSelector:
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: source
   target:
     worldSize: 64
     rootTemplate: /targets/job42/rank{rank}
     agentSelector:
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: target
 ```
 
 先预览，再创建并等待：
 
 ```bash
-shardferryctl migrate -f migration.yaml --dry-run
-shardferryctl preflight -f migration.yaml
-shardferryctl migrate -f migration.yaml --wait
+aevrelctl migrate -f migration.yaml --dry-run
+aevrelctl preflight -f migration.yaml
+aevrelctl migrate -f migration.yaml --wait
 ```
 
 `preflight` 会连接集群，按 selector 查 Pod、调用 source agent 的
@@ -285,7 +285,7 @@ step，不能把“文件已到 target”当作成功。
 
 按“一个人处理真实 128 卡 local-disk 集群”看：
 
-- selector、rank 发现、rankMap 自动生成和 `shardferryctl migrate --wait` 已补齐；
+- selector、rank 发现、rankMap 自动生成和 `aevrelctl migrate --wait` 已补齐；
 - Dockerfile/Helm 入口已补齐；metadata 可由 `metadataOwnerRank` 通过
   source-agent metadata transfer 分发，不再要求所有 source 节点共享目录；
   公开发布镜像和真实多节点验收仍未完成；

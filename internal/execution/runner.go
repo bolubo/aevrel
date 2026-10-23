@@ -10,8 +10,8 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/artifactstore"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/artifactstore"
 )
 
 type TaskClient interface {

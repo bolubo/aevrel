@@ -8,8 +8,8 @@ from urllib.request import Request, urlopen
 
 import yaml
 
-from shardferry.agent import build_agent_server
-from shardferry.contracts import validate_inventory
+from aevrel.agent import build_agent_server
+from aevrel.contracts import validate_inventory
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

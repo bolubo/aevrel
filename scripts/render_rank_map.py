@@ -8,7 +8,7 @@ import yaml
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--service", default="shardferry-source")
+    parser.add_argument("--service", default="aevrel-source")
     parser.add_argument("--namespace", default="default")
     parser.add_argument("--world-size", type=int, required=True)
     parser.add_argument("--port", type=int, default=9000)

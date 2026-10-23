@@ -1,26 +1,26 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: shardferry-target
+  name: aevrel-target
 spec:
-  serviceName: shardferry-target
+  serviceName: aevrel-target
   replicas: 3
   selector:
     matchLabels:
-      app: shardferry-target
+      app: aevrel-target
   template:
     metadata:
       labels:
-        app: shardferry-target
+        app: aevrel-target
     spec:
       containers:
         - name: writer
-          image: ghcr.io/example/shardferry:latest
+          image: ghcr.io/example/aevrel:latest
           command: ["/bin/sh", "-c"]
           args:
             - |
               rank="${HOSTNAME##*-}"
-              exec shardferry apply \
+              exec aevrel apply \
                 --spec /config/client.yaml \
                 --plan /config/plan.json \
                 --target-rank "$rank" \
@@ -33,7 +33,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: shardferry-target-spec
+            name: aevrel-target-spec
   volumeClaimTemplates:
     - metadata:
         name: checkpoint

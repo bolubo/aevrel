@@ -15,15 +15,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/artifactstore"
-	"github.com/shardferry/shardferry/internal/targetready"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/artifactstore"
+	"github.com/bolubo/aevrel/internal/targetready"
 )
 
 func TestRenderTargetValidationJobInjectsContract(t *testing.T) {
 	migration := targetValidationMigration("render")
-	migration.Spec.Target.Validation = &shardferryv1.TargetValidationSpec{
+	migration.Spec.Target.Validation = &aevrelv1.TargetValidationSpec{
 		Version:        "step-100",
 		Steps:          12,
 		TimeoutSeconds: 600,
@@ -49,14 +49,14 @@ func TestRenderTargetValidationJobInjectsContract(t *testing.T) {
 		t.Fatalf("terminationMessagePath = %q", container.TerminationMessagePath)
 	}
 	env := envMap(container.Env)
-	if env["SHARDFERRY_VERSION"] != "step-100" {
-		t.Fatalf("version env = %q", env["SHARDFERRY_VERSION"])
+	if env["AEVREL_VERSION"] != "step-100" {
+		t.Fatalf("version env = %q", env["AEVREL_VERSION"])
 	}
-	if env["SHARDFERRY_VALIDATION_STEPS"] != "12" {
-		t.Fatalf("steps env = %q", env["SHARDFERRY_VALIDATION_STEPS"])
+	if env["AEVREL_VALIDATION_STEPS"] != "12" {
+		t.Fatalf("steps env = %q", env["AEVREL_VALIDATION_STEPS"])
 	}
-	if env["SHARDFERRY_REPORT_PATH"] != targetReadyReportPath {
-		t.Fatalf("report env = %q", env["SHARDFERRY_REPORT_PATH"])
+	if env["AEVREL_REPORT_PATH"] != targetReadyReportPath {
+		t.Fatalf("report env = %q", env["AEVREL_REPORT_PATH"])
 	}
 	if len(job.OwnerReferences) != 0 {
 		t.Fatalf("unexpected owner references without a UID: %+v", job.OwnerReferences)
@@ -76,7 +76,7 @@ func TestReconcileTargetReadySuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseSucceeded {
+	if got.Status.Phase != aevrelv1.MigrationPhaseSucceeded {
 		t.Fatalf("phase = %q, want succeeded", got.Status.Phase)
 	}
 	if got.Status.TargetReady == nil || !got.Status.TargetReady.Ready {
@@ -106,7 +106,7 @@ func TestReconcileTargetReadyFailsClosedOnMissingRank(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseTargetFailed {
+	if got.Status.Phase != aevrelv1.MigrationPhaseTargetFailed {
 		t.Fatalf("phase = %q, want target-failed", got.Status.Phase)
 	}
 	if got.Status.TargetReady == nil ||
@@ -135,7 +135,7 @@ func TestReconcileTargetReadyFailsClosedOnJobFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseTargetFailed {
+	if got.Status.Phase != aevrelv1.MigrationPhaseTargetFailed {
 		t.Fatalf("phase = %q, want target-failed", got.Status.Phase)
 	}
 	if got.Status.TargetReady == nil ||
@@ -154,7 +154,7 @@ func TestReconcileTargetReadySurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := getMigration(t, kubeClient, migration)
-	if first.Status.Phase != shardferryv1.MigrationPhaseTargetValidating {
+	if first.Status.Phase != aevrelv1.MigrationPhaseTargetValidating {
 		t.Fatalf("first phase = %q", first.Status.Phase)
 	}
 
@@ -192,14 +192,14 @@ func TestReconcileTargetReadySurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := getMigration(t, kubeClient, migration)
-	if second.Status.Phase != shardferryv1.MigrationPhaseSucceeded {
+	if second.Status.Phase != aevrelv1.MigrationPhaseSucceeded {
 		t.Fatalf("second phase = %q", second.Status.Phase)
 	}
 }
 
 func TestReconcileCommitStartsTargetValidation(t *testing.T) {
 	migration := validMigration("commit-target-ready")
-	migration.Spec.Target.Validation = &shardferryv1.TargetValidationSpec{
+	migration.Spec.Target.Validation = &aevrelv1.TargetValidationSpec{
 		Version:        "step-100",
 		Steps:          10,
 		TimeoutSeconds: 600,
@@ -217,7 +217,7 @@ func TestReconcileCommitStartsTargetValidation(t *testing.T) {
 		failRank: -1,
 	}
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	if err := corev1.AddToScheme(scheme); err != nil {
@@ -228,7 +228,7 @@ func TestReconcileCommitStartsTargetValidation(t *testing.T) {
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{
@@ -246,7 +246,7 @@ func TestReconcileCommitStartsTargetValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseTargetValidating {
+	if got.Status.Phase != aevrelv1.MigrationPhaseTargetValidating {
 		t.Fatalf("phase = %q, want target-validating", got.Status.Phase)
 	}
 	if got.Status.TargetReady == nil ||
@@ -269,7 +269,7 @@ func TestReconcileCommitStartsTargetValidation(t *testing.T) {
 func TestCancelDuringTargetValidationIsRejected(t *testing.T) {
 	migration := targetValidationMigration("cancel-target-validation")
 	migration.Annotations = map[string]string{
-		"shardferry.io/cancel": "true",
+		"aevrel.dev/cancel": "true",
 	}
 	reconciler, kubeClient := targetReadyReconciler(t, migration)
 	if _, err := reconciler.Reconcile(context.Background(), ctrl.Request{
@@ -278,7 +278,7 @@ func TestCancelDuringTargetValidationIsRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := getMigration(t, kubeClient, migration)
-	if got.Status.Phase != shardferryv1.MigrationPhaseTargetValidating {
+	if got.Status.Phase != aevrelv1.MigrationPhaseTargetValidating {
 		t.Fatalf("phase = %q, want target-validating", got.Status.Phase)
 	}
 	condition := meta.FindStatusCondition(got.Status.Conditions, "Accepted")
@@ -293,7 +293,7 @@ func targetReadyReconciler(
 ) (*Reconciler, client.Client) {
 	t.Helper()
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	if err := corev1.AddToScheme(scheme); err != nil {
@@ -305,7 +305,7 @@ func targetReadyReconciler(
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithStatusSubresource(
-			&shardferryv1.CheckpointMigration{},
+			&aevrelv1.CheckpointMigration{},
 			&batchv1.Job{},
 		)
 	kubeClient = kubeClient.WithObjects(objects...)
@@ -320,10 +320,10 @@ func targetReadyReconciler(
 func getMigration(
 	t *testing.T,
 	kubeClient client.Client,
-	migration *shardferryv1.CheckpointMigration,
-) shardferryv1.CheckpointMigration {
+	migration *aevrelv1.CheckpointMigration,
+) aevrelv1.CheckpointMigration {
 	t.Helper()
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := kubeClient.Get(
 		context.Background(),
 		client.ObjectKeyFromObject(migration),
@@ -334,10 +334,10 @@ func getMigration(
 	return got
 }
 
-func targetValidationMigration(name string) *shardferryv1.CheckpointMigration {
+func targetValidationMigration(name string) *aevrelv1.CheckpointMigration {
 	migration := validMigration(name)
-	migration.Status.Phase = shardferryv1.MigrationPhaseTargetValidating
-	migration.Spec.Target.Validation = &shardferryv1.TargetValidationSpec{
+	migration.Status.Phase = aevrelv1.MigrationPhaseTargetValidating
+	migration.Spec.Target.Validation = &aevrelv1.TargetValidationSpec{
 		Version:        "step-100",
 		Steps:          10,
 		TimeoutSeconds: 600,
@@ -371,7 +371,7 @@ func validationJobTemplate(t *testing.T, worldSize int32) *runtime.RawExtension 
 }
 
 func completedValidationJob(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	name string,
 ) *batchv1.Job {
 	return &batchv1.Job{
@@ -379,8 +379,8 @@ func completedValidationJob(
 			Namespace: migration.Namespace,
 			Name:      name,
 			Annotations: map[string]string{
-				"shardferry.io/migration-uid":  migrationUID(migration),
-				"shardferry.io/target-version": "step-100",
+				"aevrel.dev/migration-uid":  migrationUID(migration),
+				"aevrel.dev/target-version": "step-100",
 			},
 		},
 		Status: batchv1.JobStatus{
@@ -393,7 +393,7 @@ func completedValidationJob(
 }
 
 func validationPod(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	jobName string,
 	rank int32,
 	report targetready.RankReport,
@@ -425,7 +425,7 @@ func validationPod(
 }
 
 func reportFor(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	rank int32,
 	ok bool,
 ) targetready.RankReport {

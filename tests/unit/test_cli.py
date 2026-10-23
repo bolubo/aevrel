@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from shardferry import __version__
-from shardferry.cli import main
-from shardferry.manifest import load_spec
+from aevrel import __version__
+from aevrel.cli import main
+from aevrel.manifest import load_spec
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,
@@ -376,7 +376,7 @@ def test_summarize_cli_requires_plan_and_spec_together(tmp_path, capsys) -> None
 def test_capabilities_cli_is_machine_readable(capsys) -> None:
     assert main(["capabilities", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["apiVersion"] == "shardferry.io/v1"
+    assert payload["apiVersion"] == "aevrel.dev/v1"
     assert "dcp" in payload["features"]
     assert "checkpoint-readiness" in payload["features"]
     assert "restore-drill" in payload["features"]

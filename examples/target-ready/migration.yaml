@@ -1,4 +1,4 @@
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: CheckpointMigration
 metadata:
   name: resume-trainjob
@@ -55,27 +55,27 @@ spec:
                     - |
                       set -eu
                       rank="${JOB_COMPLETION_INDEX:?missing JOB_COMPLETION_INDEX}"
-                      checkpoint="${SHARDFERRY_CHECKPOINT_TEMPLATE//\{rank\}/$rank}"
-                      echo "rank=${rank} checkpoint=${checkpoint} version=${SHARDFERRY_VERSION}"
+                      checkpoint="${AEVREL_CHECKPOINT_TEMPLATE//\{rank\}/$rank}"
+                      echo "rank=${rank} checkpoint=${checkpoint} version=${AEVREL_VERSION}"
 
                       # Replace this with the workload's real resume path.
                       # It must fail non-zero if model or optimizer state cannot load.
                       python train_resume.py \
                         --checkpoint "$checkpoint" \
-                        --world-size "$SHARDFERRY_TARGET_WORLD_SIZE" \
-                        --steps "$SHARDFERRY_VALIDATION_STEPS"
+                        --world-size "$AEVREL_TARGET_WORLD_SIZE" \
+                        --steps "$AEVREL_VALIDATION_STEPS"
 
-                      shardferry-target-report \
+                      aevrel-target-report \
                         --model-loaded \
                         --optimizer-loaded \
-                        --steps-ran "$SHARDFERRY_VALIDATION_STEPS"
+                        --steps-ran "$AEVREL_VALIDATION_STEPS"
                   volumeMounts:
                     - name: target-local
                       mountPath: /targets
               volumes:
                 - name: target-local
                   hostPath:
-                    path: /var/lib/shardferry/target
+                    path: /var/lib/aevrel/target
                     type: Directory
   policy:
     verify: bitwise
@@ -86,4 +86,4 @@ spec:
     sourceChunkCacheBytes: 2147483648
   artifacts:
     store: pvc
-    claimName: shardferry-artifacts
+    claimName: aevrel-artifacts

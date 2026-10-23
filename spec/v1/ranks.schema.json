@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/ranks-v1.json",
-  "title": "ShardferryLocalRanks",
+  "$id": "https://aevrel.dev/schemas/ranks-v1.json",
+  "title": "AevrelLocalRanks",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "ranks"],

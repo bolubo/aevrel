@@ -9,9 +9,9 @@
 - 它只回答一个二元问题：这个训练 workload 现在是否应该被排除出
   **可配置抢占候选集**；
 - 它不计算权重、不替代 priority、不改 quota、不做 admission ordering；
-- 它不修改 Kueue 代码，也不假设 Kueue 会理解 shardferry 的自定义 CRD；
+- 它不修改 Kueue 代码，也不假设 Kueue 会理解 aevrel 的自定义 CRD；
 - 它输出的是 Kueue 现有 `PreemptionConfig.numericLabels` 能消费的整数 label。
-- 默认观测源是 shardferry 的 `CheckpointRecord`；没有 record 时才回退到
+- 默认观测源是 aevrel 的 `CheckpointRecord`；没有 record 时才回退到
   Job/Workload annotations。
 
 更重要的是，它没有硬件门槛。没有 GPU 也能验证 checkpoint 发布、策略决策、
@@ -21,8 +21,8 @@ label 幂等同步和 Kueue 候选过滤。
 
 ```text
 training Job / checkpoint sidecar
-  -> shardferry.io/* checkpoint annotations
-  -> shardferry-kueue-adapter
+  -> aevrel.dev/* checkpoint annotations
+  -> aevrel-kueue-adapter
   -> Workload labels
   -> Kueue PreemptionConfig candidate filter
   -> Kueue remains the scheduler
@@ -37,11 +37,11 @@ adapter 不创建、不删除、不 suspend、不 reprioritize Workload。
 ```yaml
 metadata:
   annotations:
-    shardferry.io/preemption-protection: "enabled"
-    shardferry.io/training-progress-percent: "85"
-    shardferry.io/checkpoint-complete: "1"
-    shardferry.io/checkpoint-version: "step-8500"
-    shardferry.io/checkpoint-age-seconds: "12"
+    aevrel.dev/preemption-protection: "enabled"
+    aevrel.dev/training-progress-percent: "85"
+    aevrel.dev/checkpoint-complete: "1"
+    aevrel.dev/checkpoint-version: "step-8500"
+    aevrel.dev/checkpoint-age-seconds: "12"
 ```
 
 字段：
@@ -55,7 +55,7 @@ metadata:
 | `checkpoint-age-seconds` | 否 | 最近完整 checkpoint 的年龄；当前仅保留 |
 
 annotations 优先，labels 可作 sidecar 的简化回退。
-`shardferry.io/checkpoint-record` 可显式指定 record；没有显式引用时，adapter
+`aevrel.dev/checkpoint-record` 可显式指定 record；没有显式引用时，adapter
 按 Workload 的 owner Job 查找 `CheckpointRecord.spec.jobRef`，多个匹配按
 step/mtime 选最新，完全无法区分时 fail closed。只有 readiness 为 `READY`
 （complete/fresh/loadable）才视为可抢占；未验证、过期或缺失 record 默认
@@ -88,11 +88,11 @@ protect_unknown = true
 adapter 写入 Workload 的 label：
 
 ```text
-shardferry.io/preemption-protected=1|0
-shardferry.io/preemption-reason=...
-shardferry.io/training-progress-percent=...
-shardferry.io/checkpoint-complete=1|0
-shardferry.io/preemption-decision-source=job|workload
+aevrel.dev/preemption-protected=1|0
+aevrel.dev/preemption-reason=...
+aevrel.dev/training-progress-percent=...
+aevrel.dev/checkpoint-complete=1|0
+aevrel.dev/preemption-decision-source=job|workload
 ```
 
 ## Kueue 接入
@@ -114,7 +114,7 @@ featureGates:
 
 ```yaml
 numericLabels:
-- key: shardferry.io/preemption-protected
+- key: aevrel.dev/preemption-protected
   maxValue: 0
   fallbackValue: 1
 ```
@@ -162,11 +162,11 @@ protected 处理，只有 adapter 显式发布 `eligible` 才能成为 victim。
 
 ## 安装与产品入口
 
-推荐通过 shardferry Helm chart 安装 adapter、RBAC 和默认
+推荐通过 aevrel Helm chart 安装 adapter、RBAC 和默认
 `PreemptionConfig`：
 
 ```bash
-helm upgrade --install shardferry deploy/helm/shardferry \
+helm upgrade --install aevrel deploy/helm/aevrel \
   --set kueueAdapter.enabled=true \
   --set kueueAdapter.strict=true \
   --set kueueAdapter.createPreemptionConfig=true
@@ -182,8 +182,8 @@ kubectl annotate clusterqueue <name> \
 用户不需要直接读 Workload YAML：
 
 ```bash
-shardferryctl kueue status
-shardferryctl kueue explain <workload>
+aevrelctl kueue status
+aevrelctl kueue explain <workload>
 ```
 
 输出会给出 `Protected`、`Reason`、progress/checkpoint/source 和 Kueue

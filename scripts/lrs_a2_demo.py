@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import numpy as np  # noqa: E402
 
-from shardferry.lrs import (  # noqa: E402
+from aevrel.lrs import (  # noqa: E402
     CostMatrix,
     FlatBufferLayout,
     FlatBufferSpec,
@@ -118,7 +118,7 @@ def main() -> int:
     }
 
     payload = {
-        "schema": "shardferry.lrs.a2.proof.v1",
+        "schema": "aevrel.lrs.a2.proof.v1",
         "checks": checks,
         "etc_pairing": {
             "costs": [list(row) for row in etc_matrix.costs],

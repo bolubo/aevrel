@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.cdp import (
+from aevrel.cdp import (
     ChunkStore,
     ChunkingPolicy,
     build_manifest_from_paths,
     materialize_manifest,
 )
-from shardferry.native import available, build_manifest_native
+from aevrel.native import available, build_manifest_native
 
 
 def test_native_file_manifest_matches_python(tmp_path) -> None:
     if not available():
-        pytest.skip("shardferry-fast release binary is not built")
+        pytest.skip("aevrel-fast release binary is not built")
     source = tmp_path / "source"
     source.mkdir()
     (source / "a.bin").write_bytes(b"native-data")
@@ -47,7 +47,7 @@ def test_native_file_manifest_matches_python(tmp_path) -> None:
 
 def test_native_cdc_manifest_materializes(tmp_path) -> None:
     if not available():
-        pytest.skip("shardferry-fast release binary is not built")
+        pytest.skip("aevrel-fast release binary is not built")
     source = tmp_path / "source.bin"
     data = bytes(range(256)) * 256
     source.write_bytes(data)

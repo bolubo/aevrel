@@ -1,0 +1,71 @@
+{{- if .Values.liveWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aevrel.fullname" . }}-live-worker
+  labels:
+    {{- include "aevrel.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.liveWorker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "aevrel.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: live-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "aevrel.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: live-worker
+    spec:
+      securityContext:
+        {{- toYaml .Values.liveWorker.securityContext | nindent 8 }}
+      {{- with .Values.liveWorker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.liveWorker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.liveWorker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: live-worker
+          image: "{{ .Values.image.liveWorker }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --listen=0.0.0.0:{{ .Values.liveWorker.servicePort }}
+            - --state-dir=/var/lib/aevrel/live-worker
+          {{- if .Values.liveWorker.token.existingSecret }}
+          env:
+            - name: AEVREL_LIVE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.liveWorker.token.existingSecret }}
+                  key: {{ .Values.liveWorker.token.key }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.liveWorker.servicePort }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          resources:
+            {{- toYaml .Values.liveWorker.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/aevrel/live-worker
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: {{ include "aevrel.fullname" . }}-live-worker
+{{- end }}

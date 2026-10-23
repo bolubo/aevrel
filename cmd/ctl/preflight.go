@@ -12,10 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/clusterclient"
-	"github.com/shardferry/shardferry/internal/controller"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/clusterclient"
+	"github.com/bolubo/aevrel/internal/controller"
 )
 
 func executePreflight(
@@ -43,20 +43,20 @@ func executePreflight(
 	if err := validateProductMigration(migration); err != nil {
 		return fmt.Errorf("invalid migration: %w", err)
 	}
-	liveMode := migration.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit
-	token := os.Getenv("SHARDFERRY_AGENT_TOKEN")
+	liveMode := migration.Spec.Mode == aevrelv1.MigrationModeLiveRankSplit
+	token := os.Getenv("AEVREL_AGENT_TOKEN")
 	needsSourceProbe := migration.Spec.Source.AgentSelector != nil ||
 		migration.Spec.Source.ClusterRef != ""
 	needsTargetProbe := migration.Spec.Target.AgentSelector != nil ||
 		migration.Spec.Target.ClusterRef != ""
 	if token == "" && (needsSourceProbe || needsTargetProbe) {
-		return fmt.Errorf("SHARDFERRY_AGENT_TOKEN is required for preflight")
+		return fmt.Errorf("AEVREL_AGENT_TOKEN is required for preflight")
 	}
 	agents := agentclient.New(token)
 	clusterAPI := clusterclient.New("")
-	tlsCA := os.Getenv("SHARDFERRY_TLS_CA")
-	tlsCert := os.Getenv("SHARDFERRY_TLS_CERT")
-	tlsKey := os.Getenv("SHARDFERRY_TLS_KEY")
+	tlsCA := os.Getenv("AEVREL_TLS_CA")
+	tlsCert := os.Getenv("AEVREL_TLS_CERT")
+	tlsKey := os.Getenv("AEVREL_TLS_KEY")
 	if tlsCA != "" || tlsCert != "" || tlsKey != "" {
 		agents, err = agentclient.NewWithTLS(token, tlsCA, tlsCert, tlsKey)
 		if err != nil {
@@ -195,12 +195,12 @@ func executePreflight(
 	if liveMode {
 		fmt.Fprintln(
 			out,
-			"next: configure controller --live-url, then run `shardferryctl plan -f <file>`",
+			"next: configure controller --live-url, then run `aevrelctl plan -f <file>`",
 		)
 	} else {
 		fmt.Fprintln(
 			out,
-			"next: run `shardferryctl plan -f <file>` and `shardferryctl migrate -f <file> --dry-run`",
+			"next: run `aevrelctl plan -f <file>` and `aevrelctl migrate -f <file> --dry-run`",
 		)
 	}
 	return nil
@@ -215,7 +215,7 @@ func clusterStatus(
 	if ref == "" {
 		return map[string]any{"mode": "local"}
 	}
-	var cluster shardferryv1.ShardferryCluster
+	var cluster aevrelv1.AevrelCluster
 	err := kubeClient.Get(ctx, types.NamespacedName{
 		Namespace: namespace,
 		Name:      ref,
@@ -225,7 +225,7 @@ func clusterStatus(
 			return map[string]any{
 				"name":    ref,
 				"ready":   false,
-				"message": "ShardferryCluster not found",
+				"message": "AevrelCluster not found",
 			}
 		}
 		return map[string]any{
@@ -270,7 +270,7 @@ func parsePreflight(args []string) (preflightOptions, error) {
 			options.maxInFlight = value
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl preflight -f migration.yaml [--max-in-flight N]",
+				"usage: aevrelctl preflight -f migration.yaml [--max-in-flight N]",
 			)
 		default:
 			return options, fmt.Errorf("unknown preflight option: %s", args[index])

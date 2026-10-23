@@ -8,10 +8,10 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from shardferry.agent import build_agent_server
-from shardferry.dcp import export_dcp
-from shardferry.executor import apply
-from shardferry.planning import plan
+from aevrel.agent import build_agent_server
+from aevrel.dcp import export_dcp
+from aevrel.executor import apply
+from aevrel.planning import plan
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

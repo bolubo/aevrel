@@ -15,9 +15,9 @@
 
 不适用：
 
-- source 已经停止：用 `mode: static` 的 `shardferryctl migrate`；
+- source 已经停止：用 `mode: static` 的 `aevrelctl migrate`；
 - 没有 controller `--live-url`；
-- 没有启动 `shardferry-live-worker` 或外部 `POST /v1/live/reconcile`
+- 没有启动 `aevrel-live-worker` 或外部 `POST /v1/live/reconcile`
   执行器；
 - 没有 target-ready 验证能力却要求 L4 状态闭包。
 
@@ -63,7 +63,7 @@ target 容量和可接受的恢复风险设置；必须满足
 ### 3.1 检查 spec 和发现 rank
 
 ```bash
-shardferryctl preflight -f live-rank-split.yaml --json
+aevrelctl preflight -f live-rank-split.yaml --json
 ```
 
 用户应看到 `mode: live-rank-split`、source/target rank 数量，以及
@@ -72,7 +72,7 @@ source/target cluster 状态。这里不启动迁移。
 ### 3.2 预览 live 计划和前置条件
 
 ```bash
-shardferryctl plan -f live-rank-split.yaml
+aevrelctl plan -f live-rank-split.yaml
 ```
 
 输出必须清楚显示：
@@ -91,7 +91,7 @@ Fallback:       none; switch to mode: static explicitly if live is unavailable
 ### 3.3 先 dry-run，不创建资源
 
 ```bash
-shardferryctl migrate -f live-rank-split.yaml --dry-run
+aevrelctl migrate -f live-rank-split.yaml --dry-run
 ```
 
 确认生成的 CR 中 `mode`、`live`、`target.validation` 和 `stateRoot` 正确。
@@ -99,15 +99,15 @@ shardferryctl migrate -f live-rank-split.yaml --dry-run
 ### 3.4 启动并观察
 
 ```bash
-shardferryctl migrate -f live-rank-split.yaml --wait
+aevrelctl migrate -f live-rank-split.yaml --wait
 ```
 
 worker 启动方式：
 
 ```bash
-shardferry-live-worker \
+aevrel-live-worker \
   --listen 0.0.0.0:9460 \
-  --state-dir /var/lib/shardferry/live-worker
+  --state-dir /var/lib/aevrel/live-worker
 ```
 
 Helm 默认关闭 worker；启用后 controller 会自动把它接到同 release 的
@@ -126,7 +126,7 @@ live [██████████░░░░░░░░░░]  50% settled
 ### 3.5 排查和成功确认
 
 ```bash
-shardferryctl describe migration live-rank-split-demo --ranks
+aevrelctl describe migration live-rank-split-demo --ranks
 ```
 
 成功必须同时满足：

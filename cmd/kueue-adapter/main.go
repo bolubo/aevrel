@@ -16,8 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/kueueadapter"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/kueueadapter"
 )
 
 func main() {
@@ -67,8 +67,8 @@ func main() {
 		ctrl.Log.Error(err, "build Kubernetes scheme")
 		os.Exit(1)
 	}
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
-		ctrl.Log.Error(err, "build shardferry scheme")
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
+		ctrl.Log.Error(err, "build aevrel scheme")
 		os.Exit(1)
 	}
 	workloadGVK := schema.GroupVersionKind{
@@ -85,7 +85,7 @@ func main() {
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "shardferry-kueue-adapter.shardferry.io",
+		LeaderElectionID:       "aevrel-kueue-adapter.aevrel.dev",
 	}
 	if namespace != "" {
 		managerOptions.Cache = cache.Options{
@@ -124,7 +124,7 @@ func main() {
 		Source:          observationSourceFor(mgr.GetClient(), observationSource),
 		Projector: kueueadapter.WorkloadLabelProjector{
 			Client:   mgr.GetClient(),
-			Recorder: mgr.GetEventRecorderFor("shardferry-kueue-adapter"),
+			Recorder: mgr.GetEventRecorderFor("aevrel-kueue-adapter"),
 		},
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create Kueue adapter")

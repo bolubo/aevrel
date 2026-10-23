@@ -15,16 +15,16 @@ import numpy as np
 import pytest
 import yaml
 
-from shardferry.executor import apply
-from shardferry.planning.layout import DTYPE_BYTES
-from shardferry.planning import plan
-from shardferry.serve import build_server
-from shardferry.remote import fetch_spec
-from shardferry.storage.file import StorageError
-from shardferry.storage.http import HttpStorage
-from shardferry.storage.router import StorageRouter
-from shardferry.planning.tensor_io import byte_runs
-from shardferry.verification import verify
+from aevrel.executor import apply
+from aevrel.planning.layout import DTYPE_BYTES
+from aevrel.planning import plan
+from aevrel.serve import build_server
+from aevrel.remote import fetch_spec
+from aevrel.storage.file import StorageError
+from aevrel.storage.http import HttpStorage
+from aevrel.storage.router import StorageRouter
+from aevrel.planning.tensor_io import byte_runs
+from aevrel.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,
@@ -182,7 +182,7 @@ def test_serve_cli_process_with_http_client(tmp_path) -> None:
         [
             sys.executable,
             "-m",
-            "shardferry.cli",
+            "aevrel.cli",
             "serve",
             "--manifest",
             str(manifest),

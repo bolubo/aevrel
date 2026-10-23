@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/readiness-v1.json",
-  "title": "ShardferryCheckpointReadiness",
+  "$id": "https://aevrel.dev/schemas/readiness-v1.json",
+  "title": "AevrelCheckpointReadiness",
   "type": "object",
   "additionalProperties": false,
   "required": [

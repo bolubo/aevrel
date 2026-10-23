@@ -15,7 +15,7 @@ from torch.distributed.checkpoint.state_dict import (
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
-from shardferry.verification import write_target_ready_report
+from aevrel.verification import write_target_ready_report
 
 
 class TinyModel(nn.Module):

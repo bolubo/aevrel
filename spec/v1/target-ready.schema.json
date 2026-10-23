@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/v1/target-ready.json",
+  "$id": "https://aevrel.dev/schemas/v1/target-ready.json",
   "title": "TargetReady",
   "oneOf": [
     { "$ref": "#/$defs/rankReport" },

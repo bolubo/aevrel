@@ -7,7 +7,7 @@ import (
 
 var migrationPhaseTransitions = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Namespace: "shardferry",
+		Namespace: "aevrel",
 		Subsystem: "controller",
 		Name:      "migration_phase_transitions_total",
 		Help:      "Number of observed CheckpointMigration phase transitions.",

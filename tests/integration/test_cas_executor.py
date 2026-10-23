@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from shardferry.cas_executor import apply_rank_to_staging
-from shardferry.executor import apply
-from shardferry.planning import plan
+from aevrel.cas_executor import apply_rank_to_staging
+from aevrel.executor import apply
+from aevrel.planning import plan
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 
 

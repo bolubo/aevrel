@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shardferry.lrs import (  # noqa: E402
+from aevrel.lrs import (  # noqa: E402
     DigestMismatchError,
     LRSSimulator,
     Migration,
@@ -97,7 +97,7 @@ def main() -> int:
     evidence.write_text(
         json.dumps(
             {
-                "schema": "shardferry.lrs.rank-state.v1",
+                "schema": "aevrel.lrs.rank-state.v1",
                 "checks": checks,
                 "sampler_digests": {
                     "baseline_rank1": _state_digest(

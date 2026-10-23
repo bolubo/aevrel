@@ -2,7 +2,7 @@
 
 ## Model
 
-shardferry is maintainer-led. The current maintainer and final decision maker
+Aevrel is maintainer-led. The current maintainer and final decision maker
 is listed in [MAINTAINERS.md](MAINTAINERS.md).
 
 The project intentionally keeps governance small until there is a sustained

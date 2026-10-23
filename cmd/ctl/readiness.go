@@ -9,7 +9,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func executeReadiness(
@@ -24,10 +24,10 @@ func executeReadiness(
 		return fmt.Errorf("Kubernetes client is not configured")
 	}
 	if len(args) > 1 {
-		return fmt.Errorf("usage: shardferryctl readiness [NAME]")
+		return fmt.Errorf("usage: aevrelctl readiness [NAME]")
 	}
 	if len(args) == 1 {
-		var record shardferryv1.CheckpointRecord
+		var record aevrelv1.CheckpointRecord
 		if err := kubeClient.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      args[0],
@@ -40,7 +40,7 @@ func executeReadiness(
 		return writeReadiness(out, &record)
 	}
 
-	var records shardferryv1.CheckpointRecordList
+	var records aevrelv1.CheckpointRecordList
 	if err := kubeClient.List(
 		ctx,
 		&records,
@@ -71,7 +71,7 @@ func executeReadiness(
 	return nil
 }
 
-func writeReadiness(out io.Writer, record *shardferryv1.CheckpointRecord) error {
+func writeReadiness(out io.Writer, record *aevrelv1.CheckpointRecord) error {
 	fmt.Fprintf(out, "Name:         %s\n", record.Name)
 	fmt.Fprintf(out, "Namespace:    %s\n", record.Namespace)
 	fmt.Fprintf(out, "Checkpoint:   %s\n", record.Spec.Checkpoint)
@@ -100,7 +100,7 @@ func writeReadiness(out io.Writer, record *shardferryv1.CheckpointRecord) error 
 	for _, reason := range record.Status.Readiness.Reasons {
 		fmt.Fprintf(out, "Reason:       %s: %s\n", reason.Code, reason.Detail)
 	}
-	if record.Status.Readiness.Status != shardferryv1.ReadinessReady {
+	if record.Status.Readiness.Status != aevrelv1.ReadinessReady {
 		fmt.Fprintln(out, "Next: run a restore drill / target load before treating this checkpoint as recoverable")
 	}
 	return nil

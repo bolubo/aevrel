@@ -10,12 +10,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestExecuteRescueCreatesDecision(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
@@ -40,7 +40,7 @@ func TestExecuteRescueCreatesDecision(t *testing.T) {
 	if !strings.Contains(out.String(), "created rescue decision default/training-rescue") {
 		t.Fatalf("output = %q", out.String())
 	}
-	var decision shardferryv1.RescueDecision
+	var decision aevrelv1.RescueDecision
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "training-rescue"},

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/capabilities-v1.json",
-  "title": "ShardferryCapabilities",
+  "$id": "https://aevrel.dev/schemas/capabilities-v1.json",
+  "title": "AevrelCapabilities",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -9,7 +9,7 @@
   ],
   "properties": {
     "version": { "type": "string", "const": "1" },
-    "apiVersion": { "type": "string", "const": "shardferry.io/v1" },
+    "apiVersion": { "type": "string", "const": "aevrel.dev/v1" },
     "agentVersion": { "type": "string", "minLength": 1 },
     "roles": {
       "type": "array",

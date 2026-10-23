@@ -7,7 +7,7 @@ import (
 
 var rankPhaseTransitions = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Namespace: "shardferry",
+		Namespace: "aevrel",
 		Subsystem: "execution",
 		Name:      "rank_phase_transitions_total",
 		Help:      "Number of observed target rank phase transitions.",

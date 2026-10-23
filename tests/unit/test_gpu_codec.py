@@ -5,7 +5,7 @@ import struct
 
 import pytest
 
-from shardferry.gpu_codec import (
+from aevrel.gpu_codec import (
     CodecError,
     IdentityCodec,
     NvcompCodec,
@@ -96,7 +96,7 @@ def test_nvcomp_codec_does_not_claim_gpu_when_cuda_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "shardferry.gpu_codec.nvcomp_status",
+        "aevrel.gpu_codec.nvcomp_status",
         lambda: {
             "importable": True,
             "cuda_available": False,
@@ -114,7 +114,7 @@ def test_nvcomp_codec_can_use_cuda_driver_without_torch_cuda(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "shardferry.gpu_codec.nvcomp_status",
+        "aevrel.gpu_codec.nvcomp_status",
         lambda: {
             "importable": True,
             "cuda_available": False,

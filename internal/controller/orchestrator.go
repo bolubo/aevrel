@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/artifactstore"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/artifactstore"
 )
 
 type AgentAPI interface {
@@ -61,7 +61,7 @@ type DispatchResult struct {
 
 func (o *Orchestrator) Prepare(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (Prepared, error) {
 	if o.Agents == nil {
 		return Prepared{}, fmt.Errorf("agent client is not configured")
@@ -69,7 +69,7 @@ func (o *Orchestrator) Prepare(
 	if err := validateMigration(migration); err != nil {
 		return Prepared{}, err
 	}
-	endpoints := append([]shardferryv1.RankEndpoint(nil), migration.Spec.Source.RankMap...)
+	endpoints := append([]aevrelv1.RankEndpoint(nil), migration.Spec.Source.RankMap...)
 	sort.Slice(endpoints, func(i, j int) bool {
 		return endpoints[i].Rank < endpoints[j].Rank
 	})
@@ -158,7 +158,7 @@ func (o *Orchestrator) Prepare(
 // owner rank and installs it on every unique source agent endpoint.
 func (o *Orchestrator) InstallSourceMetadata(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (string, error) {
 	if o.Agents == nil {
 		return "", fmt.Errorf("agent client is not configured")
@@ -217,7 +217,7 @@ func (o *Orchestrator) InstallSourceMetadata(
 
 func (o *Orchestrator) Dispatch(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	prepared Prepared,
 ) (DispatchResult, error) {
 	if o.Tasks == nil {
@@ -227,7 +227,7 @@ func (o *Orchestrator) Dispatch(
 		return DispatchResult{}, fmt.Errorf("spec/plan artifact refs are required")
 	}
 	endpoints := append(
-		[]shardferryv1.RankEndpoint(nil),
+		[]aevrelv1.RankEndpoint(nil),
 		migration.Spec.Target.RankMap...,
 	)
 	sort.Slice(endpoints, func(i, j int) bool {
@@ -451,7 +451,7 @@ func collectTasks(items []dispatchItem) []agentclient.Task {
 	return tasks
 }
 
-func migrationUID(migration *shardferryv1.CheckpointMigration) string {
+func migrationUID(migration *aevrelv1.CheckpointMigration) string {
 	if migration.UID != "" {
 		return string(migration.UID)
 	}
@@ -503,7 +503,7 @@ func int32Value(value any) int32 {
 }
 
 func buildMigrationSpec(
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	inventories []agentclient.Inventory,
 ) (map[string]any, error) {
 	if len(inventories) == 0 {
@@ -580,7 +580,7 @@ func buildMigrationSpec(
 	}, nil
 }
 
-func meshPayload(worldSize int32, mesh shardferryv1.MeshSpec) map[string]any {
+func meshPayload(worldSize int32, mesh aevrelv1.MeshSpec) map[string]any {
 	return map[string]any{
 		"shape":      mesh.Shape,
 		"world_size": worldSize,

@@ -10,13 +10,13 @@ from urllib.request import Request, urlopen
 import numpy as np
 import pytest
 
-from shardferry.agent import build_agent_server
-from shardferry.dcp import export_dcp, export_dcp_local, inspect_dcp
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.storage.file import FileStorage
-from shardferry.verification import DcpTargetReady
-from shardferry.verification import verify
+from aevrel.agent import build_agent_server
+from aevrel.dcp import export_dcp, export_dcp_local, inspect_dcp
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.storage.file import FileStorage
+from aevrel.verification import DcpTargetReady
+from aevrel.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

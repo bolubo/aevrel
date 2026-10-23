@@ -22,8 +22,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/targetready"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/targetready"
 )
 
 const restoreDrillPollInterval = 2 * time.Second
@@ -38,7 +38,7 @@ func (r *RestoreDrillReconciler) Reconcile(
 	ctx context.Context,
 	request ctrl.Request,
 ) (ctrl.Result, error) {
-	var drill shardferryv1.RestoreDrill
+	var drill aevrelv1.RestoreDrill
 	if err := r.Get(ctx, request.NamespacedName, &drill); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -52,7 +52,7 @@ func (r *RestoreDrillReconciler) Reconcile(
 		return r.finishDrill(ctx, &drill, "Failed", "InvalidSpec", err.Error(), nil)
 	}
 
-	var record shardferryv1.CheckpointRecord
+	var record aevrelv1.CheckpointRecord
 	if err := r.Get(ctx, client.ObjectKey{
 		Namespace: drill.Namespace,
 		Name:      drill.Spec.RecordRef,
@@ -253,12 +253,12 @@ func (r *RestoreDrillReconciler) Reconcile(
 
 func (r *RestoreDrillReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&shardferryv1.RestoreDrill{}).
+		For(&aevrelv1.RestoreDrill{}).
 		Owns(&batchv1.Job{}).
 		Complete(r)
 }
 
-func validateRestoreDrill(drill *shardferryv1.RestoreDrill) error {
+func validateRestoreDrill(drill *aevrelv1.RestoreDrill) error {
 	if strings.TrimSpace(drill.Spec.RecordRef) == "" {
 		return fmt.Errorf("recordRef is required")
 	}
@@ -290,7 +290,7 @@ func validateRestoreDrill(drill *shardferryv1.RestoreDrill) error {
 
 func (r *RestoreDrillReconciler) finishDrill(
 	ctx context.Context,
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 	phase string,
 	reason string,
 	message string,
@@ -310,7 +310,7 @@ func (r *RestoreDrillReconciler) finishDrill(
 
 func (r *RestoreDrillReconciler) finishDrillWithJob(
 	ctx context.Context,
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 	phase string,
 	reason string,
 	message string,
@@ -335,7 +335,7 @@ func (r *RestoreDrillReconciler) finishDrillWithJob(
 
 func (r *RestoreDrillReconciler) setDrillStatus(
 	ctx context.Context,
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 	phase string,
 	reason string,
 	message string,
@@ -356,7 +356,7 @@ func (r *RestoreDrillReconciler) setDrillStatus(
 
 func (r *RestoreDrillReconciler) setDrillStatusWithJob(
 	ctx context.Context,
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 	phase string,
 	reason string,
 	message string,
@@ -418,13 +418,13 @@ func restoreDrillTerminal(phase string) bool {
 
 func (r *RestoreDrillReconciler) reconcileDrillOutcome(
 	ctx context.Context,
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 ) (ctrl.Result, error) {
 	loadable, applies := restoreDrillRecordOutcome(drill)
 	if !applies {
 		return ctrl.Result{}, nil
 	}
-	var record shardferryv1.CheckpointRecord
+	var record aevrelv1.CheckpointRecord
 	if err := r.Get(ctx, client.ObjectKey{
 		Namespace: drill.Namespace,
 		Name:      drill.Spec.RecordRef,
@@ -454,7 +454,7 @@ func (r *RestoreDrillReconciler) reconcileDrillOutcome(
 }
 
 func restoreDrillRecordOutcome(
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 ) (bool, bool) {
 	switch drill.Status.Phase {
 	case "Succeeded":
@@ -483,11 +483,11 @@ func restoreDrillRecordOutcome(
 	}
 }
 
-func restoreDrillJobName(drill *shardferryv1.RestoreDrill) string {
+func restoreDrillJobName(drill *aevrelv1.RestoreDrill) string {
 	return deterministicJobName(drill.Name, "-restore-drill")
 }
 
-func restoreDrillUID(drill *shardferryv1.RestoreDrill) string {
+func restoreDrillUID(drill *aevrelv1.RestoreDrill) string {
 	if drill.UID != "" {
 		return string(drill.UID)
 	}
@@ -497,7 +497,7 @@ func restoreDrillUID(drill *shardferryv1.RestoreDrill) string {
 	return drill.Namespace + "/" + drill.Name
 }
 
-func restoreDrillRef(drill *shardferryv1.RestoreDrill) string {
+func restoreDrillRef(drill *aevrelv1.RestoreDrill) string {
 	if drill.Namespace == "" {
 		return drill.Name
 	}
@@ -518,8 +518,8 @@ func restoreDrillStartedAt(job *batchv1.Job, existing string) string {
 }
 
 func renderRestoreDrillJob(
-	drill *shardferryv1.RestoreDrill,
-	record *shardferryv1.CheckpointRecord,
+	drill *aevrelv1.RestoreDrill,
+	record *aevrelv1.CheckpointRecord,
 	jobName string,
 ) (*batchv1.Job, error) {
 	payload, err := rawExtensionPayloadFor(
@@ -618,19 +618,19 @@ func renderRestoreDrillJob(
 	if job.Labels == nil {
 		job.Labels = map[string]string{}
 	}
-	job.Labels["app.kubernetes.io/managed-by"] = "shardferry"
-	job.Labels["shardferry.io/restore-drill"] = "true"
+	job.Labels["app.kubernetes.io/managed-by"] = "aevrel"
+	job.Labels["aevrel.dev/restore-drill"] = "true"
 	if job.Annotations == nil {
 		job.Annotations = map[string]string{}
 	}
-	job.Annotations["shardferry.io/restore-drill-uid"] = restoreDrillUID(drill)
-	job.Annotations["shardferry.io/checkpoint-record"] = drill.Spec.RecordRef
-	job.Annotations["shardferry.io/target-version"] = drill.Spec.Version
+	job.Annotations["aevrel.dev/restore-drill-uid"] = restoreDrillUID(drill)
+	job.Annotations["aevrel.dev/checkpoint-record"] = drill.Spec.RecordRef
+	job.Annotations["aevrel.dev/target-version"] = drill.Spec.Version
 	if drill.UID != "" {
 		controller := true
 		blockOwnerDeletion := true
 		job.OwnerReferences = []metav1.OwnerReference{{
-			APIVersion:         shardferryv1.GroupVersion.String(),
+			APIVersion:         aevrelv1.GroupVersion.String(),
 			Kind:               "RestoreDrill",
 			Name:               drill.Name,
 			UID:                drill.UID,
@@ -640,32 +640,32 @@ func renderRestoreDrillJob(
 	}
 
 	env := []corev1.EnvVar{
-		{Name: "SHARDFERRY_TARGET_READY", Value: "1"},
-		{Name: "SHARDFERRY_REPORT_SCHEMA_VERSION", Value: targetready.SchemaVersion},
-		{Name: "SHARDFERRY_REPORT_PATH", Value: targetReadyReportPath},
-		{Name: "SHARDFERRY_MIGRATION_UID", Value: restoreDrillUID(drill)},
-		{Name: "SHARDFERRY_VERSION", Value: drill.Spec.Version},
-		{Name: "SHARDFERRY_TARGET_WORLD_SIZE", Value: strconv.Itoa(
+		{Name: "AEVREL_TARGET_READY", Value: "1"},
+		{Name: "AEVREL_REPORT_SCHEMA_VERSION", Value: targetready.SchemaVersion},
+		{Name: "AEVREL_REPORT_PATH", Value: targetReadyReportPath},
+		{Name: "AEVREL_MIGRATION_UID", Value: restoreDrillUID(drill)},
+		{Name: "AEVREL_VERSION", Value: drill.Spec.Version},
+		{Name: "AEVREL_TARGET_WORLD_SIZE", Value: strconv.Itoa(
 			int(drill.Spec.TargetWorldSize),
 		)},
-		{Name: "SHARDFERRY_VALIDATION_STEPS", Value: strconv.Itoa(
+		{Name: "AEVREL_VALIDATION_STEPS", Value: strconv.Itoa(
 			int(drill.Spec.Steps),
 		)},
-		{Name: "SHARDFERRY_CHECKPOINT_TEMPLATE", Value: checkpointTemplate},
+		{Name: "AEVREL_CHECKPOINT_TEMPLATE", Value: checkpointTemplate},
 	}
 	if drill.Spec.StateTemplate != "" {
 		env = append(
 			env,
 			corev1.EnvVar{
-				Name:  "SHARDFERRY_STATE_TEMPLATE",
+				Name:  "AEVREL_STATE_TEMPLATE",
 				Value: drill.Spec.StateTemplate,
 			},
 			corev1.EnvVar{
-				Name:  "SHARDFERRY_STATE_PROVIDERS",
+				Name:  "AEVREL_STATE_PROVIDERS",
 				Value: strings.Join(drill.Spec.StateProviders, ","),
 			},
 			corev1.EnvVar{
-				Name:  "SHARDFERRY_REQUIRE_STATE",
+				Name:  "AEVREL_REQUIRE_STATE",
 				Value: boolEnv(drill.Spec.RequireStateComplete),
 			},
 		)
@@ -680,16 +680,16 @@ func renderRestoreDrillJob(
 }
 
 func verifyManagedRestoreDrillJob(
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 	job *batchv1.Job,
 ) error {
 	uid := ""
 	recordRef := ""
 	version := ""
 	if job.Annotations != nil {
-		uid = job.Annotations["shardferry.io/restore-drill-uid"]
-		recordRef = job.Annotations["shardferry.io/checkpoint-record"]
-		version = job.Annotations["shardferry.io/target-version"]
+		uid = job.Annotations["aevrel.dev/restore-drill-uid"]
+		recordRef = job.Annotations["aevrel.dev/checkpoint-record"]
+		version = job.Annotations["aevrel.dev/target-version"]
 	}
 	if uid != restoreDrillUID(drill) {
 		return fmt.Errorf(
@@ -719,7 +719,7 @@ func verifyManagedRestoreDrillJob(
 		return nil
 	}
 	for _, owner := range job.OwnerReferences {
-		if owner.APIVersion == shardferryv1.GroupVersion.String() &&
+		if owner.APIVersion == aevrelv1.GroupVersion.String() &&
 			owner.Kind == "RestoreDrill" &&
 			owner.Name == drill.Name &&
 			owner.UID == drill.UID &&
@@ -737,7 +737,7 @@ func verifyManagedRestoreDrillJob(
 
 func (r *RestoreDrillReconciler) collectDrillReports(
 	ctx context.Context,
-	drill *shardferryv1.RestoreDrill,
+	drill *aevrelv1.RestoreDrill,
 	jobName string,
 	expected []int32,
 ) ([]targetready.RankReport, []string) {

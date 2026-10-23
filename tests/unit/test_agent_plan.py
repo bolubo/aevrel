@@ -5,8 +5,8 @@ import socket
 import threading
 from urllib.request import Request, urlopen
 
-from shardferry.agent import build_agent_server
-from shardferry.planning import validate_plan
+from aevrel.agent import build_agent_server
+from aevrel.planning import validate_plan
 from tests.fixtures.generated import generate_sharded_spec
 
 

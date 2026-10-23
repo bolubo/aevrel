@@ -6,17 +6,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shardferry.dcp import (
+from aevrel.dcp import (
     export_dcp,
     export_dcp_local,
     inspect_dcp,
     local_dcp_ranks,
 )
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.storage.file import FileStorage
-from shardferry.verification import DcpTargetReady
-from shardferry.verification import verify
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.storage.file import FileStorage
+from aevrel.verification import DcpTargetReady
+from aevrel.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

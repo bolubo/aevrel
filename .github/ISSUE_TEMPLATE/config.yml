@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
-    url: https://github.com/bolubo/shardferry/blob/main/docs/INDEX.zh-CN.md
+    url: https://github.com/bolubo/aevrel/blob/main/docs/INDEX.zh-CN.md
     about: Start with the product and usage documentation.
   - name: Security report
-    url: https://github.com/bolubo/shardferry/security/advisories/new
+    url: https://github.com/bolubo/aevrel/security/advisories/new
     about: Report vulnerabilities privately. Never post secrets or checkpoint data publicly.
   - name: Good first issues
-    url: https://github.com/bolubo/shardferry/labels/good%20first%20issue
+    url: https://github.com/bolubo/aevrel/labels/good%20first%20issue
     about: Start with a bounded task for a first contribution.

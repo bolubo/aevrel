@@ -14,18 +14,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/control"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/control"
 )
 
 func TestRescueDecisionReconcilerMigratesVerifiedCheckpoint(t *testing.T) {
 	loadable := true
 	movable := true
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Status: shardferryv1.CheckpointRecordStatus{
-			Readiness: shardferryv1.CheckpointReadinessStatus{
-				Status:     shardferryv1.ReadinessReady,
+		Status: aevrelv1.CheckpointRecordStatus{
+			Readiness: aevrelv1.CheckpointReadinessStatus{
+				Status:     aevrelv1.ReadinessReady,
 				Complete:   true,
 				Fresh:      true,
 				Loadable:   &loadable,
@@ -35,9 +35,9 @@ func TestRescueDecisionReconcilerMigratesVerifiedCheckpoint(t *testing.T) {
 			},
 		},
 	}
-	decision := &shardferryv1.RescueDecision{
+	decision := &aevrelv1.RescueDecision{
 		ObjectMeta: metav1.ObjectMeta{Name: "rescue", Namespace: "default"},
-		Spec: shardferryv1.RescueDecisionSpec{
+		Spec: aevrelv1.RescueDecisionSpec{
 			Event:         "Preempted",
 			CheckpointRef: "job42",
 			Target:        "cluster-b",
@@ -47,7 +47,7 @@ func TestRescueDecisionReconcilerMigratesVerifiedCheckpoint(t *testing.T) {
 	scheme := rescueScheme(t)
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.RescueDecision{}).
+		WithStatusSubresource(&aevrelv1.RescueDecision{}).
 		WithObjects(record, decision).
 		Build()
 	reconciler := &RescueDecisionReconciler{
@@ -63,7 +63,7 @@ func TestRescueDecisionReconcilerMigratesVerifiedCheckpoint(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.RescueDecision
+	var got aevrelv1.RescueDecision
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "rescue"},
@@ -85,10 +85,10 @@ func TestRescueEventReconcilerCreatesOptedInDecision(t *testing.T) {
 			Name:      "training",
 			Namespace: "default",
 			Labels: map[string]string{
-				"shardferry.io/rescue": "enabled",
+				"aevrel.dev/rescue": "enabled",
 			},
 			Annotations: map[string]string{
-				"shardferry.io/checkpoint-record": "training-checkpoint",
+				"aevrel.dev/checkpoint-record": "training-checkpoint",
 			},
 		},
 	}
@@ -126,7 +126,7 @@ func TestRescueEventReconcilerCreatesOptedInDecision(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var decisions shardferryv1.RescueDecisionList
+	var decisions aevrelv1.RescueDecisionList
 	if err := kubeClient.List(context.Background(), &decisions); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestRescueEventReconcilerIgnoresUnoptedWorkload(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var decisions shardferryv1.RescueDecisionList
+	var decisions aevrelv1.RescueDecisionList
 	if err := kubeClient.List(
 		context.Background(),
 		&decisions,
@@ -199,7 +199,7 @@ func TestRescueEventReconcilerIgnoresUnoptedWorkload(t *testing.T) {
 func rescueScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	if err := corev1.AddToScheme(scheme); err != nil {

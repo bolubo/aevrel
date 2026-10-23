@@ -1,6 +1,6 @@
 # Checkpoint control plane 最小闭环
 
-这套示例只使用 shardferry 自己的 CRD；不依赖 Kueue、Volcano 或任何
+这套示例只使用 aevrel 自己的 CRD；不依赖 Kueue、Volcano 或任何
 调度器插件。
 
 ## 1. 扫描 checkpoint
@@ -8,7 +8,7 @@
 ```bash
 kubectl apply -f checkpoint-record-selector.yaml
 kubectl get checkpointrecords
-shardferryctl readiness training-step-100
+aevrelctl readiness training-step-100
 ```
 
 `agentSelector` 会选择所有 ready 的 agent Pod，并行读取每个 agent 的
@@ -22,13 +22,13 @@ DCP metadata 与本地 shard 事实，再按 rank 合并。重复 rank 的同一
 ```bash
 kubectl apply -f restore-drill.yaml
 kubectl get restoredrills training-step-100 -w
-shardferryctl readiness training-step-100
+aevrelctl readiness training-step-100
 ```
 
 RestoreDrill 会创建一个 `batch/v1` Indexed Job，强制
 `completions=parallelism=targetWorldSize`，并注入 checkpoint 路径、版本、
 步数和 report 路径。每个 rank 必须真实加载模型与优化器、运行至少 N step，
-通过 `shardferry-target-report` 写回报告，才会得到 `loadable=true`。
+通过 `aevrel-target-report` 写回报告，才会得到 `loadable=true`。
 
 控制器不会把“文件存在”或“metadata 可读”当成 load proof。
 
@@ -37,13 +37,13 @@ RestoreDrill 会创建一个 `batch/v1` Indexed Job，强制
 ```bash
 kubectl apply -f rescue-decision.yaml
 kubectl get rescuedecisions
-shardferryctl readiness training-step-100
+aevrelctl readiness training-step-100
 ```
 
 也可以直接用 CLI 创建：
 
 ```bash
-shardferryctl rescue \
+aevrelctl rescue \
   --event Preempted \
   --workload training \
   --checkpoint training-step-100 \
@@ -69,9 +69,9 @@ shardferryctl rescue \
 ```yaml
 metadata:
   labels:
-    shardferry.io/rescue: enabled
+    aevrel.dev/rescue: enabled
   annotations:
-    shardferry.io/checkpoint-record: training-step-100
+    aevrel.dev/checkpoint-record: training-step-100
 ```
 
 `Evicted`、`Preempted`、`BackoffLimitExceeded`、`FailedScheduling`、

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.gpu_policy import decide_codec
+from aevrel.gpu_policy import decide_codec
 
 
 def test_policy_rejects_incompressible_data_even_on_slow_wan() -> None:

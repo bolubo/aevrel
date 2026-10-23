@@ -13,8 +13,8 @@ COPY api ./api
 COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
-    -o /out/shardferry-controller ./cmd/controller
+    -o /out/aevrel-controller ./cmd/controller
 
 FROM ${RUNTIME_IMAGE}
-COPY --from=build /out/shardferry-controller /shardferry-controller
-ENTRYPOINT ["/shardferry-controller"]
+COPY --from=build /out/aevrel-controller /aevrel-controller
+ENTRYPOINT ["/aevrel-controller"]

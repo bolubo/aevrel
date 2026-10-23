@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from shardferry.lrs.snapshot_ring import NeighborBackup, SnapshotRing
-from shardferry.lrs.state_closure import RNGState, TrainingState
+from aevrel.lrs.snapshot_ring import NeighborBackup, SnapshotRing
+from aevrel.lrs.state_closure import RNGState, TrainingState
 
 
 def _state(step: int) -> TrainingState:

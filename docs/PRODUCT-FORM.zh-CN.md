@@ -1,10 +1,10 @@
-# shardferry 产品形态与日常价值
+# Aevrel 产品形态与日常价值
 
 状态：产品方向冻结候选
 
 ## 0. 一句话
 
-shardferry 是 **scheduler-neutral 的 Training State Control Plane**：
+Aevrel 是 **scheduler-neutral 的 Training State Control Plane**：
 把 checkpoint 和训练运行时状态变成可查询、可判断、可执行、可证明的事实。
 
 Checkpoint 是第一个完整 vertical；迁移和 LRS 只是控制面按需执行的动作；
@@ -139,26 +139,26 @@ checkpoint readiness 层。这个判断以内部验收矩阵和真实环境测�
 
 | 形态 | 组件 | 生命周期 | 用户 |
 |---|---|---|---|
-| 单次工具 | `shardferry` CLI / one-shot Job | 用完即走 | 偶尔迁移 |
-| 平台控制面 | `shardferry-controller` + `shardferry-agent` | 常驻 | AI 平台/运维 |
+| 单次工具 | `aevrel` CLI / one-shot Job | 用完即走 | 偶尔迁移 |
+| 平台控制面 | `aevrel-controller` + `aevrel-agent` | 常驻 | AI 平台/运维 |
 | 调度集成 | Kueue/Volcano/Kubeflow adapter | 随平台常驻 | 平台团队 |
-| 低停机迁移 | `shardferry-lrs-worker` | 迁移时按需 | 高阶训练平台 |
+| 低停机迁移 | `aevrel-lrs-worker` | 迁移时按需 | 高阶训练平台 |
 
 推荐部署：
 
 ```text
 管理集群
-  shardferry-controller
+  aevrel-controller
   CheckpointRecord / CheckpointReadiness
   proof/audit store
 
 训练集群
-  shardferry-agent (DaemonSet, read-only)
+  aevrel-agent (DaemonSet, read-only)
   可选 gateway / LRS worker
 
 用户/平台
-  shardferry CLI
-  shardferryctl
+  aevrel CLI
+  aevrelctl
   scheduler adapter (optional)
 ```
 
@@ -264,7 +264,7 @@ release/upgrade/rollback/support bundle。
 
 ### E. 用户体验
 
-- `shardferryctl readiness` 一条命令给出状态、原因、下一步；
+- `aevrelctl readiness` 一条命令给出状态、原因、下一步；
 - 失败输出包含 `Next:`；
 - `--json` schema 稳定；
 - static 显示字节进度，LRS 显示 rank/ownership 进度；

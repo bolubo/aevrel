@@ -28,7 +28,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/shardferry-${{ matrix.component }}
+          images: ghcr.io/${{ github.repository_owner }}/aevrel-${{ matrix.component }}
           tags: |
             type=semver,pattern={{version}}
             type=sha
@@ -54,8 +54,8 @@ jobs:
       - name: Package chart
         run: |
           mkdir -p dist
-          helm dependency build deploy/helm/shardferry
-          helm package deploy/helm/shardferry --destination dist
+          helm dependency build deploy/helm/aevrel
+          helm package deploy/helm/aevrel --destination dist
       - name: Publish chart
         env:
           GHCR_USER: ${{ github.actor }}
@@ -63,10 +63,10 @@ jobs:
         run: |
           echo "$GHCR_TOKEN" | helm registry login ghcr.io \
             --username "$GHCR_USER" --password-stdin
-          helm push dist/shardferry-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+          helm push dist/aevrel-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
       - uses: actions/upload-artifact@v4
         with:
-          name: shardferry-chart
+          name: aevrel-chart
           path: dist/*.tgz
 
   wheel:
@@ -81,7 +81,7 @@ jobs:
       - run: python -m build --wheel --outdir dist
       - uses: actions/upload-artifact@v4
         with:
-          name: shardferry-wheel
+          name: aevrel-wheel
           path: dist/*.whl
 
   github-release:
@@ -101,7 +101,7 @@ jobs:
           echo "file=$file" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
-          pattern: shardferry-*
+          pattern: aevrel-*
           path: dist
           merge-multiple: true
       - name: Publish GitHub release

@@ -13,16 +13,16 @@ from urllib.request import Request, urlopen
 import numpy as np
 import pytest
 
-from shardferry.agent import build_agent_server
-from shardferry.dcp import (
+from aevrel.agent import build_agent_server
+from aevrel.dcp import (
     export_dcp,
     inventory_dcp,
     inventory_dcp_descriptors,
     read_dcp_chunk,
 )
-from shardferry.dcp.range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
-from shardferry.executor import apply
-from shardferry.planning import plan
+from aevrel.dcp.range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
+from aevrel.executor import apply
+from aevrel.planning import plan
 from tests.fixtures.generated import (
     checksum,
     generate_sharded_spec,
@@ -130,7 +130,7 @@ def test_inventory_does_not_require_torch_chunk_deserialization(
         raise AssertionError("inventory must not deserialize a DCP chunk")
 
     monkeypatch.setattr(
-        "shardferry.dcp.checkpoint._read_storage_tensor",
+        "aevrel.dcp.checkpoint._read_storage_tensor",
         fail_deserialize,
     )
     inventory, refs = inventory_dcp(checkpoint, 0)

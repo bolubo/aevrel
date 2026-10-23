@@ -4,7 +4,7 @@ import argparse
 import time
 from pathlib import Path
 
-from shardferry.cdp import TargetLock
+from aevrel.cdp import TargetLock
 
 
 def main() -> None:

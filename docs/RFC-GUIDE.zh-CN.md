@@ -1,4 +1,4 @@
-# shardferry RFC 指南
+# Aevrel RFC 指南
 
 状态：社区设计流程 v1
 

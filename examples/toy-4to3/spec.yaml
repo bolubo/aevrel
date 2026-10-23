@@ -11,29 +11,29 @@ source:
     world_size: 4
     placements: ["Shard(0)", "Shard(1)"]
   storage:
-    uri: file:///tmp/shardferry/source
+    uri: file:///tmp/aevrel/source
   shards:
     - tensor: w
       rank: 0
-      uri: file:///tmp/shardferry/source/rank0.bin
+      uri: file:///tmp/aevrel/source/rank0.bin
       offset: [0, 0]
       size: [4, 2]
       checksum: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
     - tensor: w
       rank: 1
-      uri: file:///tmp/shardferry/source/rank1.bin
+      uri: file:///tmp/aevrel/source/rank1.bin
       offset: [0, 2]
       size: [4, 2]
       checksum: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
     - tensor: w
       rank: 2
-      uri: file:///tmp/shardferry/source/rank2.bin
+      uri: file:///tmp/aevrel/source/rank2.bin
       offset: [4, 0]
       size: [4, 2]
       checksum: "sha256:2222222222222222222222222222222222222222222222222222222222222222"
     - tensor: w
       rank: 3
-      uri: file:///tmp/shardferry/source/rank3.bin
+      uri: file:///tmp/aevrel/source/rank3.bin
       offset: [4, 2]
       size: [4, 2]
       checksum: "sha256:3333333333333333333333333333333333333333333333333333333333333333"
@@ -43,4 +43,4 @@ target:
     world_size: 3
     placements: ["Shard(0)", "Replicate()"]
   storage:
-    uri: file:///tmp/shardferry/target
+    uri: file:///tmp/aevrel/target

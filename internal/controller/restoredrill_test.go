@@ -15,8 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/targetready"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/targetready"
 )
 
 func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
@@ -36,9 +36,9 @@ func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Status: shardferryv1.CheckpointRecordStatus{
+		Status: aevrelv1.CheckpointRecordStatus{
 			MetadataDigest: "sha256:test",
 		},
 	}
@@ -69,13 +69,13 @@ func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
 			}},
 		},
 	}
-	drill := &shardferryv1.RestoreDrill{
+	drill := &aevrelv1.RestoreDrill{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "drill",
 			Namespace: "default",
 			UID:       types.UID("drill-1"),
 		},
-		Spec: shardferryv1.RestoreDrillSpec{
+		Spec: aevrelv1.RestoreDrillSpec{
 			RecordRef:       "job42",
 			JobName:         "drill-job",
 			Version:         "step-100",
@@ -97,7 +97,7 @@ func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.RestoreDrill
+	var got aevrelv1.RestoreDrill
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "drill"},
@@ -111,7 +111,7 @@ func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
 	if got.Status.StepsRan != 10 || got.Status.RanksReady != 1 {
 		t.Fatalf("drill status = %+v", got.Status)
 	}
-	var updated shardferryv1.CheckpointRecord
+	var updated aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -138,19 +138,19 @@ func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
 }
 
 func TestRestoreDrillReconcilerCreatesIndexedJob(t *testing.T) {
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			Checkpoint: "/checkpoints/step-100",
 		},
 	}
-	drill := &shardferryv1.RestoreDrill{
+	drill := &aevrelv1.RestoreDrill{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "drill",
 			Namespace: "default",
 			UID:       types.UID("drill-uid"),
 		},
-		Spec: shardferryv1.RestoreDrillSpec{
+		Spec: aevrelv1.RestoreDrillSpec{
 			RecordRef:            "job42",
 			JobTemplate:          validationJobTemplate(t, 2),
 			Version:              "step-100",
@@ -217,20 +217,20 @@ func TestRestoreDrillReconcilerCreatesIndexedJob(t *testing.T) {
 		)
 	}
 	env := envMap(container.Env)
-	if env["SHARDFERRY_MIGRATION_UID"] != "drill-uid" ||
-		env["SHARDFERRY_VERSION"] != "step-100" ||
-		env["SHARDFERRY_TARGET_WORLD_SIZE"] != "2" ||
-		env["SHARDFERRY_VALIDATION_STEPS"] != "10" {
+	if env["AEVREL_MIGRATION_UID"] != "drill-uid" ||
+		env["AEVREL_VERSION"] != "step-100" ||
+		env["AEVREL_TARGET_WORLD_SIZE"] != "2" ||
+		env["AEVREL_VALIDATION_STEPS"] != "10" {
 		t.Fatalf("target env = %+v", env)
 	}
-	if env["SHARDFERRY_CHECKPOINT_TEMPLATE"] != "/target/step-100/rank{rank}" ||
-		env["SHARDFERRY_STATE_TEMPLATE"] != "/state/step-100/rank{rank}" ||
-		env["SHARDFERRY_STATE_PROVIDERS"] != "python.random,numpy.random" ||
-		env["SHARDFERRY_REQUIRE_STATE"] != "1" {
+	if env["AEVREL_CHECKPOINT_TEMPLATE"] != "/target/step-100/rank{rank}" ||
+		env["AEVREL_STATE_TEMPLATE"] != "/state/step-100/rank{rank}" ||
+		env["AEVREL_STATE_PROVIDERS"] != "python.random,numpy.random" ||
+		env["AEVREL_REQUIRE_STATE"] != "1" {
 		t.Fatalf("restore env = %+v", env)
 	}
 
-	var got shardferryv1.RestoreDrill
+	var got aevrelv1.RestoreDrill
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "drill"},
@@ -259,7 +259,7 @@ func TestRestoreDrillReconcilerRejectsInvalidJobTemplate(t *testing.T) {
 	}
 	template.Raw = payload
 
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
 	}
 	drill := validManagedRestoreDrill(t, "drill-invalid", template)
@@ -277,7 +277,7 @@ func TestRestoreDrillReconcilerRejectsInvalidJobTemplate(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.RestoreDrill
+	var got aevrelv1.RestoreDrill
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "drill-invalid"},
@@ -299,7 +299,7 @@ func TestRestoreDrillReconcilerRejectsInvalidJobTemplate(t *testing.T) {
 }
 
 func TestRestoreDrillReconcilerFailsClosedOnJobFailure(t *testing.T) {
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
 	}
 	drill := observedRestoreDrill("drill-failed", "drill-job", 1)
@@ -326,7 +326,7 @@ func TestRestoreDrillReconcilerFailsClosedOnJobFailure(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.RestoreDrill
+	var got aevrelv1.RestoreDrill
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "drill-failed"},
@@ -338,7 +338,7 @@ func TestRestoreDrillReconcilerFailsClosedOnJobFailure(t *testing.T) {
 		got.Status.Message != "BackoffLimitExceeded: target process exited" {
 		t.Fatalf("drill status = %+v", got.Status)
 	}
-	var updated shardferryv1.CheckpointRecord
+	var updated aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -353,7 +353,7 @@ func TestRestoreDrillReconcilerFailsClosedOnJobFailure(t *testing.T) {
 }
 
 func TestRestoreDrillReconcilerFailsClosedOnMissingRank(t *testing.T) {
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
 	}
 	drill := observedRestoreDrill("drill-missing", "drill-job", 2)
@@ -379,7 +379,7 @@ func TestRestoreDrillReconcilerFailsClosedOnMissingRank(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.RestoreDrill
+	var got aevrelv1.RestoreDrill
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "drill-missing"},
@@ -392,7 +392,7 @@ func TestRestoreDrillReconcilerFailsClosedOnMissingRank(t *testing.T) {
 		got.Status.MissingRanks[0] != 1 {
 		t.Fatalf("drill status = %+v", got.Status)
 	}
-	var updated shardferryv1.CheckpointRecord
+	var updated aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -409,7 +409,7 @@ func TestRestoreDrillReconcilerFailsClosedOnMissingRank(t *testing.T) {
 func restoreDrillClient(t *testing.T, objects ...client.Object) client.Client {
 	t.Helper()
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	if err := batchv1.AddToScheme(scheme); err != nil {
@@ -421,8 +421,8 @@ func restoreDrillClient(t *testing.T, objects ...client.Object) client.Client {
 	return fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithStatusSubresource(
-			&shardferryv1.CheckpointRecord{},
-			&shardferryv1.RestoreDrill{},
+			&aevrelv1.CheckpointRecord{},
+			&aevrelv1.RestoreDrill{},
 		).
 		WithObjects(objects...).
 		Build()
@@ -432,15 +432,15 @@ func validManagedRestoreDrill(
 	t *testing.T,
 	name string,
 	template *runtime.RawExtension,
-) *shardferryv1.RestoreDrill {
+) *aevrelv1.RestoreDrill {
 	t.Helper()
-	return &shardferryv1.RestoreDrill{
+	return &aevrelv1.RestoreDrill{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: "default",
 			UID:       types.UID("drill-uid"),
 		},
-		Spec: shardferryv1.RestoreDrillSpec{
+		Spec: aevrelv1.RestoreDrillSpec{
 			RecordRef:       "job42",
 			JobTemplate:     template,
 			Version:         "step-100",
@@ -454,14 +454,14 @@ func observedRestoreDrill(
 	name string,
 	jobName string,
 	worldSize int32,
-) *shardferryv1.RestoreDrill {
-	return &shardferryv1.RestoreDrill{
+) *aevrelv1.RestoreDrill {
+	return &aevrelv1.RestoreDrill{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: "default",
 			UID:       types.UID("drill-uid"),
 		},
-		Spec: shardferryv1.RestoreDrillSpec{
+		Spec: aevrelv1.RestoreDrillSpec{
 			RecordRef:       "job42",
 			JobName:         jobName,
 			Version:         "step-100",

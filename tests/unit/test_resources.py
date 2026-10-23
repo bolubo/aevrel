@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shardferry.resources import resource_dir, resource_path
+from aevrel.resources import resource_dir, resource_path
 
 
 def test_packaged_schema_resources_are_resolvable() -> None:

@@ -9,7 +9,7 @@ import tracemalloc
 import zlib
 from pathlib import Path
 
-from shardferry.dcp.range import inspect_zip_tensor
+from aevrel.dcp.range import inspect_zip_tensor
 
 
 CHUNK = 4 * 1024 * 1024
@@ -161,7 +161,7 @@ def main() -> None:
 
     size = args.size_mb * 1024 * 1024
     range_size = min(args.range_mb * 1024 * 1024, size)
-    work = Path(tempfile.mkdtemp(prefix="shardferry-dcp-range-"))
+    work = Path(tempfile.mkdtemp(prefix="aevrel-dcp-range-"))
     archive = work / "benchmark.distcp"
     build_sparse_stored_zip(archive, size)
     try:

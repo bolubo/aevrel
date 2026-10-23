@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/clusterclient"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/clusterclient"
 )
 
 type fakeClusterInfo struct {
@@ -35,17 +35,17 @@ func TestClusterHealthReconcilerMarksReady(t *testing.T) {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	cluster := &shardferryv1.ShardferryCluster{
+	cluster := &aevrelv1.AevrelCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "source",
-			Namespace: "shardferry-control",
+			Namespace: "aevrel-control",
 		},
-		Spec: shardferryv1.ShardferryClusterSpec{
+		Spec: aevrelv1.AevrelClusterSpec{
 			Endpoint: "https://gateway.example",
-			SecretRef: shardferryv1.ClusterSecretRef{
+			SecretRef: aevrelv1.ClusterSecretRef{
 				Name: "source-auth",
 			},
 		},
@@ -53,13 +53,13 @@ func TestClusterHealthReconcilerMarksReady(t *testing.T) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "source-auth",
-			Namespace: "shardferry-control",
+			Namespace: "aevrel-control",
 		},
 		Data: map[string][]byte{"token": []byte("gateway-token")},
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.ShardferryCluster{}).
+		WithStatusSubresource(&aevrelv1.AevrelCluster{}).
 		WithObjects(cluster, secret).
 		Build()
 	reconciler := &ClusterHealthReconciler{
@@ -75,16 +75,16 @@ func TestClusterHealthReconcilerMarksReady(t *testing.T) {
 	_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "source",
-			Namespace: "shardferry-control",
+			Namespace: "aevrel-control",
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.ShardferryCluster
+	var got aevrelv1.AevrelCluster
 	if err := kubeClient.Get(context.Background(), types.NamespacedName{
 		Name:      "source",
-		Namespace: "shardferry-control",
+		Namespace: "aevrel-control",
 	}, &got); err != nil {
 		t.Fatal(err)
 	}
@@ -104,17 +104,17 @@ func TestClusterHealthReconcilerMarksFailure(t *testing.T) {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	cluster := &shardferryv1.ShardferryCluster{
+	cluster := &aevrelv1.AevrelCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "target",
-			Namespace: "shardferry-control",
+			Namespace: "aevrel-control",
 		},
-		Spec: shardferryv1.ShardferryClusterSpec{
+		Spec: aevrelv1.AevrelClusterSpec{
 			Endpoint: "https://gateway.example",
-			SecretRef: shardferryv1.ClusterSecretRef{
+			SecretRef: aevrelv1.ClusterSecretRef{
 				Name: "target-auth",
 			},
 		},
@@ -122,13 +122,13 @@ func TestClusterHealthReconcilerMarksFailure(t *testing.T) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "target-auth",
-			Namespace: "shardferry-control",
+			Namespace: "aevrel-control",
 		},
 		Data: map[string][]byte{"token": []byte("gateway-token")},
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.ShardferryCluster{}).
+		WithStatusSubresource(&aevrelv1.AevrelCluster{}).
 		WithObjects(cluster, secret).
 		Build()
 	reconciler := &ClusterHealthReconciler{
@@ -139,16 +139,16 @@ func TestClusterHealthReconcilerMarksFailure(t *testing.T) {
 	_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "target",
-			Namespace: "shardferry-control",
+			Namespace: "aevrel-control",
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.ShardferryCluster
+	var got aevrelv1.AevrelCluster
 	if err := kubeClient.Get(context.Background(), types.NamespacedName{
 		Name:      "target",
-		Namespace: "shardferry-control",
+		Namespace: "aevrel-control",
 	}, &got); err != nil {
 		t.Fatal(err)
 	}

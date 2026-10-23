@@ -5,8 +5,8 @@ import math
 import numpy as np
 import pytest
 
-from shardferry.lrs.layout import LayoutError, iter_shards, volume
-from shardferry.lrs.model_vps import (
+from aevrel.lrs.layout import LayoutError, iter_shards, volume
+from aevrel.lrs.model_vps import (
     FlatBufferLayout,
     FlatBufferSpec,
     ModelVPS,

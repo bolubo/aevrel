@@ -20,9 +20,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/artifactstore"
-	"github.com/shardferry/shardferry/internal/execution"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/artifactstore"
+	"github.com/bolubo/aevrel/internal/execution"
 )
 
 type Reconciler struct {
@@ -46,7 +46,7 @@ func (r *Reconciler) Reconcile(
 	ctx context.Context,
 	request ctrl.Request,
 ) (ctrl.Result, error) {
-	var migration shardferryv1.CheckpointMigration
+	var migration aevrelv1.CheckpointMigration
 	if err := r.Get(ctx, request.NamespacedName, &migration); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -69,26 +69,26 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, r.setStatus(
 			ctx,
 			&migration,
-			shardferryv1.MigrationPhaseFailed,
+			aevrelv1.MigrationPhaseFailed,
 			metav1.ConditionFalse,
 			"InvalidSpec",
 			err.Error(),
 		)
 	}
-	if migration.Spec.Mode == shardferryv1.MigrationModeLiveRankSplit {
-		if migration.Status.Phase == shardferryv1.MigrationPhaseTargetValidating ||
-			migration.Status.Phase == shardferryv1.MigrationPhaseTargetFailed {
+	if migration.Spec.Mode == aevrelv1.MigrationModeLiveRankSplit {
+		if migration.Status.Phase == aevrelv1.MigrationPhaseTargetValidating ||
+			migration.Status.Phase == aevrelv1.MigrationPhaseTargetFailed {
 			return r.reconcileTargetReady(ctx, &migration)
 		}
 		return r.reconcileLiveRankSplit(ctx, &migration)
 	}
-	if migration.Status.Phase == shardferryv1.MigrationPhaseTargetValidating {
+	if migration.Status.Phase == aevrelv1.MigrationPhaseTargetValidating {
 		return r.reconcileTargetReady(ctx, &migration)
 	}
-	if migration.Status.Phase == shardferryv1.MigrationPhaseTargetFailed {
+	if migration.Status.Phase == aevrelv1.MigrationPhaseTargetFailed {
 		return ctrl.Result{}, nil
 	}
-	if migration.Status.Phase == shardferryv1.MigrationPhaseSucceeded {
+	if migration.Status.Phase == aevrelv1.MigrationPhaseSucceeded {
 		return ctrl.Result{}, nil
 	}
 	if r.Preparer != nil && migration.Status.ExecutionRef == "" {
@@ -97,16 +97,16 @@ func (r *Reconciler) Reconcile(
 	}
 	if r.Runner != nil &&
 		migration.Status.ExecutionRef != "" &&
-		migration.Status.Phase != shardferryv1.MigrationPhaseSucceeded &&
-		migration.Status.Phase != shardferryv1.MigrationPhaseFailed &&
-		migration.Status.Phase != shardferryv1.MigrationPhaseTargetValidating &&
-		migration.Status.Phase != shardferryv1.MigrationPhaseTargetFailed {
+		migration.Status.Phase != aevrelv1.MigrationPhaseSucceeded &&
+		migration.Status.Phase != aevrelv1.MigrationPhaseFailed &&
+		migration.Status.Phase != aevrelv1.MigrationPhaseTargetValidating &&
+		migration.Status.Phase != aevrelv1.MigrationPhaseTargetFailed {
 		if r.Resolver != nil {
 			if err := r.Resolver.EnsureTokens(ctx, &migration); err != nil {
 				return ctrl.Result{}, r.setStatus(
 					ctx,
 					&migration,
-					shardferryv1.MigrationPhaseFailed,
+					aevrelv1.MigrationPhaseFailed,
 					metav1.ConditionFalse,
 					"TokenRefreshFailed",
 					err.Error(),
@@ -118,7 +118,7 @@ func (r *Reconciler) Reconcile(
 			return ctrl.Result{}, r.setStatus(
 				ctx,
 				&migration,
-				shardferryv1.MigrationPhaseFailed,
+				aevrelv1.MigrationPhaseFailed,
 				metav1.ConditionFalse,
 				"ExecutionRestoreFailed",
 				err.Error(),
@@ -136,7 +136,7 @@ func (r *Reconciler) Reconcile(
 		if run.Summary().Phase == execution.PhaseSucceeded ||
 			run.Summary().Phase == execution.PhaseFailed {
 			if run.Summary().Phase == execution.PhaseSucceeded {
-				var latest shardferryv1.CheckpointMigration
+				var latest aevrelv1.CheckpointMigration
 				if err := r.Get(ctx, request.NamespacedName, &latest); err != nil {
 					return ctrl.Result{}, err
 				}
@@ -155,7 +155,7 @@ func (r *Reconciler) Reconcile(
 		); condition != nil &&
 			condition.Status == metav1.ConditionTrue &&
 			condition.ObservedGeneration == migration.Generation &&
-			migration.Status.Phase == shardferryv1.MigrationPhaseSucceeded {
+			migration.Status.Phase == aevrelv1.MigrationPhaseSucceeded {
 			return ctrl.Result{}, nil
 		}
 		prepared, err := r.Orchestrator.Prepare(ctx, &migration)
@@ -163,7 +163,7 @@ func (r *Reconciler) Reconcile(
 			return ctrl.Result{}, r.setStatus(
 				ctx,
 				&migration,
-				shardferryv1.MigrationPhaseFailed,
+				aevrelv1.MigrationPhaseFailed,
 				metav1.ConditionFalse,
 				"PlanningFailed",
 				err.Error(),
@@ -175,7 +175,7 @@ func (r *Reconciler) Reconcile(
 				return ctrl.Result{}, r.setStatus(
 					ctx,
 					&migration,
-					shardferryv1.MigrationPhaseFailed,
+					aevrelv1.MigrationPhaseFailed,
 					metav1.ConditionFalse,
 					"DispatchFailed",
 					err.Error(),
@@ -201,7 +201,7 @@ func (r *Reconciler) Reconcile(
 	return ctrl.Result{}, r.setStatus(
 		ctx,
 		&migration,
-		shardferryv1.MigrationPhasePending,
+		aevrelv1.MigrationPhasePending,
 		metav1.ConditionTrue,
 		"Validated",
 		"migration spec is valid; waiting for inventory and planning",
@@ -210,14 +210,14 @@ func (r *Reconciler) Reconcile(
 
 func (r *Reconciler) setDispatchSucceeded(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	prepared Prepared,
 	result DispatchResult,
 ) error {
 	hasValidation := migration.Spec.Target.Validation != nil
-	migration.Status.Phase = shardferryv1.MigrationPhaseSucceeded
+	migration.Status.Phase = aevrelv1.MigrationPhaseSucceeded
 	if hasValidation {
-		migration.Status.Phase = shardferryv1.MigrationPhaseTargetValidating
+		migration.Status.Phase = aevrelv1.MigrationPhaseTargetValidating
 	}
 	migration.Status.PlanRef = prepared.PlanRef
 	migration.Status.PlanHash = prepared.PlanHash
@@ -228,7 +228,7 @@ func (r *Reconciler) setDispatchSucceeded(
 	if !hasValidation {
 		migration.Status.CutoverPhase = "promoted"
 	}
-	migration.Status.Counts = shardferryv1.RankCounts{
+	migration.Status.Counts = aevrelv1.RankCounts{
 		Committed: int32(len(result.Tasks)),
 	}
 	if migration.Status.StartedAt == "" {
@@ -275,10 +275,10 @@ func (r *Reconciler) setDispatchSucceeded(
 
 func (r *Reconciler) setPlanReady(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	prepared Prepared,
 ) error {
-	migration.Status.Phase = shardferryv1.MigrationPhasePending
+	migration.Status.Phase = aevrelv1.MigrationPhasePending
 	migration.Status.PlanHash = prepared.PlanHash
 	meta.SetStatusCondition(&migration.Status.Conditions, metav1.Condition{
 		Type:               "Accepted",
@@ -299,14 +299,14 @@ func (r *Reconciler) setPlanReady(
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&shardferryv1.CheckpointMigration{}).
+		For(&aevrelv1.CheckpointMigration{}).
 		Owns(&batchv1.Job{}).
 		Complete(r)
 }
 
 func (r *Reconciler) setStatus(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	phase string,
 	status metav1.ConditionStatus,
 	reason string,
@@ -331,15 +331,15 @@ func (r *Reconciler) setStatus(
 
 func (r *Reconciler) updateStatus(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
-	mutate func(*shardferryv1.CheckpointMigration) bool,
+	migration *aevrelv1.CheckpointMigration,
+	mutate func(*aevrelv1.CheckpointMigration) bool,
 ) error {
 	key := types.NamespacedName{
 		Namespace: migration.Namespace,
 		Name:      migration.Name,
 	}
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var latest shardferryv1.CheckpointMigration
+		var latest aevrelv1.CheckpointMigration
 		if err := r.Get(ctx, key, &latest); err != nil {
 			return err
 		}
@@ -351,15 +351,15 @@ func (r *Reconciler) updateStatus(
 }
 
 const (
-	cancelAnnotation      = "shardferry.io/cancel"
-	retryAnnotation       = "shardferry.io/retry"
-	purgeTargetAnnotation = "shardferry.io/purge-target"
-	cleanupFinalizer      = "shardferry.io/cleanup"
+	cancelAnnotation      = "aevrel.dev/cancel"
+	retryAnnotation       = "aevrel.dev/retry"
+	purgeTargetAnnotation = "aevrel.dev/purge-target"
+	cleanupFinalizer      = "aevrel.dev/cleanup"
 )
 
 func (r *Reconciler) handleDeletion(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (ctrl.Result, error) {
 	if !containsFinalizer(migration, cleanupFinalizer) {
 		return ctrl.Result{}, nil
@@ -375,7 +375,7 @@ func (r *Reconciler) handleDeletion(
 
 func (r *Reconciler) cleanupMigration(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) error {
 	if migration.Annotations[purgeTargetAnnotation] == "true" {
 		if r.Resolver == nil || r.Cleaner == nil {
@@ -432,7 +432,7 @@ func (r *Reconciler) cleanupMigration(
 	return nil
 }
 
-func containsFinalizer(migration *shardferryv1.CheckpointMigration, name string) bool {
+func containsFinalizer(migration *aevrelv1.CheckpointMigration, name string) bool {
 	for _, finalizer := range migration.Finalizers {
 		if finalizer == name {
 			return true
@@ -443,11 +443,11 @@ func containsFinalizer(migration *shardferryv1.CheckpointMigration, name string)
 
 func (r *Reconciler) removeFinalizer(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	name string,
 ) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var latest shardferryv1.CheckpointMigration
+		var latest aevrelv1.CheckpointMigration
 		if err := r.Get(
 			ctx,
 			types.NamespacedName{
@@ -471,7 +471,7 @@ func (r *Reconciler) removeFinalizer(
 
 func (r *Reconciler) handleControlAnnotations(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) (bool, error) {
 	if migration.Annotations[cancelAnnotation] == "true" {
 		return true, r.handleCancel(ctx, migration)
@@ -484,15 +484,15 @@ func (r *Reconciler) handleControlAnnotations(
 
 func (r *Reconciler) handleCancel(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) error {
 	switch migration.Status.Phase {
-	case shardferryv1.MigrationPhaseSucceeded,
-		shardferryv1.MigrationPhaseFailed,
-		shardferryv1.MigrationPhaseTargetFailed,
-		shardferryv1.MigrationPhaseCancelled:
+	case aevrelv1.MigrationPhaseSucceeded,
+		aevrelv1.MigrationPhaseFailed,
+		aevrelv1.MigrationPhaseTargetFailed,
+		aevrelv1.MigrationPhaseCancelled:
 		return r.clearAnnotation(ctx, migration, cancelAnnotation)
-	case shardferryv1.MigrationPhaseTargetValidating:
+	case aevrelv1.MigrationPhaseTargetValidating:
 		if err := r.setStatus(
 			ctx,
 			migration,
@@ -534,7 +534,7 @@ func (r *Reconciler) handleCancel(
 	if err := r.setStatus(
 		ctx,
 		migration,
-		shardferryv1.MigrationPhaseCancelled,
+		aevrelv1.MigrationPhaseCancelled,
 		metav1.ConditionTrue,
 		"Cancelled",
 		message,
@@ -546,9 +546,9 @@ func (r *Reconciler) handleCancel(
 
 func (r *Reconciler) handleRetry(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 ) error {
-	if migration.Status.Phase != shardferryv1.MigrationPhaseCommitIncomplete {
+	if migration.Status.Phase != aevrelv1.MigrationPhaseCommitIncomplete {
 		_ = r.setStatus(
 			ctx,
 			migration,
@@ -575,7 +575,7 @@ func (r *Reconciler) handleRetry(
 	if err := r.setStatus(
 		ctx,
 		migration,
-		shardferryv1.MigrationPhaseCommitting,
+		aevrelv1.MigrationPhaseCommitting,
 		metav1.ConditionTrue,
 		"RetryRequested",
 		"commit-incomplete repair requested",
@@ -587,11 +587,11 @@ func (r *Reconciler) handleRetry(
 
 func (r *Reconciler) clearAnnotation(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	key string,
 ) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var latest shardferryv1.CheckpointMigration
+		var latest aevrelv1.CheckpointMigration
 		if err := r.Get(
 			ctx,
 			types.NamespacedName{
@@ -612,7 +612,7 @@ func (r *Reconciler) clearAnnotation(
 
 func (r *Reconciler) setExecutionStatus(
 	ctx context.Context,
-	migration *shardferryv1.CheckpointMigration,
+	migration *aevrelv1.CheckpointMigration,
 	run *execution.Run,
 	planHash string,
 ) error {
@@ -620,9 +620,9 @@ func (r *Reconciler) setExecutionStatus(
 	phase := executionPhase(summary.Phase)
 	hasValidation := migration.Spec.Target.Validation != nil
 	if summary.Phase == execution.PhaseSucceeded && hasValidation {
-		phase = shardferryv1.MigrationPhaseTargetValidating
+		phase = aevrelv1.MigrationPhaseTargetValidating
 	}
-	err := r.updateStatus(ctx, migration, func(latest *shardferryv1.CheckpointMigration) bool {
+	err := r.updateStatus(ctx, migration, func(latest *aevrelv1.CheckpointMigration) bool {
 		changed := latest.Status.Phase != phase ||
 			latest.Status.PlanRef != run.PlanRef() ||
 			latest.Status.PlanHash != planHash ||
@@ -637,15 +637,15 @@ func (r *Reconciler) setExecutionStatus(
 		latest.Status.ReportRef = run.ReportRef()
 		latest.Status.ProofRef = run.ProofRef()
 		latest.Status.ProofHash = run.ProofHash()
-		latest.Status.Counts = shardferryv1.RankCounts{
+		latest.Status.Counts = aevrelv1.RankCounts{
 			Prepared:  int32(summary.Prepared),
 			Staged:    int32(summary.Staged),
 			Committed: int32(summary.Committed),
 			Failed:    int32(summary.Failed),
 		}
-		rankStatuses := make([]shardferryv1.RankStatus, 0, len(run.Ranks()))
+		rankStatuses := make([]aevrelv1.RankStatus, 0, len(run.Ranks()))
 		for _, state := range run.Ranks() {
-			rankStatuses = append(rankStatuses, shardferryv1.RankStatus{
+			rankStatuses = append(rankStatuses, aevrelv1.RankStatus{
 				Rank:     state.Rank,
 				Phase:    string(state.Phase),
 				TaskID:   state.TaskID,
@@ -657,21 +657,21 @@ func (r *Reconciler) setExecutionStatus(
 			latest.Status.Ranks = rankStatuses
 			changed = true
 		}
-		if phase != shardferryv1.MigrationPhasePending &&
+		if phase != aevrelv1.MigrationPhasePending &&
 			latest.Status.StartedAt == "" {
 			latest.Status.StartedAt = time.Now().UTC().Format(time.RFC3339)
 			changed = true
 		}
-		if phase == shardferryv1.MigrationPhaseSucceeded ||
-			phase == shardferryv1.MigrationPhaseFailed ||
-			phase == shardferryv1.MigrationPhaseCancelled {
+		if phase == aevrelv1.MigrationPhaseSucceeded ||
+			phase == aevrelv1.MigrationPhaseFailed ||
+			phase == aevrelv1.MigrationPhaseCancelled {
 			if latest.Status.CompletedAt == "" {
 				latest.Status.CompletedAt = time.Now().UTC().Format(time.RFC3339)
 				changed = true
 			}
 		}
 		if latest.Status.CutoverPhase == "" &&
-			phase != shardferryv1.MigrationPhaseTargetValidating {
+			phase != aevrelv1.MigrationPhaseTargetValidating {
 			latest.Status.CutoverPhase = cutoverPhase(summary.Phase)
 			changed = true
 		}
@@ -684,9 +684,9 @@ func (r *Reconciler) setExecutionStatus(
 		}) {
 			changed = true
 		}
-		if phase == shardferryv1.MigrationPhaseSucceeded ||
-			phase == shardferryv1.MigrationPhaseFailed ||
-			phase == shardferryv1.MigrationPhaseCancelled {
+		if phase == aevrelv1.MigrationPhaseSucceeded ||
+			phase == aevrelv1.MigrationPhaseFailed ||
+			phase == aevrelv1.MigrationPhaseCancelled {
 			if meta.SetStatusCondition(&latest.Status.Conditions, metav1.Condition{
 				Type:               "Executing",
 				Status:             metav1.ConditionFalse,
@@ -705,23 +705,23 @@ func (r *Reconciler) setExecutionStatus(
 func executionPhase(phase execution.Phase) string {
 	switch phase {
 	case execution.PhaseSucceeded:
-		return shardferryv1.MigrationPhaseSucceeded
+		return aevrelv1.MigrationPhaseSucceeded
 	case execution.PhaseFailed:
-		return shardferryv1.MigrationPhaseFailed
+		return aevrelv1.MigrationPhaseFailed
 	case execution.PhaseCancelled:
-		return shardferryv1.MigrationPhaseCancelled
+		return aevrelv1.MigrationPhaseCancelled
 	case execution.PhaseCommitting:
-		return shardferryv1.MigrationPhaseCommitting
+		return aevrelv1.MigrationPhaseCommitting
 	case execution.PhaseCommitIncomplete:
-		return shardferryv1.MigrationPhaseCommitIncomplete
+		return aevrelv1.MigrationPhaseCommitIncomplete
 	case execution.PhaseStaged:
-		return shardferryv1.MigrationPhaseTransferring
+		return aevrelv1.MigrationPhaseTransferring
 	case execution.PhaseFinalizing:
-		return shardferryv1.MigrationPhaseCommitPending
+		return aevrelv1.MigrationPhaseCommitPending
 	case execution.PhasePrepared:
-		return shardferryv1.MigrationPhasePreparing
+		return aevrelv1.MigrationPhasePreparing
 	default:
-		return shardferryv1.MigrationPhasePending
+		return aevrelv1.MigrationPhasePending
 	}
 }
 
@@ -748,7 +748,7 @@ func cutoverPhase(phase execution.Phase) string {
 	}
 }
 
-func validateMigration(migration *shardferryv1.CheckpointMigration) error {
+func validateMigration(migration *aevrelv1.CheckpointMigration) error {
 	spec := &migration.Spec
 	if err := validateMigrationMode(spec); err != nil {
 		return err
@@ -840,11 +840,11 @@ func validateMigration(migration *shardferryv1.CheckpointMigration) error {
 }
 
 // ValidateMigration exposes the same API validation used by the controller.
-func ValidateMigration(migration *shardferryv1.CheckpointMigration) error {
+func ValidateMigration(migration *aevrelv1.CheckpointMigration) error {
 	return validateMigration(migration)
 }
 
-func validateMesh(role string, worldSize int32, mesh shardferryv1.MeshSpec) error {
+func validateMesh(role string, worldSize int32, mesh aevrelv1.MeshSpec) error {
 	if worldSize < 1 || worldSize > 256 {
 		return fmt.Errorf("%s.worldSize is out of range", role)
 	}
@@ -864,7 +864,7 @@ func validateMesh(role string, worldSize int32, mesh shardferryv1.MeshSpec) erro
 	return nil
 }
 
-func validateRanks(role string, worldSize int32, ranks []shardferryv1.RankEndpoint) error {
+func validateRanks(role string, worldSize int32, ranks []aevrelv1.RankEndpoint) error {
 	if len(ranks) != int(worldSize) {
 		return fmt.Errorf(
 			"%s.rankMap has %d entries, want %d",
@@ -892,8 +892,8 @@ func validateRanks(role string, worldSize int32, ranks []shardferryv1.RankEndpoi
 func validateAgentOrRanks(
 	role string,
 	worldSize int32,
-	ranks []shardferryv1.RankEndpoint,
-	selector *shardferryv1.AgentSelector,
+	ranks []aevrelv1.RankEndpoint,
+	selector *aevrelv1.AgentSelector,
 	clusterRef string,
 ) error {
 	if clusterRef != "" {

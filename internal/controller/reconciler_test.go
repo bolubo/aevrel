@@ -12,21 +12,21 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/artifactstore"
-	"github.com/shardferry/shardferry/internal/execution"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/artifactstore"
+	"github.com/bolubo/aevrel/internal/execution"
 )
 
 func TestReconcilerAcceptsValidMigration(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validMigration("job42")
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{Client: client, Scheme: scheme}
@@ -39,11 +39,11 @@ func TestReconcilerAcceptsValidMigration(t *testing.T) {
 	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := client.Get(context.Background(), request.NamespacedName, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Phase != string(shardferryv1.MigrationPhasePending) {
+	if got.Status.Phase != string(aevrelv1.MigrationPhasePending) {
 		t.Fatalf("phase = %q, want pending", got.Status.Phase)
 	}
 	if len(got.Status.Conditions) == 0 {
@@ -56,14 +56,14 @@ func TestReconcilerAcceptsValidMigration(t *testing.T) {
 
 func TestReconcilerRejectsInvalidRankMap(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validMigration("bad-rank-map")
 	migration.Spec.Target.RankMap = migration.Spec.Target.RankMap[:1]
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{Client: client, Scheme: scheme}
@@ -76,18 +76,18 @@ func TestReconcilerRejectsInvalidRankMap(t *testing.T) {
 	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := client.Get(context.Background(), request.NamespacedName, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Phase != string(shardferryv1.MigrationPhaseFailed) {
+	if got.Status.Phase != string(aevrelv1.MigrationPhaseFailed) {
 		t.Fatalf("phase = %q, want failed", got.Status.Phase)
 	}
 }
 
 func TestReconcilerCallsInventoryAndPlanning(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validMigration("planned")
@@ -100,7 +100,7 @@ func TestReconcilerCallsInventoryAndPlanning(t *testing.T) {
 	}
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{
@@ -117,7 +117,7 @@ func TestReconcilerCallsInventoryAndPlanning(t *testing.T) {
 	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := client.Get(context.Background(), request.NamespacedName, &got); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestReconcilerCallsInventoryAndPlanning(t *testing.T) {
 
 func TestReconcilerDispatchesAndCommitsAllRanks(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validMigration("dispatch")
@@ -154,7 +154,7 @@ func TestReconcilerDispatchesAndCommitsAllRanks(t *testing.T) {
 	}
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{
@@ -175,11 +175,11 @@ func TestReconcilerDispatchesAndCommitsAllRanks(t *testing.T) {
 	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := client.Get(context.Background(), request.NamespacedName, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Phase != shardferryv1.MigrationPhaseSucceeded {
+	if got.Status.Phase != aevrelv1.MigrationPhaseSucceeded {
 		t.Fatalf("phase = %q, want succeeded", got.Status.Phase)
 	}
 	if len(tasks.committed) != 2 {
@@ -189,11 +189,11 @@ func TestReconcilerDispatchesAndCommitsAllRanks(t *testing.T) {
 
 func TestReconcilerRestoresExecutionSnapshot(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validMigration("restore")
-	migration.Status.Phase = shardferryv1.MigrationPhasePending
+	migration.Status.Phase = aevrelv1.MigrationPhasePending
 	migration.Status.PlanHash = "sha256:" + strings.Repeat("a", 64)
 
 	run := execution.NewRun(execution.RunConfig{
@@ -231,7 +231,7 @@ func TestReconcilerRestoresExecutionSnapshot(t *testing.T) {
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	runner := execution.NewRunner(nil, 1)
@@ -250,11 +250,11 @@ func TestReconcilerRestoresExecutionSnapshot(t *testing.T) {
 	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := client.Get(context.Background(), request.NamespacedName, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Phase != shardferryv1.MigrationPhaseSucceeded {
+	if got.Status.Phase != aevrelv1.MigrationPhaseSucceeded {
 		t.Fatalf("phase = %q, want succeeded", got.Status.Phase)
 	}
 	if got.Status.ExecutionRef == "" {
@@ -272,16 +272,16 @@ func TestReconcilerRestoresExecutionSnapshot(t *testing.T) {
 
 func TestReconcilerCancelsPendingMigrationAndClearsAnnotation(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validMigration("cancel-me")
 	migration.Annotations = map[string]string{
-		"shardferry.io/cancel": "true",
+		"aevrel.dev/cancel": "true",
 	}
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointMigration{}).
+		WithStatusSubresource(&aevrelv1.CheckpointMigration{}).
 		WithObjects(migration).
 		Build()
 	reconciler := &Reconciler{Client: client, Scheme: scheme}
@@ -294,55 +294,55 @@ func TestReconcilerCancelsPendingMigrationAndClearsAnnotation(t *testing.T) {
 	if _, err := reconciler.Reconcile(context.Background(), request); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	var got shardferryv1.CheckpointMigration
+	var got aevrelv1.CheckpointMigration
 	if err := client.Get(context.Background(), request.NamespacedName, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Phase != shardferryv1.MigrationPhaseCancelled {
+	if got.Status.Phase != aevrelv1.MigrationPhaseCancelled {
 		t.Fatalf("phase = %q, want cancelled", got.Status.Phase)
 	}
-	if got.Annotations["shardferry.io/cancel"] == "true" {
+	if got.Annotations["aevrel.dev/cancel"] == "true" {
 		t.Fatal("cancel annotation was not cleared")
 	}
 }
 
-func validMigration(name string) *shardferryv1.CheckpointMigration {
-	return &shardferryv1.CheckpointMigration{
+func validMigration(name string) *aevrelv1.CheckpointMigration {
+	return &aevrelv1.CheckpointMigration{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      name,
 		},
-		Spec: shardferryv1.CheckpointMigrationSpec{
-			Checkpoint: shardferryv1.CheckpointSpec{
+		Spec: aevrelv1.CheckpointMigrationSpec{
+			Checkpoint: aevrelv1.CheckpointSpec{
 				Format:        "dcp",
 				FormatVersion: "1.0.0",
 			},
-			Source: shardferryv1.SourceSpec{
+			Source: aevrelv1.SourceSpec{
 				MetadataOwnerRank: 0,
 				WorldSize:         2,
-				Mesh: shardferryv1.MeshSpec{
+				Mesh: aevrelv1.MeshSpec{
 					Shape:      []int32{2},
 					Placements: []string{"Shard(0)"},
 				},
-				RankMap: []shardferryv1.RankEndpoint{
+				RankMap: []aevrelv1.RankEndpoint{
 					{Rank: 0, Endpoint: "https://source-0:9443"},
 					{Rank: 1, Endpoint: "https://source-0:9443"},
 				},
 				CheckpointRoot: "/checkpoints/job42",
 			},
-			Target: shardferryv1.TargetSpec{
+			Target: aevrelv1.TargetSpec{
 				WorldSize: 2,
-				Mesh: shardferryv1.MeshSpec{
+				Mesh: aevrelv1.MeshSpec{
 					Shape:      []int32{2},
 					Placements: []string{"Shard(0)"},
 				},
-				RankMap: []shardferryv1.RankEndpoint{
+				RankMap: []aevrelv1.RankEndpoint{
 					{Rank: 0, Endpoint: "https://target-0:9443"},
 					{Rank: 1, Endpoint: "https://target-0:9443"},
 				},
 				RootTemplate: "/checkpoints/job42-migrated/rank{rank}",
 			},
-			Policy: shardferryv1.PolicySpec{
+			Policy: aevrelv1.PolicySpec{
 				Verify:                 "bitwise",
 				Commit:                 "all-or-nothing",
 				MaxConcurrentTransfers: 16,
@@ -350,9 +350,9 @@ func validMigration(name string) *shardferryv1.CheckpointMigration {
 				TimeoutSeconds:         3600,
 				SourceChunkCacheBytes:  2147483648,
 			},
-			Artifacts: shardferryv1.ArtifactSpec{
+			Artifacts: aevrelv1.ArtifactSpec{
 				Store:     "pvc",
-				ClaimName: "shardferry-artifacts",
+				ClaimName: "aevrel-artifacts",
 			},
 		},
 	}

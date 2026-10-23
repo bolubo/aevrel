@@ -41,9 +41,9 @@ def run(
 
 
 def make_dcp(root: Path) -> Path:
-    from shardferry.dcp import export_dcp
-    from shardferry.executor import apply
-    from shardferry.planning import plan
+    from aevrel.dcp import export_dcp
+    from aevrel.executor import apply
+    from aevrel.planning import plan
     from tests.fixtures.generated import (
         generate_sharded_spec,
         materialize_source_files,
@@ -71,7 +71,7 @@ def main() -> int:
     root = (
         Path(args.work_dir).resolve()
         if args.work_dir
-        else Path(tempfile.mkdtemp(prefix="shardferry-product-"))
+        else Path(tempfile.mkdtemp(prefix="aevrel-product-"))
     )
     root.mkdir(parents=True, exist_ok=True)
     results: dict[str, object] = {"work_dir": str(root)}
@@ -79,7 +79,7 @@ def main() -> int:
     try:
         demo_dir = root / "demo"
         run(
-            [sys.executable, "-m", "shardferry", "demo", "--work-dir", str(demo_dir)],
+            [sys.executable, "-m", "aevrel", "demo", "--work-dir", str(demo_dir)],
             env=env,
         )
         results["demo"] = {"ok": True, "work_dir": str(demo_dir)}
@@ -95,7 +95,7 @@ def main() -> int:
                 [
                     sys.executable,
                     "-m",
-                    "shardferry",
+                    "aevrel",
                     "migrate",
                     "--checkpoint",
                     str(checkpoint),
@@ -119,7 +119,7 @@ def main() -> int:
                 [
                     sys.executable,
                     "-m",
-                    "shardferry.commands.target_load",
+                    "aevrel.commands.target_load",
                     "--checkpoint",
                     payload["output"],
                     "--json",
@@ -144,7 +144,7 @@ def main() -> int:
                 [
                     sys.executable,
                     "-m",
-                    "shardferry.commands.support_bundle",
+                    "aevrel.commands.support_bundle",
                     "--help",
                 ],
                 env=env,
@@ -153,7 +153,7 @@ def main() -> int:
                 "ok": "support bundle" in support_help.stdout.lower(),
             }
             run(["go", "test", "./cmd/ctl", "./internal/controller"])
-            run(["helm", "lint", "deploy/helm/shardferry", "--set", "tls.enabled=false"])
+            run(["helm", "lint", "deploy/helm/aevrel", "--set", "tls.enabled=false"])
             ctl = run(
                 [
                     "go",
@@ -165,7 +165,7 @@ def main() -> int:
                     "--dry-run",
                 ]
             )
-            results["shardferryctl"] = {
+            results["aevrelctl"] = {
                 "ok": "agentSelector" in ctl.stdout,
                 "dry_run": True,
             }

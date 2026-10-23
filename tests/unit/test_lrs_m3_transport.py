@@ -7,13 +7,13 @@ import urllib.request
 
 import pytest
 
-from shardferry.lrs import (
+from aevrel.lrs import (
     HttpDeltaServer,
     HttpDeltaSink,
     LrsError,
     ShardBlob,
 )
-from shardferry.lrs.faults import DroppingProxy
+from aevrel.lrs.faults import DroppingProxy
 
 
 def _local_ip() -> str:

@@ -13,7 +13,7 @@ source rank 一个 Pod 和一个本地 PVC。每个 Pod 只运行：
 serve --rank <ordinal> --listen 0.0.0.0:9000
 ```
 
-`migration.yaml` 放在 ConfigMap `shardferry-source-spec` 中。每个 Pod 的
+`migration.yaml` 放在 ConfigMap `aevrel-source-spec` 中。每个 Pod 的
 `/checkpoints` 放本 rank 的 local shard。
 
 ## Rank map
@@ -22,7 +22,7 @@ serve --rank <ordinal> --listen 0.0.0.0:9000
 
 ```bash
 python scripts/render_rank_map.py \
-  --service shardferry-source --namespace default \
+  --service aevrel-source --namespace default \
   --world-size 128 --port 9000 --out rank-map.yaml
 ```
 
@@ -33,7 +33,7 @@ python scripts/render_rank_map.py \
 
 `target-statefulset.yaml` 需要两个 ConfigMap：
 
-- `shardferry-target-spec`：包含 `client.yaml` 和 `plan.json`；
+- `aevrel-target-spec`：包含 `client.yaml` 和 `plan.json`；
 - 每个 target Pod 自己的本地 PVC 作为 `/checkpoints`。
 
 每个 Pod 运行：
@@ -46,7 +46,7 @@ apply --spec /config/client.yaml --plan /config/plan.json \
 完成后 coordinator 收集每个 rank 的 report，并运行：
 
 ```bash
-shardferry summarize \
+aevrel summarize \
   --reports-dir ./reports \
   --spec ./client.yaml \
   --plan ./plan.json \

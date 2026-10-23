@@ -6,12 +6,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shardferry import executor
-from shardferry.executor import ExecutionError, apply, commit_staged
-from shardferry.planning import plan
-from shardferry.storage.file import FileStorage, StorageError
-from shardferry.targets import journal_path, target_file_path
-from shardferry.verification import VerificationError, verify
+from aevrel import executor
+from aevrel.executor import ExecutionError, apply, commit_staged
+from aevrel.planning import plan
+from aevrel.storage.file import FileStorage, StorageError
+from aevrel.targets import journal_path, target_file_path
+from aevrel.verification import VerificationError, verify
 from tests.fixtures.generated import (
     generate_partial_source_spec,
     generate_sharded_spec,

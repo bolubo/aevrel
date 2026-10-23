@@ -16,8 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/shardferry/shardferry/internal/agentclient"
-	"github.com/shardferry/shardferry/internal/clusterclient"
+	"github.com/bolubo/aevrel/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/clusterclient"
 )
 
 func TestGatewayResolveAndProxySourceAgent(t *testing.T) {
@@ -55,7 +55,7 @@ func TestGatewayResolveAndProxySourceAgent(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "default",
 				Name:      "pod-a",
-				Labels:    map[string]string{"app": "shardferry"},
+				Labels:    map[string]string{"app": "aevrel"},
 			},
 			Status: corev1.PodStatus{
 				Phase: corev1.PodRunning,
@@ -78,7 +78,7 @@ func TestGatewayResolveAndProxySourceAgent(t *testing.T) {
 	resolveBody, _ := json.Marshal(clusterclient.ResolveRequest{
 		Role:        "source",
 		Namespace:   "default",
-		MatchLabels: map[string]string{"app": "shardferry"},
+		MatchLabels: map[string]string{"app": "aevrel"},
 		Scheme:      "http",
 		Port:        port,
 		WorldSize:   1,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from math import prod
 
-from shardferry.planning import plan, validate_plan
+from aevrel.planning import plan, validate_plan
 from tests.fixtures.generated import generate_sharded_spec
 
 

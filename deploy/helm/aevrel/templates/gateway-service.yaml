@@ -1,0 +1,22 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aevrel.fullname" . }}-gateway
+  labels:
+    {{- include "aevrel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  type: {{ .Values.gateway.serviceType }}
+  selector:
+    app.kubernetes.io/name: {{ include "aevrel.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: gateway
+  ports:
+    - name: gateway
+      port: {{ .Values.gateway.port }}
+      targetPort: gateway
+      {{- if .Values.gateway.nodePort }}
+      nodePort: {{ .Values.gateway.nodePort }}
+      {{- end }}
+{{- end }}

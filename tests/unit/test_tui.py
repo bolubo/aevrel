@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from shardferry.tui import run_tui
+from aevrel.tui import run_tui
 
 
 def test_tui_requires_interactive_terminal(tmp_path, monkeypatch, capsys) -> None:

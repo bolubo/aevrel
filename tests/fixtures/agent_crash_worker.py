@@ -5,8 +5,8 @@ import os
 import signal
 from pathlib import Path
 
-from shardferry.agent import AgentApp
-from shardferry.agent.executor import LocalArtifactResolver, TargetTaskExecutor
+from aevrel.agent import AgentApp
+from aevrel.agent.executor import LocalArtifactResolver, TargetTaskExecutor
 
 
 def main() -> None:

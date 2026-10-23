@@ -9,12 +9,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from shardferry.agent import AgentApp
-from shardferry.agent.executor import LocalArtifactResolver, TargetTaskExecutor
-from shardferry.agent.state import TaskPhase, TaskStore
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.verification import verify
+from aevrel.agent import AgentApp
+from aevrel.agent.executor import LocalArtifactResolver, TargetTaskExecutor
+from aevrel.agent.state import TaskPhase, TaskStore
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.verification import verify
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 
 

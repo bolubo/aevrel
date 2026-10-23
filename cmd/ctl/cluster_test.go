@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestClusterAddWritesSecretAndCluster(t *testing.T) {
@@ -75,7 +75,7 @@ func TestClusterAddJSONOutputsKubernetesList(t *testing.T) {
 	err := execute(
 		context.Background(),
 		nil,
-		"shardferry-control",
+		"aevrel-control",
 		true,
 		[]string{
 			"cluster", "add", "target",
@@ -104,7 +104,7 @@ func TestClusterAddJSONOutputsKubernetesList(t *testing.T) {
 	if err := json.Unmarshal(list.Items[0], &secret); err != nil {
 		t.Fatal(err)
 	}
-	var cluster shardferryv1.ShardferryCluster
+	var cluster aevrelv1.AevrelCluster
 	if err := json.Unmarshal(list.Items[1], &cluster); err != nil {
 		t.Fatal(err)
 	}
@@ -213,14 +213,14 @@ func TestClusterAddDoesNotNeedKubeClient(t *testing.T) {
 func decodeClusterAddManifest(
 	t *testing.T,
 	data []byte,
-) (corev1.Secret, shardferryv1.ShardferryCluster) {
+) (corev1.Secret, aevrelv1.AevrelCluster) {
 	t.Helper()
 	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
 	var secret corev1.Secret
 	if err := decoder.Decode(&secret); err != nil {
 		t.Fatal(err)
 	}
-	var cluster shardferryv1.ShardferryCluster
+	var cluster aevrelv1.AevrelCluster
 	if err := decoder.Decode(&cluster); err != nil {
 		t.Fatal(err)
 	}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from shardferry.coordinator import expected_rank_work
-from shardferry.planning import plan
+from aevrel.coordinator import expected_rank_work
+from aevrel.planning import plan
 from tests.fixtures.generated import generate_sharded_spec
 
 

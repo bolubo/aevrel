@@ -19,14 +19,14 @@ import torch  # noqa: E402
 import torch.distributed as dist  # noqa: E402
 from torch import nn  # noqa: E402
 
-from shardferry.lrs.handoff import (  # noqa: E402
+from aevrel.lrs.handoff import (  # noqa: E402
     HandoffServer,
     local_ip,
     send_state,
 )
-from shardferry.lrs.backends import ensure_gloo_backend  # noqa: E402
-from shardferry.lrs.sampler import RankSampler  # noqa: E402
-from shardferry.lrs.state_closure import (  # noqa: E402
+from aevrel.lrs.backends import ensure_gloo_backend  # noqa: E402
+from aevrel.lrs.sampler import RankSampler  # noqa: E402
+from aevrel.lrs.state_closure import (  # noqa: E402
     capture_state,
     restore_state,
 )
@@ -488,7 +488,7 @@ def main() -> int:
         evidence.write_text(
             json.dumps(
                 {
-                    "schema": "shardferry.lrs.cpu4.live.proof.v1",
+                    "schema": "aevrel.lrs.cpu4.live.proof.v1",
                     "checks": checks,
                     "parameter_max_abs_delta": parameter_diff,
                     "target_max_abs_delta": target_diff,

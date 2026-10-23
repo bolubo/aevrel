@@ -13,8 +13,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import numpy as np  # noqa: E402
 
-from shardferry.lrs import RankPhase  # noqa: E402
-from shardferry.lrs.tp_pp import (  # noqa: E402
+from aevrel.lrs import RankPhase  # noqa: E402
+from aevrel.lrs.tp_pp import (  # noqa: E402
     TPPPBaseline,
     TPPPConfig,
     TPPPSimulator,
@@ -129,7 +129,7 @@ def main() -> int:
     proof_path.write_text(
         json.dumps(
             {
-                "schema": "shardferry.lrs.m5.proof.v1",
+                "schema": "aevrel.lrs.m5.proof.v1",
                 "checks": checks,
                 "note": (
                     "CPU semantic TP/PP toy; real 4-GPU NCCL run "

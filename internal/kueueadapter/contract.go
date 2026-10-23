@@ -11,22 +11,22 @@ import (
 const (
 	// AnnotationProtection is the explicit opt-in. The adapter does not modify
 	// unrelated Kueue Workloads.
-	AnnotationProtection       = "shardferry.io/preemption-protection"
-	AnnotationCheckpointRecord = "shardferry.io/checkpoint-record"
+	AnnotationProtection       = "aevrel.dev/preemption-protection"
+	AnnotationCheckpointRecord = "aevrel.dev/checkpoint-record"
 
 	// Checkpoint publisher contract. Annotations are authoritative; labels are
 	// accepted as a fallback for simple sidecars.
-	AnnotationProgressPercent    = "shardferry.io/training-progress-percent"
-	AnnotationCheckpointComplete = "shardferry.io/checkpoint-complete"
-	AnnotationCheckpointVersion  = "shardferry.io/checkpoint-version"
-	AnnotationCheckpointAge      = "shardferry.io/checkpoint-age-seconds"
+	AnnotationProgressPercent    = "aevrel.dev/training-progress-percent"
+	AnnotationCheckpointComplete = "aevrel.dev/checkpoint-complete"
+	AnnotationCheckpointVersion  = "aevrel.dev/checkpoint-version"
+	AnnotationCheckpointAge      = "aevrel.dev/checkpoint-age-seconds"
 
 	// Labels consumed by Kueue PreemptionConfig.numericLabels.
-	LabelPreemptionProtected = "shardferry.io/preemption-protected"
-	LabelPreemptionReason    = "shardferry.io/preemption-reason"
-	LabelProgressPercent     = "shardferry.io/training-progress-percent"
-	LabelCheckpointComplete  = "shardferry.io/checkpoint-complete"
-	LabelDecisionSource      = "shardferry.io/preemption-decision-source"
+	LabelPreemptionProtected = "aevrel.dev/preemption-protected"
+	LabelPreemptionReason    = "aevrel.dev/preemption-reason"
+	LabelProgressPercent     = "aevrel.dev/training-progress-percent"
+	LabelCheckpointComplete  = "aevrel.dev/checkpoint-complete"
+	LabelDecisionSource      = "aevrel.dev/preemption-decision-source"
 )
 
 func IsProtectionEnabled(object metav1.Object) bool {

@@ -1,4 +1,4 @@
-# shardferry 产品路线图
+# Aevrel 产品路线图
 
 状态：基于第一轮公开需求证据的产品路线图。这里只保留 3 个产品方向，
 不承诺版本日期或每版具体功能。
@@ -110,7 +110,7 @@ DCP/FSDP-like checkpoint
 
 ### 是什么
 
-这是 shardferry 提供给调度器和平台的中立状态契约：
+这是 Aevrel 提供给调度器和平台的中立状态契约：
 
 ```text
 这个 workload 最近有没有完整 checkpoint？
@@ -153,7 +153,7 @@ restore 大概要多久、会丢多少 step？
   - interruption cost / progress-loss signal。
 - 先做 adapter，不改 Kueue/Volcano/Kubeflow 的核心调度器；
 - 让调度器可以选择消费哪些信号，不强迫所有平台使用同一策略；
-- 提供 `shardferryctl kueue status|explain` 这类可解释入口；
+- 提供 `aevrelctl kueue status|explain` 这类可解释入口；
 - 明确区分“事实”（checkpoint 状态）和“策略”（是否抢占、如何加权）。
 
 ### 验收
@@ -168,7 +168,7 @@ restore 大概要多久、会丢多少 step？
 ### 不做什么
 
 - 不替代 Kueue/Volcano/Kubeflow 的调度器；
-- 不把业务权重、配额、公平性全部塞进 shardferry；
+- 不把业务权重、配额、公平性全部塞进 aevrel；
 - 不做没有证据的自动抢占策略；
 - 不假设所有用户都安装 Kueue。
 

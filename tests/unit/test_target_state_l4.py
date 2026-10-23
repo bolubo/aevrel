@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.commands.target_load import _restore_state
-from shardferry.state import (
+from aevrel.commands.target_load import _restore_state
+from aevrel.state import (
     JsonStateProvider,
     PythonRandomProvider,
     StateBundle,

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/shardferry/shardferry/internal/agentclient"
+	"github.com/bolubo/aevrel/internal/agentclient"
 )
 
 func isRetryable(err error) bool {

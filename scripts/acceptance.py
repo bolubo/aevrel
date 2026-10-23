@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from jsonschema import Draft202012Validator
 
-from shardferry.demo import run_demo
+from aevrel.demo import run_demo
 
 
 def main() -> None:

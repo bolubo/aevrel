@@ -43,8 +43,8 @@ def _check(
 
 def check(image_prefix: str) -> dict[str, Any]:
     errors: list[str] = []
-    chart = _load_yaml(REPO / "deploy/helm/shardferry/Chart.yaml")
-    values = _load_yaml(REPO / "deploy/helm/shardferry/values.yaml")
+    chart = _load_yaml(REPO / "deploy/helm/aevrel/Chart.yaml")
+    values = _load_yaml(REPO / "deploy/helm/aevrel/values.yaml")
     pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
     project_version = str(
         pyproject.get("project", {}).get("version", "")
@@ -67,13 +67,13 @@ def check(image_prefix: str) -> dict[str, Any]:
         )
     init_match = re.search(
         r'^__version__\s*=\s*"([^"]+)"',
-        (REPO / "src/shardferry/__init__.py").read_text(encoding="utf-8"),
+        (REPO / "src/aevrel/__init__.py").read_text(encoding="utf-8"),
         re.MULTILINE,
     )
     init_version = init_match.group(1) if init_match else ""
     if init_version != app_version:
         errors.append(
-            "src/shardferry/__init__.py version must equal Chart.yaml "
+            "src/aevrel/__init__.py version must equal Chart.yaml "
             f"appVersion: {init_version or '<missing>'} != {app_version}"
         )
 
@@ -91,7 +91,7 @@ def check(image_prefix: str) -> dict[str, Any]:
             continue
         if image.endswith(":latest"):
             errors.append(f"values.yaml image.{key} uses latest")
-        expected_prefix = f"{image_prefix}/shardferry-{artifact}:"
+        expected_prefix = f"{image_prefix}/aevrel-{artifact}:"
         if not image.startswith(expected_prefix):
             errors.append(
                 f"image.{key} must start with {expected_prefix!r}: {image}"
@@ -103,11 +103,11 @@ def check(image_prefix: str) -> dict[str, Any]:
 
     scripts = pyproject.get("project", {}).get("scripts", {})
     for command in (
-        "shardferry",
-        "shardferry-target-load",
-        "shardferry-target-report",
-        "shardferry-support-bundle",
-        "shardferry-live-worker",
+        "aevrel",
+        "aevrel-target-load",
+        "aevrel-target-report",
+        "aevrel-support-bundle",
+        "aevrel-live-worker",
     ):
         if command not in scripts:
             errors.append(f"pyproject.toml is missing console script {command}")
@@ -118,8 +118,8 @@ def check(image_prefix: str) -> dict[str, Any]:
         "deploy/docker/Dockerfile.agent",
         "deploy/docker/Dockerfile.live-worker",
         "deploy/docker/Dockerfile.kueue-adapter",
-        "deploy/helm/shardferry/crds/checkpointmigration.yaml",
-        "deploy/helm/shardferry/crds/shardferrycluster.yaml",
+        "deploy/helm/aevrel/crds/checkpointmigration.yaml",
+        "deploy/helm/aevrel/crds/aevrelcluster.yaml",
         "docs/INDEX.zh-CN.md",
         "docs/QUICKSTART.zh-CN.md",
         "docs/PRODUCT-FORM.zh-CN.md",
@@ -145,8 +145,8 @@ def check(image_prefix: str) -> dict[str, Any]:
             f"missing release notes: {release_notes.relative_to(REPO)}"
         )
 
-    _check(errors, REPO / "README.md", expected="shardferry-target-load")
-    _check(errors, REPO / "README.md", expected="shardferry-support-bundle")
+    _check(errors, REPO / "README.md", expected="aevrel-target-load")
+    _check(errors, REPO / "README.md", expected="aevrel-support-bundle")
     return {
         "status": "ok" if not errors else "failed",
         "chart_version": chart_version,

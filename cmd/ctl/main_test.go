@@ -30,15 +30,15 @@ func TestPlanDryRunReturnsOfflineValidationHint(t *testing.T) {
 	if err == nil {
 		t.Fatal("parsePlan(--dry-run) should fail")
 	}
-	if !strings.Contains(err.Error(), "shardferryctl migrate -f FILE --dry-run") {
+	if !strings.Contains(err.Error(), "aevrelctl migrate -f FILE --dry-run") {
 		t.Fatalf("error should point to offline migrate validation, got: %v", err)
 	}
 }
 
 func TestMainMissingKubeconfigPrintsOfflineValidationHint(t *testing.T) {
-	const childEnv = "SHARDFERRY_TEST_MAIN_MISSING_KUBECONFIG"
+	const childEnv = "AEVREL_TEST_MAIN_MISSING_KUBECONFIG"
 	if os.Getenv(childEnv) == "1" {
-		os.Args = []string{"shardferryctl", "plan", "-f", "migration.yaml"}
+		os.Args = []string{"aevrelctl", "plan", "-f", "migration.yaml"}
 		main()
 		return
 	}
@@ -75,7 +75,7 @@ func TestMainMissingKubeconfigPrintsOfflineValidationHint(t *testing.T) {
 
 	for _, want := range []string{
 		"requires a Kubernetes kubeconfig",
-		"shardferryctl migrate -f FILE --dry-run",
+		"aevrelctl migrate -f FILE --dry-run",
 	} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("stderr missing %q:\n%s", want, stderr.String())

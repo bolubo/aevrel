@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.state import (
+from aevrel.state import (
     JsonStateProvider,
     NumpyRandomProvider,
     PythonRandomProvider,
@@ -179,7 +179,7 @@ def test_bundle_manifest_has_json_safe_metadata(tmp_path: Path) -> None:
 
 
 def test_state_cli_capture_and_verify(tmp_path: Path) -> None:
-    from shardferry.cli import main
+    from aevrel.cli import main
 
     root = tmp_path / "state"
     assert main(

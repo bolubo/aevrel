@@ -8,7 +8,7 @@
 target 可能因为 DCP metadata、world size、模型代码、优化器状态或数据路径
 不匹配而在第一步崩溃。
 
-shardferry 的 `target-ready` 结论必须满足：
+aevrel 的 `target-ready` 结论必须满足：
 
 1. 每个 target rank 都加载了模型；
 2. 每个 target rank 都加载了优化器；
@@ -33,14 +33,14 @@ shardferry 的 `target-ready` 结论必须满足：
 1. source → target 的数据迁移按原有事务提交；
 2. controller 创建一个 Indexed Kubernetes Job，或观察用户已有的 Job；
 3. controller 给每个容器注入：
-   - `SHARDFERRY_MIGRATION_UID`
-   - `SHARDFERRY_VERSION`
-   - `SHARDFERRY_TARGET_WORLD_SIZE`
-   - `SHARDFERRY_VALIDATION_STEPS`
-   - `SHARDFERRY_CHECKPOINT_TEMPLATE`
-   - `SHARDFERRY_REPORT_PATH`
+   - `AEVREL_MIGRATION_UID`
+   - `AEVREL_VERSION`
+   - `AEVREL_TARGET_WORLD_SIZE`
+   - `AEVREL_VALIDATION_STEPS`
+   - `AEVREL_CHECKPOINT_TEMPLATE`
+   - `AEVREL_REPORT_PATH`
 4. 每个 rank 的真实训练代码在加载和 N step 成功后调用
-   `shardferry-target-report`；
+   `aevrel-target-report`；
 5. report 写入容器的 termination message；
 6. controller 从成功 Pod 的 termination message 读取 JSON，聚合所有 rank；
 7. 只有 Job Complete + 全 rank 报告通过，才写 `TargetReady=True` 和 proof。
@@ -50,10 +50,10 @@ target Job 能访问 controller。控制器重启后仍可从 Job/Pod 状态恢�
 
 ## 最小报告
 
-安装 shardferry Python 包后，训练脚本只需在最后调用：
+安装 aevrel Python 包后，训练脚本只需在最后调用：
 
 ```python
-from shardferry.target_ready import write_target_ready_report
+from aevrel.target_ready import write_target_ready_report
 
 write_target_ready_report(
     model_loaded=True,
@@ -66,16 +66,16 @@ write_target_ready_report(
 也可以使用 CLI：
 
 ```bash
-shardferry-target-report \
+aevrel-target-report \
   --model-loaded \
   --optimizer-loaded \
-  --steps-ran "$SHARDFERRY_VALIDATION_STEPS"
+  --steps-ran "$AEVREL_VALIDATION_STEPS"
 ```
 
 `--model-loaded` / `--optimizer-loaded` 只能在代码确实完成加载后传；
 训练脚本加载失败应直接非零退出，不能继续写成功报告。
-目标训练镜像必须安装 shardferry wheel（或把同样的 report helper 打进镜像），
-否则 `shardferry-target-report` 不可用。
+目标训练镜像必须安装 aevrel wheel（或把同样的 report helper 打进镜像），
+否则 `aevrel-target-report` 不可用。
 
 ## Migration 配置
 
@@ -105,14 +105,14 @@ target:
                   - |
                     set -eu
                     rank="${JOB_COMPLETION_INDEX:?}"
-                    checkpoint="${SHARDFERRY_CHECKPOINT_TEMPLATE//\{rank\}/$rank}"
+                    checkpoint="${AEVREL_CHECKPOINT_TEMPLATE//\{rank\}/$rank}"
                     python train_resume.py \
                       --checkpoint "$checkpoint" \
-                      --steps "$SHARDFERRY_VALIDATION_STEPS"
-                    shardferry-target-report \
+                      --steps "$AEVREL_VALIDATION_STEPS"
+                    aevrel-target-report \
                       --model-loaded \
                       --optimizer-loaded \
-                      --steps-ran "$SHARDFERRY_VALIDATION_STEPS"
+                      --steps-ran "$AEVREL_VALIDATION_STEPS"
 ```
 
 完整可复制版本见
@@ -125,7 +125,7 @@ target:
 ```bash
 kubectl apply -f examples/checkpoint-control/restore-drill.yaml
 kubectl get sfdrill training-step-100 -w
-shardferryctl readiness training-step-100
+aevrelctl readiness training-step-100
 ```
 
 `RestoreDrill.spec.jobTemplate` 与 migration 的 target validation 使用同一套
@@ -142,13 +142,13 @@ metadata digest；checkpoint 变化后旧 proof 自动失效。
   controller 填充；
 - 模板必须把每个 rank 的 target 本地目录挂载到容器里；
 - 报告路径由 controller 注入，用户代码不要自己覆盖
-  `SHARDFERRY_REPORT_PATH`；
+  `AEVREL_REPORT_PATH`；
 - 0.2 只支持 controller 所在 target 集群中的 Job。target 在远端集群时，
   应由 target 侧控制面创建 migration 或使用后续的远端 launcher adapter。
 
 也可以不创建 Job，而用 `validation.jobName` 观察一个已经存在的 Job。
-该 Job 必须带 `shardferry.io/migration-uid=<migration UID>` 和
-`shardferry.io/target-version=<version>` annotation；
+该 Job 必须带 `aevrel.dev/migration-uid=<migration UID>` 和
+`aevrel.dev/target-version=<version>` annotation；
 建议由 controller 创建模板，避免报告串线。
 
 ## Status 与 proof

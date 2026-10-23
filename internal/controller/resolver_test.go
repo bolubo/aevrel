@@ -10,8 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/clusterclient"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/clusterclient"
 )
 
 type fakeRankAPI map[string][]int32
@@ -50,8 +50,8 @@ func TestAgentResolverBuildsSourceAndTargetRankMaps(t *testing.T) {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	selector := &shardferryv1.AgentSelector{
-		MatchLabels: map[string]string{"app": "shardferry", "role": "source"},
+	selector := &aevrelv1.AgentSelector{
+		MatchLabels: map[string]string{"app": "aevrel", "role": "source"},
 		Port:        9443,
 		Scheme:      "https",
 	}
@@ -76,12 +76,12 @@ func TestAgentResolverBuildsSourceAndTargetRankMaps(t *testing.T) {
 	migration.Spec.Source.AgentSelector = selector
 	migration.Spec.Target.RankMap = nil
 	migration.Spec.Target.WorldSize = 3
-	migration.Spec.Target.Mesh = shardferryv1.MeshSpec{
+	migration.Spec.Target.Mesh = aevrelv1.MeshSpec{
 		Shape:      []int32{3},
 		Placements: []string{"Shard(0)"},
 	}
-	migration.Spec.Target.AgentSelector = &shardferryv1.AgentSelector{
-		MatchLabels: map[string]string{"app": "shardferry", "role": "target"},
+	migration.Spec.Target.AgentSelector = &aevrelv1.AgentSelector{
+		MatchLabels: map[string]string{"app": "aevrel", "role": "target"},
 		Port:        9444,
 		Scheme:      "http",
 	}
@@ -90,13 +90,13 @@ func TestAgentResolverBuildsSourceAndTargetRankMaps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := resolved.Spec.Source.RankMap, []shardferryv1.RankEndpoint{
+	if got, want := resolved.Spec.Source.RankMap, []aevrelv1.RankEndpoint{
 		{Rank: 0, Endpoint: "https://10.0.0.1:9443"},
 		{Rank: 1, Endpoint: "https://10.0.0.2:9443"},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("source rank map = %#v, want %#v", got, want)
 	}
-	if got, want := resolved.Spec.Target.RankMap, []shardferryv1.RankEndpoint{
+	if got, want := resolved.Spec.Target.RankMap, []aevrelv1.RankEndpoint{
 		{Rank: 0, Endpoint: "http://10.0.0.3:9444"},
 		{Rank: 1, Endpoint: "http://10.0.0.4:9444"},
 		{Rank: 2, Endpoint: "http://10.0.0.3:9444"},
@@ -120,8 +120,8 @@ func TestAgentResolverFailsOnMissingSourceRank(t *testing.T) {
 	}
 	migration := validMigration("missing")
 	migration.Spec.Source.RankMap = nil
-	migration.Spec.Source.AgentSelector = &shardferryv1.AgentSelector{
-		MatchLabels: map[string]string{"app": "shardferry"},
+	migration.Spec.Source.AgentSelector = &aevrelv1.AgentSelector{
+		MatchLabels: map[string]string{"app": "aevrel"},
 	}
 	if _, err := resolver.Resolve(context.Background(), migration); err == nil {
 		t.Fatal("missing source rank must fail")
@@ -133,50 +133,50 @@ func TestAgentResolverUsesClusterGateways(t *testing.T) {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	migration := validMigration("remote")
 	migration.Spec.Source.RankMap = nil
 	migration.Spec.Source.ClusterRef = "source-cluster"
-	migration.Spec.Source.AgentSelector = &shardferryv1.AgentSelector{
+	migration.Spec.Source.AgentSelector = &aevrelv1.AgentSelector{
 		MatchLabels: map[string]string{"role": "source"},
 	}
 	migration.Spec.Target.RankMap = nil
 	migration.Spec.Target.ClusterRef = "target-cluster"
-	migration.Spec.Target.AgentSelector = &shardferryv1.AgentSelector{
+	migration.Spec.Target.AgentSelector = &aevrelv1.AgentSelector{
 		MatchLabels: map[string]string{"role": "target"},
 	}
 	migration.Spec.Target.WorldSize = 2
-	migration.Spec.Target.Mesh = shardferryv1.MeshSpec{
+	migration.Spec.Target.Mesh = aevrelv1.MeshSpec{
 		Shape:      []int32{2},
 		Placements: []string{"Shard(0)"},
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(
-			&shardferryv1.ShardferryCluster{
+			&aevrelv1.AevrelCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "default",
 					Name:      "source-cluster",
 				},
-				Spec: shardferryv1.ShardferryClusterSpec{
+				Spec: aevrelv1.AevrelClusterSpec{
 					Role:     "source",
 					Endpoint: "https://source.example",
-					SecretRef: shardferryv1.ClusterSecretRef{
+					SecretRef: aevrelv1.ClusterSecretRef{
 						Name: "source-auth",
 					},
 				},
 			},
-			&shardferryv1.ShardferryCluster{
+			&aevrelv1.AevrelCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "default",
 					Name:      "target-cluster",
 				},
-				Spec: shardferryv1.ShardferryClusterSpec{
+				Spec: aevrelv1.AevrelClusterSpec{
 					Role:     "target",
 					Endpoint: "https://target.example",
-					SecretRef: shardferryv1.ClusterSecretRef{
+					SecretRef: aevrelv1.ClusterSecretRef{
 						Name: "target-auth",
 					},
 				},
@@ -235,12 +235,12 @@ func TestValidateMigrationAllowsClusterRefSelector(t *testing.T) {
 	migration := validMigration("remote-valid")
 	migration.Spec.Source.RankMap = nil
 	migration.Spec.Source.ClusterRef = "source"
-	migration.Spec.Source.AgentSelector = &shardferryv1.AgentSelector{
+	migration.Spec.Source.AgentSelector = &aevrelv1.AgentSelector{
 		MatchLabels: map[string]string{"role": "source"},
 	}
 	migration.Spec.Target.RankMap = nil
 	migration.Spec.Target.ClusterRef = "target"
-	migration.Spec.Target.AgentSelector = &shardferryv1.AgentSelector{
+	migration.Spec.Target.AgentSelector = &aevrelv1.AgentSelector{
 		MatchLabels: map[string]string{"role": "target"},
 	}
 	if err := validateMigration(migration); err != nil {
@@ -251,7 +251,7 @@ func TestValidateMigrationAllowsClusterRefSelector(t *testing.T) {
 func TestValidateMigrationRejectsClusterRefWithRankMap(t *testing.T) {
 	migration := validMigration("remote-bad")
 	migration.Spec.Source.ClusterRef = "source"
-	migration.Spec.Source.AgentSelector = &shardferryv1.AgentSelector{
+	migration.Spec.Source.AgentSelector = &aevrelv1.AgentSelector{
 		MatchLabels: map[string]string{"role": "source"},
 	}
 	if err := validateMigration(migration); err == nil {
@@ -261,8 +261,8 @@ func TestValidateMigrationRejectsClusterRefWithRankMap(t *testing.T) {
 
 func TestValidateAgentSelectorRejectsRankMapAndSelectorTogether(t *testing.T) {
 	migration := validMigration("both")
-	migration.Spec.Source.AgentSelector = &shardferryv1.AgentSelector{
-		MatchLabels: map[string]string{"app": "shardferry"},
+	migration.Spec.Source.AgentSelector = &aevrelv1.AgentSelector{
+		MatchLabels: map[string]string{"app": "aevrel"},
 	}
 	if err := validateMigration(migration); err == nil {
 		t.Fatal("rankMap together with agentSelector must fail")
@@ -272,12 +272,12 @@ func TestValidateAgentSelectorRejectsRankMapAndSelectorTogether(t *testing.T) {
 func TestValidateMigrationAcceptsSelectorInsteadOfRankMap(t *testing.T) {
 	migration := validMigration("selector-only")
 	migration.Spec.Source.RankMap = nil
-	migration.Spec.Source.AgentSelector = &shardferryv1.AgentSelector{
-		MatchLabels: map[string]string{"app": "shardferry"},
+	migration.Spec.Source.AgentSelector = &aevrelv1.AgentSelector{
+		MatchLabels: map[string]string{"app": "aevrel"},
 	}
 	migration.Spec.Target.RankMap = nil
-	migration.Spec.Target.AgentSelector = &shardferryv1.AgentSelector{
-		MatchLabels: map[string]string{"app": "shardferry"},
+	migration.Spec.Target.AgentSelector = &aevrelv1.AgentSelector{
+		MatchLabels: map[string]string{"app": "aevrel"},
 	}
 	if err := validateMigration(migration); err != nil {
 		t.Fatal(err)
@@ -290,7 +290,7 @@ func agentPod(name, ip, role string) *corev1.Pod {
 			Namespace: "default",
 			Name:      name,
 			Labels: map[string]string{
-				"app":  "shardferry",
+				"app":  "aevrel",
 				"role": role,
 			},
 		},

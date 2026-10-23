@@ -2,7 +2,7 @@
 
 这份文档解决迁移后的最后一跳：**目标训练任务能不能真正加载迁移结果**。
 
-`shardferry` 的迁移成功只代表 target DCP 已经生成并通过 bitwise 校验；
+`aevrel` 的迁移成功只代表 target DCP 已经生成并通过 bitwise 校验；
 用户还需要在目标训练环境里完成一次真实 load。
 
 ## 1. 先做模型无关的 smoke
@@ -10,7 +10,7 @@
 在 target 节点的 Python 环境执行：
 
 ```bash
-shardferry-target-load \
+aevrel-target-load \
   --checkpoint /targets/job42/rank0 \
   --metadata-dir /targets/job42/metadata \
   --rank 0 \
@@ -45,7 +45,7 @@ rank”问题。
 如果 target root 是一个完整 DCP 目录，可以不加 `--rank`：
 
 ```bash
-shardferry-target-load \
+aevrel-target-load \
   --checkpoint /targets/job42/full \
   --json
 ```
@@ -121,7 +121,7 @@ set_state_dict(
 迁移可能还在 staging，或 target root 挂错了。先检查迁移状态和目录：
 
 ```bash
-shardferryctl describe migration <name> -o json
+aevrelctl describe migration <name> -o json
 ```
 
 ### rank 的 `.distcp` 缺失

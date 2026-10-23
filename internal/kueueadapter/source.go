@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 // ObservationContext points at the object carrying checkpoint state.
@@ -106,7 +106,7 @@ func (s CheckpointRecordSource) Resolve(
 	if err != nil {
 		return ObservationContext{}, err
 	}
-	var selected *shardferryv1.CheckpointRecord
+	var selected *aevrelv1.CheckpointRecord
 	if len(records) > 1 {
 		selected, _ = latestCheckpointRecord(records)
 	}
@@ -147,8 +147,8 @@ func (s CheckpointRecordSource) Resolve(
 }
 
 func latestCheckpointRecord(
-	records []shardferryv1.CheckpointRecord,
-) (*shardferryv1.CheckpointRecord, bool) {
+	records []aevrelv1.CheckpointRecord,
+) (*aevrelv1.CheckpointRecord, bool) {
 	sort.SliceStable(records, func(i, j int) bool {
 		return recordSortKey(&records[i]) > recordSortKey(&records[j])
 	})
@@ -158,7 +158,7 @@ func latestCheckpointRecord(
 	return &records[0], true
 }
 
-func recordSortKey(record *shardferryv1.CheckpointRecord) string {
+func recordSortKey(record *aevrelv1.CheckpointRecord) string {
 	step := int64(-1)
 	if record.Spec.Step != nil {
 		step = *record.Spec.Step
@@ -175,14 +175,14 @@ func (s CheckpointRecordSource) recordsForSource(
 	ctx context.Context,
 	workload *unstructured.Unstructured,
 	source metav1.Object,
-) ([]shardferryv1.CheckpointRecord, error) {
+) ([]aevrelv1.CheckpointRecord, error) {
 	if s.Reader == nil {
 		return nil, fmt.Errorf("checkpoint record reader is nil")
 	}
 	if name := strings.TrimSpace(
 		source.GetAnnotations()[AnnotationCheckpointRecord],
 	); name != "" {
-		var record shardferryv1.CheckpointRecord
+		var record aevrelv1.CheckpointRecord
 		if err := s.Reader.Get(ctx, client.ObjectKey{
 			Namespace: workload.GetNamespace(),
 			Name:      name,
@@ -192,12 +192,12 @@ func (s CheckpointRecordSource) recordsForSource(
 			}
 			return nil, fmt.Errorf("get CheckpointRecord %s: %w", name, err)
 		}
-		return []shardferryv1.CheckpointRecord{record}, nil
+		return []aevrelv1.CheckpointRecord{record}, nil
 	}
 	if name := strings.TrimSpace(
 		workload.GetAnnotations()[AnnotationCheckpointRecord],
 	); name != "" {
-		var record shardferryv1.CheckpointRecord
+		var record aevrelv1.CheckpointRecord
 		if err := s.Reader.Get(ctx, client.ObjectKey{
 			Namespace: workload.GetNamespace(),
 			Name:      name,
@@ -207,13 +207,13 @@ func (s CheckpointRecordSource) recordsForSource(
 			}
 			return nil, fmt.Errorf("get CheckpointRecord %s: %w", name, err)
 		}
-		return []shardferryv1.CheckpointRecord{record}, nil
+		return []aevrelv1.CheckpointRecord{record}, nil
 	}
 	owner := controllerJobOwner(workload.GetOwnerReferences())
 	if owner == nil {
 		return nil, nil
 	}
-	var records shardferryv1.CheckpointRecordList
+	var records aevrelv1.CheckpointRecordList
 	if err := s.Reader.List(
 		ctx,
 		&records,
@@ -221,7 +221,7 @@ func (s CheckpointRecordSource) recordsForSource(
 	); err != nil {
 		return nil, fmt.Errorf("list CheckpointRecords: %w", err)
 	}
-	matches := make([]shardferryv1.CheckpointRecord, 0)
+	matches := make([]aevrelv1.CheckpointRecord, 0)
 	for _, record := range records.Items {
 		if record.Spec.JobRef == owner.Name || record.Name == owner.Name {
 			matches = append(matches, record)
@@ -230,9 +230,9 @@ func (s CheckpointRecordSource) recordsForSource(
 	return matches, nil
 }
 
-func checkpointRecordReady(record *shardferryv1.CheckpointRecord) bool {
+func checkpointRecordReady(record *aevrelv1.CheckpointRecord) bool {
 	readiness := record.Status.Readiness
-	return readiness.Status == shardferryv1.ReadinessReady &&
+	return readiness.Status == aevrelv1.ReadinessReady &&
 		readiness.Complete &&
 		readiness.Fresh &&
 		readiness.Loadable != nil &&

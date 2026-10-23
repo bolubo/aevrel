@@ -1,0 +1,58 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "aevrel.fullname" . }}-controller
+  labels:
+    {{- include "aevrel.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["aevrel.dev"]
+    resources: ["checkpointmigrations"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["aevrel.dev"]
+    resources: ["checkpointmigrations/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["aevrel.dev"]
+    resources: ["checkpointrecords", "restoredrills", "rescuedecisions"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["aevrel.dev"]
+    resources:
+      - checkpointrecords/status
+      - restoredrills/status
+      - rescuedecisions/status
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["aevrel.dev"]
+    resources: ["aevrelclusters"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["aevrel.dev"]
+    resources: ["aevrelclusters/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "aevrel.fullname" . }}-controller
+  labels:
+    {{- include "aevrel.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "aevrel.fullname" . }}-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "aevrel.fullname" . }}-controller
+    namespace: {{ .Release.Namespace }}

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from shardferry.lrs.layout import Shard, TensorLayout, iter_shards
-from shardferry.lrs.tp_pp import TPPPConfig, TPPPSimulator
+from aevrel.lrs.layout import Shard, TensorLayout, iter_shards
+from aevrel.lrs.tp_pp import TPPPConfig, TPPPSimulator
 
 
 def test_a2_layout_matches_m5_tp_pp_shards() -> None:

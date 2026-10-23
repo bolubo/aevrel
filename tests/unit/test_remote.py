@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.remote import rewrite_source_uris
+from aevrel.remote import rewrite_source_uris
 from tests.fixtures.generated import generate_sharded_spec
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.storage.file import FileStorage, StorageError, _is_windows_drive_path
+from aevrel.storage.file import FileStorage, StorageError, _is_windows_drive_path
 
 
 def test_file_storage_read_write_ranges(tmp_path) -> None:

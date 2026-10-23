@@ -11,8 +11,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
-	"github.com/shardferry/shardferry/internal/clusterclient"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
+	"github.com/bolubo/aevrel/internal/clusterclient"
 )
 
 // ClusterInfoAPI is the gateway health/info surface used by the cluster
@@ -21,7 +21,7 @@ type ClusterInfoAPI interface {
 	Info(ctx context.Context, endpoint string, token string) (clusterclient.GatewayInfo, error)
 }
 
-// ClusterHealthReconciler keeps ShardferryCluster status useful for users and
+// ClusterHealthReconciler keeps AevrelCluster status useful for users and
 // preflight. It only probes the gateway; it does not discover ranks.
 type ClusterHealthReconciler struct {
 	client.Client
@@ -34,7 +34,7 @@ func (r *ClusterHealthReconciler) Reconcile(
 	ctx context.Context,
 	request ctrl.Request,
 ) (ctrl.Result, error) {
-	var cluster shardferryv1.ShardferryCluster
+	var cluster aevrelv1.AevrelCluster
 	if err := r.Get(ctx, request.NamespacedName, &cluster); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -110,7 +110,7 @@ func (r *ClusterHealthReconciler) Reconcile(
 
 func (r *ClusterHealthReconciler) setStatus(
 	ctx context.Context,
-	cluster *shardferryv1.ShardferryCluster,
+	cluster *aevrelv1.AevrelCluster,
 	ready bool,
 	version string,
 	message string,
@@ -137,6 +137,6 @@ func (r *ClusterHealthReconciler) setStatus(
 
 func (r *ClusterHealthReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&shardferryv1.ShardferryCluster{}).
+		For(&aevrelv1.AevrelCluster{}).
 		Complete(r)
 }

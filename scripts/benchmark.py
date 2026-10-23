@@ -8,9 +8,9 @@ from pathlib import Path
 
 import yaml
 
-from shardferry.executor import apply
-from shardferry.planning import plan
-from shardferry.verification import verify
+from aevrel.executor import apply
+from aevrel.planning import plan
+from aevrel.verification import verify
 
 
 MiB = 1024 * 1024
@@ -124,7 +124,7 @@ def main() -> None:
     result = {
         "source_bytes": source_bytes,
         "target_bytes": target_bytes,
-        "shardferry_plan_bytes": plan_payload["total_bytes"],
+        "aevrel_plan_bytes": plan_payload["total_bytes"],
         "baseline_transfer_bytes": baseline_bytes,
         "saving_ratio": ratio,
         "nodes": len(plan_payload["nodes"]),

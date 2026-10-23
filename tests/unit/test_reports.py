@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.reports import ReportError, summarize_reports
+from aevrel.reports import ReportError, summarize_reports
 
 
 def _report(rank: int, chunks: int, bytes_moved: int) -> dict:

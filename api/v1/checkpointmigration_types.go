@@ -57,7 +57,7 @@ type TargetValidationSpec struct {
 	// JobName observes an existing Job instead of creating one from JobTemplate.
 	JobName string `json:"jobName,omitempty"`
 	// JobTemplate is a batch/v1 Job with one Indexed Pod per target rank.
-	// shardferry injects the checkpoint and report contract into every
+	// aevrel injects the checkpoint and report contract into every
 	// container before creating it.
 	// +kubebuilder:pruning:PreserveUnknownFields
 	JobTemplate *runtime.RawExtension `json:"jobTemplate,omitempty"`
@@ -92,8 +92,8 @@ type ClusterSecretRef struct {
 	Key string `json:"key,omitempty"`
 }
 
-// ShardferryClusterSpec describes a reachable agent gateway in one cluster.
-type ShardferryClusterSpec struct {
+// AevrelClusterSpec describes a reachable agent gateway in one cluster.
+type AevrelClusterSpec struct {
 	// +kubebuilder:validation:Enum=source;target;both
 	// +kubebuilder:default=both
 	Role string `json:"role,omitempty"`
@@ -103,8 +103,8 @@ type ShardferryClusterSpec struct {
 	Description string           `json:"description,omitempty"`
 }
 
-// ShardferryClusterStatus is the observed gateway state.
-type ShardferryClusterStatus struct {
+// AevrelClusterStatus is the observed gateway state.
+type AevrelClusterStatus struct {
 	Ready    bool   `json:"ready,omitempty"`
 	Version  string `json:"version,omitempty"`
 	Message  string `json:"message,omitempty"`
@@ -336,26 +336,26 @@ type CheckpointMigrationList struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=sfc
-type ShardferryCluster struct {
+type AevrelCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              ShardferryClusterSpec   `json:"spec,omitempty"`
-	Status            ShardferryClusterStatus `json:"status,omitempty"`
+	Spec              AevrelClusterSpec   `json:"spec,omitempty"`
+	Status            AevrelClusterStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-type ShardferryClusterList struct {
+type AevrelClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ShardferryCluster `json:"items"`
+	Items           []AevrelCluster `json:"items"`
 }
 
 func init() {
 	SchemeBuilder.Register(
 		&CheckpointMigration{},
 		&CheckpointMigrationList{},
-		&ShardferryCluster{},
-		&ShardferryClusterList{},
+		&AevrelCluster{},
+		&AevrelClusterList{},
 	)
 }
 

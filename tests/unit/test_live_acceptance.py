@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_live_acceptance_dry_run(tmp_path: Path) -> None:
     migration = tmp_path / "migration.yaml"
     migration.write_text(
-        "apiVersion: shardferry.io/v1\n"
+        "apiVersion: aevrel.dev/v1\n"
         "kind: CheckpointMigration\n"
         "metadata:\n"
         "  name: test\n"

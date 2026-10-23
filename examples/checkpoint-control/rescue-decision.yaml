@@ -1,4 +1,4 @@
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: RescueDecision
 metadata:
   name: training-preempted
@@ -16,9 +16,9 @@ metadata:
   name: training
   namespace: default
   labels:
-    shardferry.io/rescue: enabled
+    aevrel.dev/rescue: enabled
   annotations:
-    shardferry.io/checkpoint-record: training-step-100
+    aevrel.dev/checkpoint-record: training-step-100
 spec:
   template:
     spec:

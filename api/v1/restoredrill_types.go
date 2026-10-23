@@ -11,7 +11,7 @@ type RestoreDrillSpec struct {
 	// JobName observes an existing Job instead of creating one from JobTemplate.
 	JobName string `json:"jobName,omitempty"`
 	// JobTemplate is a batch/v1 Job with one Indexed Pod per target rank.
-	// shardferry injects the restore/report contract before creating it.
+	// aevrel injects the restore/report contract before creating it.
 	// +kubebuilder:pruning:PreserveUnknownFields
 	JobTemplate *runtime.RawExtension `json:"jobTemplate,omitempty"`
 	// +kubebuilder:validation:MinLength=1

@@ -10,7 +10,7 @@ spec:
     candidateSelectors:
     - scope: AnyClusterQueue
       numericLabels:
-      - key: shardferry.io/preemption-protected
+      - key: aevrel.dev/preemption-protected
         maxValue: 0
         # Fail-open: an unlabeled workload remains eligible. This is useful for
         # a trial deployment, but it is not a strict binary protection guarantee.

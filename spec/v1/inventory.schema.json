@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://shardferry.dev/schemas/inventory-v1.json",
-  "title": "ShardferryInventory",
+  "$id": "https://aevrel.dev/schemas/inventory-v1.json",
+  "title": "AevrelInventory",
   "type": "object",
   "additionalProperties": false,
   "required": [

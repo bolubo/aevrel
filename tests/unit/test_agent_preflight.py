@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.agent import AgentApp, AgentError
+from aevrel.agent import AgentApp, AgentError
 
 
 def test_target_preflight_accepts_writable_allowed_root(tmp_path: Path) -> None:
@@ -32,7 +32,7 @@ def test_target_preflight_rejects_path_outside_allowed_root(
     )
 
     with pytest.raises(AgentError, match="outside"):
-        app.preflight("/etc/shardferry/rank0")
+        app.preflight("/etc/aevrel/rank0")
 
 
 def test_target_cleanup_removes_staging_then_explicitly_purges(
@@ -40,7 +40,7 @@ def test_target_cleanup_removes_staging_then_explicitly_purges(
 ) -> None:
     allowed = tmp_path / "targets"
     root = allowed / "job42" / "rank0"
-    staging = root / ".shardferry"
+    staging = root / ".aevrel"
     staging.mkdir(parents=True)
     (staging / "journal.json").write_text("{}")
     (root / "w.bin").write_bytes(b"data")

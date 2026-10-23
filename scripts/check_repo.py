@@ -136,8 +136,8 @@ def _check_governance_content(errors: list[str]) -> None:
         "SUPPORT.md",
         "CONSTRUCTION.zh-CN.md",
         "ROADMAP.zh-CN.md",
-        "shardferry demo --dcp",
-        "shardferry-target-load",
+        "aevrel demo --dcp",
+        "aevrel-target-load",
     ):
         if required not in readme:
             errors.append(f"README.md is missing {required!r}")

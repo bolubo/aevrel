@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.cdp import TargetLock
+from aevrel.cdp import TargetLock
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX flock crash harness")

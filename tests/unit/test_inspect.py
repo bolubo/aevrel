@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from shardferry.inspect import inspect_toy
-from shardferry.manifest import load_payload, validate_spec
+from aevrel.inspect import inspect_toy
+from aevrel.manifest import load_payload, validate_spec
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "toy-4to3" / "checkpoint.yaml"
 

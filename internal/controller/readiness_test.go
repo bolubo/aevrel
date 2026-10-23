@@ -16,20 +16,20 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	shardferryv1 "github.com/shardferry/shardferry/api/v1"
+	aevrelv1 "github.com/bolubo/aevrel/api/v1"
 )
 
 func TestCheckpointReadinessReconcilerMarksUnverified(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "job42",
 			Namespace: "default",
 		},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
@@ -37,10 +37,10 @@ func TestCheckpointReadinessReconcilerMarksUnverified(t *testing.T) {
 			Checkpoint:      "/checkpoints/job42",
 			SourceWorldSize: 4,
 		},
-		Status: shardferryv1.CheckpointRecordStatus{
+		Status: aevrelv1.CheckpointRecordStatus{
 			Complete:    true,
 			LatestMtime: time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
-			Ranks: []shardferryv1.CheckpointRankStatus{{
+			Ranks: []aevrelv1.CheckpointRankStatus{{
 				Rank:  0,
 				Bytes: 16,
 			}},
@@ -48,7 +48,7 @@ func TestCheckpointReadinessReconcilerMarksUnverified(t *testing.T) {
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointRecord{}).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
 		WithObjects(record).
 		Build()
 	reconciler := &CheckpointReadinessReconciler{
@@ -67,7 +67,7 @@ func TestCheckpointReadinessReconcilerMarksUnverified(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.CheckpointRecord
+	var got aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -75,8 +75,8 @@ func TestCheckpointReadinessReconcilerMarksUnverified(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Readiness.Status != shardferryv1.ReadinessUnverified {
-		t.Fatalf("readiness = %q, want %q", got.Status.Readiness.Status, shardferryv1.ReadinessUnverified)
+	if got.Status.Readiness.Status != aevrelv1.ReadinessUnverified {
+		t.Fatalf("readiness = %q, want %q", got.Status.Readiness.Status, aevrelv1.ReadinessUnverified)
 	}
 	if got.Status.Complete != true {
 		t.Fatal("complete was not copied")
@@ -85,13 +85,13 @@ func TestCheckpointReadinessReconcilerMarksUnverified(t *testing.T) {
 
 func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	loadable := true
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
@@ -99,15 +99,15 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 			Checkpoint:      "/checkpoints/job42",
 			SourceWorldSize: 1,
 		},
-		Status: shardferryv1.CheckpointRecordStatus{
+		Status: aevrelv1.CheckpointRecordStatus{
 			MetadataDigest: "sha256:test",
 			LatestMtime:    time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
 			Complete:       true,
-			Ranks: []shardferryv1.CheckpointRankStatus{{
+			Ranks: []aevrelv1.CheckpointRankStatus{{
 				Rank:  0,
 				Bytes: 16,
 			}},
-			Readiness: shardferryv1.CheckpointReadinessStatus{
+			Readiness: aevrelv1.CheckpointReadinessStatus{
 				Loadable:         &loadable,
 				LastDrill:        "default/drill",
 				LastDrillVersion: "step-100",
@@ -117,7 +117,7 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointRecord{}).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
 		WithObjects(record).
 		Build()
 	reconciler := &CheckpointReadinessReconciler{
@@ -133,7 +133,7 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.CheckpointRecord
+	var got aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -141,7 +141,7 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 	); err != nil {
 		t.Fatal(err)
 	}
-	if got.Status.Readiness.Status != shardferryv1.ReadinessReady {
+	if got.Status.Readiness.Status != aevrelv1.ReadinessReady {
 		t.Fatalf("readiness = %+v", got.Status.Readiness)
 	}
 	if got.Status.Readiness.LastDrillVersion != "step-100" ||
@@ -152,13 +152,13 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 
 func TestCheckpointReadinessReconcilerInvalidatesStaleDrill(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	loadable := true
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
@@ -166,11 +166,11 @@ func TestCheckpointReadinessReconcilerInvalidatesStaleDrill(t *testing.T) {
 			Checkpoint:      "/checkpoints/job42",
 			SourceWorldSize: 1,
 		},
-		Status: shardferryv1.CheckpointRecordStatus{
+		Status: aevrelv1.CheckpointRecordStatus{
 			MetadataDigest: "sha256:new",
 			LatestMtime:    time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
 			Complete:       true,
-			Readiness: shardferryv1.CheckpointReadinessStatus{
+			Readiness: aevrelv1.CheckpointReadinessStatus{
 				Loadable:         &loadable,
 				LastDrill:        "default/drill",
 				LastDrillVersion: "step-99",
@@ -180,7 +180,7 @@ func TestCheckpointReadinessReconcilerInvalidatesStaleDrill(t *testing.T) {
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointRecord{}).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
 		WithObjects(record).
 		Build()
 	reconciler := &CheckpointReadinessReconciler{
@@ -196,7 +196,7 @@ func TestCheckpointReadinessReconcilerInvalidatesStaleDrill(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.CheckpointRecord
+	var got aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -206,7 +206,7 @@ func TestCheckpointReadinessReconcilerInvalidatesStaleDrill(t *testing.T) {
 	}
 	if got.Status.Readiness.Loadable == nil ||
 		*got.Status.Readiness.Loadable ||
-		got.Status.Readiness.Status != shardferryv1.ReadinessTargetBlocked {
+		got.Status.Readiness.Status != aevrelv1.ReadinessTargetBlocked {
 		t.Fatalf("readiness = %+v", got.Status.Readiness)
 	}
 }
@@ -268,12 +268,12 @@ func TestCheckpointReadinessReconcilerDiscoversAgent(t *testing.T) {
 	)
 
 	scheme := runtime.NewScheme()
-	if err := shardferryv1.AddToScheme(scheme); err != nil {
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	record := &shardferryv1.CheckpointRecord{
+	record := &aevrelv1.CheckpointRecord{
 		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
-		Spec: shardferryv1.CheckpointRecordSpec{
+		Spec: aevrelv1.CheckpointRecordSpec{
 			JobRef:          "job42",
 			Version:         "step-100",
 			Provider:        "dcp",
@@ -285,7 +285,7 @@ func TestCheckpointReadinessReconcilerDiscoversAgent(t *testing.T) {
 	}
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&shardferryv1.CheckpointRecord{}).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
 		WithObjects(record).
 		Build()
 	reconciler := &CheckpointReadinessReconciler{
@@ -303,7 +303,7 @@ func TestCheckpointReadinessReconcilerDiscoversAgent(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var got shardferryv1.CheckpointRecord
+	var got aevrelv1.CheckpointRecord
 	if err := kubeClient.Get(
 		context.Background(),
 		types.NamespacedName{Namespace: "default", Name: "job42"},
@@ -314,14 +314,14 @@ func TestCheckpointReadinessReconcilerDiscoversAgent(t *testing.T) {
 	if !got.Status.Complete || len(got.Status.Ranks) != 1 {
 		t.Fatalf("agent facts not copied: %+v", got.Status)
 	}
-	if got.Status.Readiness.Status != shardferryv1.ReadinessUnverified {
+	if got.Status.Readiness.Status != aevrelv1.ReadinessUnverified {
 		t.Fatalf("readiness = %q", got.Status.Readiness.Status)
 	}
 }
 
 func TestControlDrillUsesReferenceAndOutcome(t *testing.T) {
 	ready := true
-	drill := controlDrill(shardferryv1.CheckpointReadinessStatus{
+	drill := controlDrill(aevrelv1.CheckpointReadinessStatus{
 		Loadable:  &ready,
 		LastDrill: "default/restore-drill",
 	})
@@ -332,7 +332,7 @@ func TestControlDrillUsesReferenceAndOutcome(t *testing.T) {
 	}
 
 	failed := false
-	drill = controlDrill(shardferryv1.CheckpointReadinessStatus{
+	drill = controlDrill(aevrelv1.CheckpointReadinessStatus{
 		Loadable:  &failed,
 		LastDrill: "default/restore-drill-failed",
 	})
@@ -345,7 +345,7 @@ func TestControlDrillUsesReferenceAndOutcome(t *testing.T) {
 
 func TestControlDrillRejectsStaleCheckpointEvidence(t *testing.T) {
 	ready := true
-	status := shardferryv1.CheckpointReadinessStatus{
+	status := aevrelv1.CheckpointReadinessStatus{
 		Loadable:         &ready,
 		LastDrill:        "default/restore-drill",
 		LastDrillVersion: "step-100",

@@ -1,8 +1,8 @@
-apiVersion: shardferry.io/v1
+apiVersion: aevrel.dev/v1
 kind: CheckpointMigration
 metadata:
   name: job42-16-to-8
-  namespace: shardferry-control
+  namespace: aevrel-control
 spec:
   checkpoint:
     format: dcp
@@ -16,9 +16,9 @@ spec:
     metadataOwnerRank: 0
     checkpointRoot: /checkpoints/job42
     agentSelector:
-      namespace: shardferry
+      namespace: aevrel
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: source
       port: 9443
       scheme: https
@@ -30,9 +30,9 @@ spec:
       placements: ["Shard(0)"]
     rootTemplate: /targets/job42/rank{rank}
     agentSelector:
-      namespace: shardferry
+      namespace: aevrel
       matchLabels:
-        app.kubernetes.io/name: shardferry
+        app.kubernetes.io/name: aevrel
         app.kubernetes.io/component: target
       port: 9444
       scheme: https
@@ -45,4 +45,4 @@ spec:
     sourceChunkCacheBytes: 536870912
   artifacts:
     store: pvc
-    claimName: shardferry-control-artifacts
+    claimName: aevrel-control-artifacts

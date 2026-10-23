@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from shardferry.manifest import ManifestError, load_spec, validate_spec
+from aevrel.manifest import ManifestError, load_spec, validate_spec
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "toy-4to3" / "spec.yaml"
 

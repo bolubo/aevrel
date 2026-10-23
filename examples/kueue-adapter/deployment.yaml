@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: shardferry-kueue-adapter
-  namespace: shardferry-system
+  name: aevrel-kueue-adapter
+  namespace: aevrel-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: shardferry-kueue-adapter
+      app.kubernetes.io/name: aevrel-kueue-adapter
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: shardferry-kueue-adapter
+        app.kubernetes.io/name: aevrel-kueue-adapter
     spec:
-      serviceAccountName: shardferry-kueue-adapter
+      serviceAccountName: aevrel-kueue-adapter
       containers:
       - name: adapter
-        image: shardferry-kueue-adapter:dev
+        image: aevrel-kueue-adapter:dev
         imagePullPolicy: IfNotPresent
         args:
         - --strict=true

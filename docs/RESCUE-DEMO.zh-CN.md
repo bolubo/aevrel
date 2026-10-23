@@ -7,7 +7,7 @@
 ## 1. 这个 demo 演示什么
 
 用户已经有一份 local-disk DCP，迁移过程中进程被中断。下一次运行同一条
-命令时，shardferry 不应该从零开始，而应该：
+命令时，aevrel 不应该从零开始，而应该：
 
 1. 保留 journal 和未完成 staging；
 2. 跳过已经完成的 node；
@@ -18,7 +18,7 @@
 运行：
 
 ```bash
-python scripts/rescue_demo.py --work-dir ./shardferry-rescue
+python scripts/rescue_demo.py --work-dir ./aevrel-rescue
 ```
 
 输出：

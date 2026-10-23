@@ -4,8 +4,8 @@ from pathlib import Path
 
 import numpy as np
 
-from shardferry.executor import apply
-from shardferry.planning import plan
+from aevrel.executor import apply
+from aevrel.planning import plan
 from tests.fixtures.generated import checksum, mesh_payload
 
 
