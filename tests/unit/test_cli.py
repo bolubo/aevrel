@@ -86,14 +86,6 @@ def test_default_demo_cli(tmp_path, capsys) -> None:
     result = main(["demo", "--work-dir", str(tmp_path / "demo")])
     assert result == 0
     output = capsys.readouterr().out
-    assert '"verification"' in output
-    assert (tmp_path / "demo" / "target" / "w" / "rank0.bin").is_file()
-
-
-def test_default_demo_cli(tmp_path, capsys) -> None:
-    result = main(["demo", "--work-dir", str(tmp_path / "demo")])
-    assert result == 0
-    output = capsys.readouterr().out
     assert "Demo complete" in output
     assert "verification: bitwise passed" in output
     assert (tmp_path / "demo" / "target" / "w" / "rank0.bin").is_file()
@@ -106,6 +98,24 @@ def test_demo_json_cli(tmp_path, capsys) -> None:
     assert result == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["verification"]["passed"] is True
+
+
+def test_demo_dcp_cli(tmp_path, capsys) -> None:
+    pytest.importorskip("torch")
+    result = main(
+        [
+            "demo",
+            "--dcp",
+            "--work-dir",
+            str(tmp_path / "demo"),
+            "--json",
+        ]
+    )
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert Path(payload["dcp"]["source"], ".metadata").is_file()
+    assert Path(payload["dcp"]["target"], ".metadata").is_file()
+    assert payload["dcp"]["target_load"] == "ok"
 
 
 def test_help_only_exposes_product_commands(capsys) -> None:

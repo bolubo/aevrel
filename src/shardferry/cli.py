@@ -223,7 +223,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     demo = sub.add_parser(
         "demo",
-        help="run a self-contained 4 -> 3 migration (no checkpoint or GPU)",
+        help=(
+            "run a self-contained 4 -> 3 migration; --dcp adds a real "
+            "CPU DCP pair"
+        ),
     )
     demo.add_argument(
         "--work-dir",
@@ -233,6 +236,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="print machine-readable JSON",
+    )
+    demo.add_argument(
+        "--dcp",
+        action="store_true",
+        help="also build a real source/target DCP pair and verify target load",
     )
 
     migrate = sub.add_parser(
@@ -379,6 +387,16 @@ def _build_parser() -> argparse.ArgumentParser:
     readiness.add_argument("--step", type=int, default=None)
     readiness.add_argument("--target-world", type=int, default=None)
     readiness.add_argument("--max-age-seconds", type=int, default=86400)
+    readiness.add_argument(
+        "--drill-report",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help=(
+            "target-ready report file or directory; repeatable; "
+            "all checkpoint ranks must be covered"
+        ),
+    )
     readiness.add_argument("--strict", action="store_true")
     readiness.add_argument("--json", action="store_true")
 
@@ -776,7 +794,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     if args.command == "demo":
         try:
-            result = run_demo(args.work_dir)
+            result = run_demo(args.work_dir, include_dcp=args.dcp)
             if args.json:
                 print(json.dumps(result, indent=2))
             else:
@@ -1019,10 +1037,25 @@ def _print_demo_summary(result: dict) -> None:
         f"{verification.get('method', 'unknown')} "
         f"{'passed' if verification.get('passed') else 'FAILED'}"
     )
-    print(
-        "  next:         shardferry migrate --checkpoint "
-        "/path/to/source.dcp --target-world 3"
-    )
+    dcp = result.get("dcp")
+    if dcp:
+        print(f"  dcp source:   {dcp['source']}")
+        print(f"  dcp target:   {dcp['target']}")
+        print(
+            "  dcp load:     source "
+            f"{dcp['source_readiness']['status']}, target "
+            f"{dcp['target_readiness']['status']}"
+        )
+        print(f"  target load:  {dcp['target_load']}")
+        print(
+            "  next:         shardferry-target-load --checkpoint "
+            f"{dcp['target']} --rank 0 --json"
+        )
+    else:
+        print(
+            "  next:         shardferry demo --dcp --work-dir "
+            "./shardferry-demo-dcp"
+        )
 
 
 def _print_doctor_summary(

@@ -57,8 +57,9 @@ go build -o bin/shardferryctl ./cmd/ctl
 export PATH="$PWD/bin:$PATH"   # Linux/WSL
 ```
 
-Kubernetes 用户路径还需要 kubeconfig；不安装 controller 时，
-`preflight`/`plan`/migrate 的本地 `--dry-run` 仍可使用。
+Kubernetes 用户路径还需要 kubeconfig。没有集群时，仍可用
+`shardferryctl migrate -f FILE --dry-run` 离线校验并打印迁移 spec；
+`preflight` 和 `plan` 需要能连接管理集群。
 
 ## 3. 先跑不需要任何数据的 demo
 
@@ -86,6 +87,15 @@ Demo complete
 ```
 
 需要把结果交给脚本时，加 `--json`。
+
+要继续体验真实 DCP、readiness、迁移和 target load，运行：
+
+```bash
+.venv/bin/python -m shardferry demo --dcp
+```
+
+它会在同一目录生成 `source.dcp` 和 `target-3.dcp`，并执行一次真实的
+target DCP load。
 
 默认会在当前目录生成 `shardferry-demo/`：
 
@@ -136,6 +146,29 @@ inventory 完整；没有真实 restore drill 时状态会是 `UNVERIFIED`，不
 命令必须真实加载 model/optimizer、跑够 step，并写 target-ready report；
 否则 drill 不会成功。
 
+多 rank checkpoint 需要每个 rank 的报告。对每个 rank 运行一次：
+
+```bash
+.venv/bin/python -m shardferry restore-drill \
+  --checkpoint /data/job42/checkpoint-3rank \
+  --target-world 3 \
+  --rank 0 \
+  --target-command "python train_resume.py --checkpoint {checkpoint}" \
+  --report ./reports/rank0.json
+```
+
+全部报告写好后，把它们接回 readiness：
+
+```bash
+.venv/bin/python -m shardferry readiness \
+  --checkpoint /data/job42/checkpoint-3rank \
+  --target-world 3 \
+  --drill-report ./reports
+```
+
+只有报告覆盖 checkpoint 的所有 rank，且 model/optimizer 都加载成功，状态才会
+从 `UNVERIFIED` 变成 `READY`。
+
 ## 5. 真实 DCP 4->3
 
 假设源 checkpoint 目录是 `/data/job42/checkpoint`，执行：
@@ -182,7 +215,8 @@ inventory 完整；没有真实 restore drill 时状态会是 `UNVERIFIED`，不
 
 ## 7. 底层命令（开发/自动化）
 
-产品入口只有 `demo`、`doctor`、`migrate`。下面的命令仍然可用，但不保证稳定
+产品入口是 `demo`、`doctor`、`capabilities`、`readiness`、
+`restore-drill`、`migrate` 和 `state`。下面的命令仍然可用，但不保证稳定
 兼容，也不会出现在 `shardferry --help`：
 
 ```bash

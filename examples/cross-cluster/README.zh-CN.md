@@ -73,7 +73,7 @@ kubectl --context management apply -f clusters.yaml
 kubectl --context management -n shardferry-control get shardferryclusters -o wide
 shardferryctl get clusters -n shardferry-control
 shardferryctl describe cluster source -n shardferry-control
-shardferryctl plan -f migration.yaml --dry-run
+shardferryctl plan -f migration.yaml
 shardferryctl preflight -f migration.yaml --json
 shardferryctl migrate -f migration.yaml --wait
 shardferryctl describe migration job42-16-to-8 -n shardferry-control --ranks
@@ -161,7 +161,7 @@ kubectl apply -f clusters-source.yaml -n shardferry-control
   ready、endpoint、version 和错误信息。
 - rank observability：`describe migration --ranks` 显示每个 target rank 的
   phase、task、retries 和 error。
-- plan preview：`shardferryctl plan -f ... --dry-run` 已实测输出 bytes、
+- plan preview：`shardferryctl plan -f ...` 已实测输出 bytes、
   theoretical min、full gather、nodes、range/fan-in 和 target roots，不创建资源。
 - mTLS：controller/gateway/agent 使用同一 CA；16→8 全链路成功，target
   8/8 load；无客户端证书访问受保护 resolve 返回 401，health 保持 200。

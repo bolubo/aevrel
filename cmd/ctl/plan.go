@@ -128,7 +128,9 @@ func parsePlan(args []string) (planOptions, error) {
 			}
 			options.file = args[index]
 		case "--dry-run":
-			// plan is always side-effect free.
+			return options, fmt.Errorf(
+				"plan is read-only; use `shardferryctl migrate -f FILE --dry-run` for offline spec validation",
+			)
 		case "--max-in-flight":
 			index++
 			if index >= len(args) {
@@ -141,7 +143,7 @@ func parsePlan(args []string) (planOptions, error) {
 			options.maxInFlight = value
 		case "-h", "--help":
 			return options, fmt.Errorf(
-				"usage: shardferryctl plan -f migration.yaml [--dry-run] [--max-in-flight N]",
+				"usage: shardferryctl plan -f migration.yaml [--max-in-flight N]",
 			)
 		default:
 			return options, fmt.Errorf("unknown plan option: %s", args[index])

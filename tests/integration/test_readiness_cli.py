@@ -10,6 +10,7 @@ from shardferry.cli import main
 from shardferry.dcp import export_dcp
 from shardferry.executor import apply
 from shardferry.planning import plan
+from shardferry.verification import write_target_ready_report
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,
@@ -72,3 +73,72 @@ def test_readiness_cli_reports_missing_shard(tmp_path, capsys) -> None:
     assert payload["record"]["complete"] is False
     assert payload["readiness"]["status"] == "INCOMPLETE"
     assert payload["readiness"]["reasons"]
+
+
+def test_readiness_cli_uses_complete_drill_reports(tmp_path, capsys) -> None:
+    pytest.importorskip("torch")
+    source = _source_dcp(tmp_path)
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    for rank in range(4):
+        write_target_ready_report(
+            model_loaded=True,
+            optimizer_loaded=True,
+            steps_ran=2,
+            migration_uid=source.name,
+            version=source.name,
+            rank=rank,
+            path=reports / f"rank{rank}.json",
+        )
+
+    result = main(
+        [
+            "readiness",
+            "--checkpoint",
+            str(source),
+            "--target-world",
+            "3",
+            "--drill-report",
+            str(reports),
+            "--json",
+        ]
+    )
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["readiness"]["status"] == "READY"
+    assert payload["readiness"]["loadable"] is True
+    assert payload["drill"]["phase"] == "Succeeded"
+
+
+def test_readiness_cli_fails_closed_on_partial_drill_reports(
+    tmp_path,
+    capsys,
+) -> None:
+    pytest.importorskip("torch")
+    source = _source_dcp(tmp_path)
+    report = tmp_path / "rank0.json"
+    write_target_ready_report(
+        model_loaded=True,
+        optimizer_loaded=True,
+        steps_ran=2,
+        migration_uid=source.name,
+        version=source.name,
+        rank=0,
+        path=report,
+    )
+
+    result = main(
+        [
+            "readiness",
+            "--checkpoint",
+            str(source),
+            "--drill-report",
+            str(report),
+            "--json",
+        ]
+    )
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["readiness"]["status"] == "TARGET_BLOCKED"
+    assert payload["readiness"]["loadable"] is False
+    assert "missing drill reports" in payload["drill"]["detail"]

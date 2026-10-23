@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,11 @@ class DemoError(RuntimeError):
     """Raised when the local demo cannot start."""
 
 
-def run_demo(work_dir: str | Path | None = None) -> dict[str, Any]:
+def run_demo(
+    work_dir: str | Path | None = None,
+    *,
+    include_dcp: bool = False,
+) -> dict[str, Any]:
     root = (
         Path(work_dir).resolve()
         if work_dir is not None
@@ -113,10 +118,67 @@ def run_demo(work_dir: str | Path | None = None) -> dict[str, Any]:
         json.dumps(report, indent=2),
         encoding="utf-8",
     )
-    return {
+    result = {
         "work_dir": str(root),
         "spec": str(spec_path),
         "plan": str(root / "plan.json"),
         "report": str(root / "report.json"),
         "verification": verification,
+    }
+    if include_dcp:
+        result["dcp"] = _run_dcp_demo(root, spec)
+    return result
+
+
+def _run_dcp_demo(root: Path, spec: dict[str, Any]) -> dict[str, Any]:
+    from .dcp import export_dcp, migrate_dcp
+    from .local.dcp import DCPStateProvider
+    from .local.models import DrillOutcome
+    from .local.readiness import assess_readiness
+    from .verification import DcpTargetReady
+
+    try:
+        source_spec = deepcopy(spec)
+        source_spec["target"] = deepcopy(spec["source"])
+        source_spec["target"]["storage"] = deepcopy(
+            spec["source"]["storage"]
+        )
+        source_dcp = export_dcp(source_spec, root / "source.dcp")
+        migrate_result = migrate_dcp(
+            source_dcp,
+            root / "target-3.dcp",
+            root / "dcp-work",
+            target_world_size=3,
+        )
+        target_dcp = Path(migrate_result["output"])
+        provider = DCPStateProvider()
+        source_record = provider.inventory(source_dcp)
+        target_record = provider.inventory(target_dcp)
+        DcpTargetReady(source_dcp)("demo-source")
+        DcpTargetReady(target_dcp)("demo")
+    except Exception as exc:
+        raise DemoError(f"DCP demo failed: {exc}") from exc
+
+    return {
+        "source": str(source_dcp),
+        "target": str(target_dcp),
+        "source_readiness": assess_readiness(
+            source_record,
+            target_world_size=3,
+            drill=DrillOutcome(
+                phase="Succeeded",
+                succeeded=True,
+                proof_ref="demo-source-dcp-load",
+            ),
+        ).to_dict(),
+        "target_readiness": assess_readiness(
+            target_record,
+            target_world_size=3,
+            drill=DrillOutcome(
+                phase="Succeeded",
+                succeeded=True,
+                proof_ref="demo-target-dcp-load",
+            ),
+        ).to_dict(),
+        "target_load": "ok",
     }

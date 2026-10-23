@@ -45,7 +45,14 @@ func main() {
 	if needsKubeClient(args) {
 		config, err := ctrl.GetConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintf(
+				os.Stderr,
+				"shardferryctl %s requires a Kubernetes kubeconfig: %v\n"+
+					"For offline spec validation, run:\n"+
+					"  shardferryctl migrate -f FILE --dry-run\n",
+				args[0],
+				err,
+			)
 			os.Exit(1)
 		}
 		kubeClient, err = client.New(config, client.Options{Scheme: scheme})
@@ -95,7 +102,7 @@ func needsKubeClient(args []string) bool {
 
 func printUsage(out io.Writer) {
 	fmt.Fprintln(out, "usage: shardferryctl migrate -f FILE [--wait|--dry-run] [--no-progress] [--max-in-flight N]")
-	fmt.Fprintln(out, "       shardferryctl plan -f FILE [--dry-run] [--max-in-flight N]")
+	fmt.Fprintln(out, "       shardferryctl plan -f FILE [--max-in-flight N]")
 	fmt.Fprintln(out, "       shardferryctl preflight -f FILE [--max-in-flight N]")
 	fmt.Fprintln(out, "       shardferryctl readiness [NAME]")
 	fmt.Fprintln(out, "       shardferryctl kueue status|explain NAME")

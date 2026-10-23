@@ -41,6 +41,7 @@ failure-safe commit.
 python -m pip install -e ".[dev]"
 
 shardferry demo
+shardferry demo --dcp
 shardferry readiness --checkpoint /data/job/source.dcp --target-world 3
 shardferry restore-drill \
   --checkpoint /data/job/target-3rank.dcp \
@@ -55,6 +56,9 @@ shardferry-target-load \
   --json
 shardferry-support-bundle --namespace shardferry-control
 ```
+
+`demo` is dependency-free. `demo --dcp` additionally creates a real
+source/target DCP pair and verifies a target DCP load.
 
 `restore-drill` requires the target command to load model/optimizer state and
 run real steps. `readiness` is read-only; a complete checkpoint stays
