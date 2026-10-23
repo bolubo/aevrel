@@ -49,9 +49,9 @@ reimplementing them.
 
 ## Status
 
-`0.3.0` is the current release. The local CPU path and control-plane contracts
-are usable, but real Kubernetes, multi-node, and GPU validation remain
-environment-specific.
+[Aevrel 0.3.0](https://github.com/bolubo/aevrel/releases/tag/v0.3.0) is the
+current release. The local CPU path and control-plane contracts are usable,
+but real Kubernetes, multi-node, and GPU validation remain environment-specific.
 
 - No production SLA.
 - Source checkpoint trees are read-only.
