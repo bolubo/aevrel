@@ -28,10 +28,10 @@ from ..dcp import (
     read_dcp_chunk,
     read_dcp_chunk_range,
 )
-from ..layout import DTYPE_BYTES
+from ..planning.layout import DTYPE_BYTES
 from ..manifest import ManifestError, load_spec
-from ..planner import plan as build_plan
-from ..proof import ProofError, combine_proofs
+from ..planning import plan as build_plan
+from ..verification import ProofError, combine_proofs
 from ..gpu_transport import (
     RANGE_ACCEPT_HEADER,
     RANGE_ENCODING_HEADER,

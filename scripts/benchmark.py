@@ -9,8 +9,8 @@ from pathlib import Path
 import yaml
 
 from shardferry.executor import apply
-from shardferry.planner import plan
-from shardferry.verify import verify
+from shardferry.planning import plan
+from shardferry.verification import verify
 
 
 MiB = 1024 * 1024

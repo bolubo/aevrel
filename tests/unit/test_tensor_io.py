@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from shardferry.tensor_io import (
+from shardferry.planning.tensor_io import (
     _default_run_batch_bytes,
     byte_runs,
     coalesce_runs,

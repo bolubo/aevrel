@@ -183,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.perf_counter()
     try:
-        from shardferry.target_ready import DcpTargetReady
+        from shardferry.verification import DcpTargetReady
 
         tensors, expected_bytes = _metadata_summary(metadata_dir)
         if tensors == 0:

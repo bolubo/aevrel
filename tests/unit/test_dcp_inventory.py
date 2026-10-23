@@ -4,7 +4,7 @@ import pytest
 
 from shardferry.dcp import export_dcp, inventory_dcp
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

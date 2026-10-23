@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from shardferry.layout import Region, local_region, split_lengths
-from shardferry.mesh import parse_mesh
+from shardferry.planning.layout import Region, local_region, split_lengths
+from shardferry.planning.mesh import parse_mesh
 
 
 def test_split_lengths_puts_remainder_first() -> None:

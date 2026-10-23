@@ -14,9 +14,9 @@ from shardferry.cdp import (
     write_marker,
 )
 from shardferry.dcp import export_dcp
-from shardferry.dcp_provider import DcpRangeSpecBuilder
+from shardferry.dcp.provider import DcpRangeSpecBuilder
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.target_layout import DirectIncrementalApplyFileProvider
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 

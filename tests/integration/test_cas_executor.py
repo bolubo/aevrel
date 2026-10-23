@@ -4,7 +4,7 @@ from pathlib import Path
 
 from shardferry.cas_executor import apply_rank_to_staging
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 
 

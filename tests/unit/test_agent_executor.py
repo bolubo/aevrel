@@ -9,9 +9,9 @@ import pytest
 import yaml
 
 from shardferry.agent import build_agent_server
-from shardferry.agent_executor import LocalArtifactResolver, TargetTaskExecutor
-from shardferry.planner import plan
-from shardferry.verify import verify
+from shardferry.agent.executor import LocalArtifactResolver, TargetTaskExecutor
+from shardferry.planning import plan
+from shardferry.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

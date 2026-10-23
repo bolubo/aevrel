@@ -7,7 +7,7 @@ import pytest
 
 from shardferry.cdp import VersionMarker, write_marker
 from shardferry.cutover_service import CutoverService
-from shardferry.target_ready import CommandTargetReady, TargetReadyError
+from shardferry.verification import CommandTargetReady, TargetReadyError
 
 
 def make_version(root: Path, version_id: str, data: bytes) -> None:

@@ -20,10 +20,10 @@ from shardferry.cdp import (
     write_marker,
 )
 from shardferry.cutover import CutoverPolicy, CutoverSession
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.policy import AdaptiveChunkingPolicy
 from shardferry.target_layout import DirectIncrementalApplyFileProvider
-from shardferry.target_ready import (
+from shardferry.verification import (
     CommandTargetReady,
     HttpTargetReady,
     TargetReadyChain,

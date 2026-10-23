@@ -8,10 +8,10 @@ import pytest
 
 from shardferry import executor
 from shardferry.executor import ExecutionError, apply, commit_staged
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.storage.file import FileStorage, StorageError
 from shardferry.targets import journal_path, target_file_path
-from shardferry.verify import VerificationError, verify
+from shardferry.verification import VerificationError, verify
 from tests.fixtures.generated import (
     generate_partial_source_spec,
     generate_sharded_spec,

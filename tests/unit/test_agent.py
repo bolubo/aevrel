@@ -8,7 +8,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from shardferry.agent import build_agent_server
-from shardferry.agent_state import TaskStore
+from shardferry.agent.state import TaskStore
 
 
 def _post(base: str, path: str, payload: dict) -> dict:

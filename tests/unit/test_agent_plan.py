@@ -6,7 +6,7 @@ import threading
 from urllib.request import Request, urlopen
 
 from shardferry.agent import build_agent_server
-from shardferry.planner import validate_plan
+from shardferry.planning import validate_plan
 from tests.fixtures.generated import generate_sharded_spec
 
 

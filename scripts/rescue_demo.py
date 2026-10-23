@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from shardferry.dcp import export_dcp, migrate_dcp  # noqa: E402
 from shardferry.executor import apply  # noqa: E402
-from shardferry.planner import plan  # noqa: E402
+from shardferry.planning import plan  # noqa: E402
 from tests.fixtures.generated import (  # noqa: E402
     generate_sharded_spec,
     materialize_source_files,

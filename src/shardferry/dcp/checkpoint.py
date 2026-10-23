@@ -29,10 +29,10 @@ from ..defaults import (
 from .range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
 from ..executor import apply as execute_plan
 from ..identity import source_id
-from ..layout import DTYPE_BYTES, local_region
+from ..planning.layout import DTYPE_BYTES, local_region
 from ..manifest import validate_spec
-from ..mesh import parse_mesh
-from ..planner import plan as build_plan
+from ..planning.mesh import parse_mesh
+from ..planning import plan as build_plan
 from ..storage.file import FileStorage
 from ..targets import target_file_path
 

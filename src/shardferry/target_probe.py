@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 from .cdp import CDPError, VersionTarget
-from .target_ready import DcpTargetReady, TargetReadyError
+from .verification import DcpTargetReady, TargetReadyError
 
 
 class TargetProbeError(RuntimeError):

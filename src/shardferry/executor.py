@@ -11,20 +11,20 @@ from typing import Any, Callable
 from jsonschema import Draft202012Validator
 
 from .identity import resolve_source, source_maps
-from .layout import DTYPE_BYTES, Region, local_region
-from .mesh import parse_mesh
-from .planner import validate_plan
+from .planning.layout import DTYPE_BYTES, Region, local_region
+from .planning.mesh import parse_mesh
+from .planning import validate_plan
 from .resources import resource_path
 from .storage.file import FileStorage
 from .storage.router import StorageRouter
 from .targets import journal_path, staged_file_path, target_file_path
-from .tensor_io import (
+from .planning.tensor_io import (
     byte_runs,
     paired_run_batches,
     reduce_bytes,
     verify_source_checksums,
 )
-from .verify import verify
+from .verification import verify
 
 
 REPORT_SCHEMA_PATH = resource_path("report.schema.json")

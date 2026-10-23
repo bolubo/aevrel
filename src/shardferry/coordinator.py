@@ -3,9 +3,9 @@ from __future__ import annotations
 from math import prod
 from typing import Any
 
-from .layout import DTYPE_BYTES
-from .mesh import parse_mesh
-from .planner import validate_plan
+from .planning.layout import DTYPE_BYTES
+from .planning.mesh import parse_mesh
+from .planning import validate_plan
 
 
 def expected_rank_work(

@@ -12,7 +12,7 @@ from jsonschema import Draft202012Validator
 from .contracts import SCHEMA_DIR
 from .dcp import DcpError, read_dcp_metadata
 from .defaults import DEFAULT_MIGRATED_SUFFIX, DEFAULT_WORK_SUFFIX
-from .layout import DTYPE_BYTES
+from .planning.layout import DTYPE_BYTES
 from .manifest import ManifestError, load_spec
 from .storage.router import StorageRouter
 from .targets import target_root_path

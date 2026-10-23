@@ -5,9 +5,9 @@ import pytest
 
 from shardferry.dcp import export_dcp
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.targets import target_file_path
-from shardferry.verify import verify
+from shardferry.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

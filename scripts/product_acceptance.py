@@ -43,7 +43,7 @@ def run(
 def make_dcp(root: Path) -> Path:
     from shardferry.dcp import export_dcp
     from shardferry.executor import apply
-    from shardferry.planner import plan
+    from shardferry.planning import plan
     from tests.fixtures.generated import (
         generate_sharded_spec,
         materialize_source_files,

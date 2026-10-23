@@ -8,8 +8,8 @@ from shardferry.cdp import VersionMarker, write_marker
 from shardferry.cutover_service import CutoverService
 from shardferry.dcp import export_dcp, export_dcp_local
 from shardferry.executor import apply
-from shardferry.planner import plan
-from shardferry.target_ready import DcpTargetReady, TargetReadyError
+from shardferry.planning import plan
+from shardferry.verification import DcpTargetReady, TargetReadyError
 from shardferry.target_probe import main as target_probe_main
 from tests.fixtures.generated import (
     generate_sharded_spec,

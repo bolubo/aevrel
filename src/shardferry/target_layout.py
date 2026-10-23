@@ -20,7 +20,7 @@ from .cdp import (
 from .cas_executor import apply_rank_to_staging
 from .executor import apply
 from .manifest import validate_spec
-from .mesh import parse_mesh
+from .planning.mesh import parse_mesh
 from .native import available as native_available
 from .native import build_manifest_native
 from .policy import AdaptiveChunkingPolicy

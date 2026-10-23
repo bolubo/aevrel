@@ -20,9 +20,9 @@ from shardferry.dcp import (
     inventory_dcp_descriptors,
     read_dcp_chunk,
 )
-from shardferry.dcp_range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
+from shardferry.dcp.range import DcpRangeError, ZipTensorRange, inspect_zip_tensor
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from tests.fixtures.generated import (
     checksum,
     generate_sharded_spec,

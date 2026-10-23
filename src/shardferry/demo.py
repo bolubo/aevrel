@@ -10,10 +10,10 @@ import yaml
 
 from .defaults import DEFAULT_DEMO_DIR
 from .executor import apply
-from .layout import local_region
-from .mesh import parse_mesh
-from .planner import plan
-from .verify import verify
+from .planning.layout import local_region
+from .planning.mesh import parse_mesh
+from .planning import plan
+from .verification import verify
 
 
 class DemoError(RuntimeError):

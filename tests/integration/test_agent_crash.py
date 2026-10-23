@@ -10,11 +10,11 @@ import pytest
 import yaml
 
 from shardferry.agent import AgentApp
-from shardferry.agent_executor import LocalArtifactResolver, TargetTaskExecutor
-from shardferry.agent_state import TaskPhase, TaskStore
+from shardferry.agent.executor import LocalArtifactResolver, TargetTaskExecutor
+from shardferry.agent.state import TaskPhase, TaskStore
 from shardferry.executor import apply
-from shardferry.planner import plan
-from shardferry.verify import verify
+from shardferry.planning import plan
+from shardferry.verification import verify
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 
 

@@ -9,7 +9,7 @@ from shardferry.cdp import (
     VersionTarget,
     write_marker,
 )
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.target_layout import ApplyFileProvider
 from tests.fixtures.generated import generate_sharded_spec, materialize_source_files
 from tests.oracle.reference import assert_bitwise_equal, reference_reshard

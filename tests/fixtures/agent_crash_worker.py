@@ -6,7 +6,7 @@ import signal
 from pathlib import Path
 
 from shardferry.agent import AgentApp
-from shardferry.agent_executor import LocalArtifactResolver, TargetTaskExecutor
+from shardferry.agent.executor import LocalArtifactResolver, TargetTaskExecutor
 
 
 def main() -> None:

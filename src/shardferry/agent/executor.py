@@ -13,8 +13,8 @@ from .state import TaskRecord
 from ..dcp import export_dcp_local
 from ..executor import apply, commit_staged
 from ..manifest import load_payload
-from ..proof import build_proof
-from ..target_ready import DcpTargetReady
+from ..verification import build_proof
+from ..verification import DcpTargetReady
 
 
 class ArtifactError(ValueError):

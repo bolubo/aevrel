@@ -10,7 +10,7 @@ import pytest
 
 from shardferry.dcp import export_dcp, inspect_dcp
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 
 
 pytestmark = pytest.mark.skipif(

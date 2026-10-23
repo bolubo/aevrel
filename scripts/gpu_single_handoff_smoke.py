@@ -10,7 +10,7 @@ from pathlib import Path
 from shardferry.cdp import VersionMarker, write_marker
 from shardferry.cutover_service import CutoverService
 from shardferry.handoff import CommandPauseHook
-from shardferry.target_ready import CommandTargetReady
+from shardferry.verification import CommandTargetReady
 
 
 def sha256_file(path: Path) -> str:

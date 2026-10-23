@@ -9,7 +9,7 @@ import tracemalloc
 import zlib
 from pathlib import Path
 
-from shardferry.dcp_range import inspect_zip_tensor
+from shardferry.dcp.range import inspect_zip_tensor
 
 
 CHUNK = 4 * 1024 * 1024

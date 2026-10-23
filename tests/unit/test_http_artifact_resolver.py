@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from shardferry.agent_executor import ArtifactError, HttpArtifactResolver
+from shardferry.agent.executor import ArtifactError, HttpArtifactResolver
 
 
 def _local_ip() -> str:

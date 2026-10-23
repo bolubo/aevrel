@@ -14,11 +14,11 @@ from .cdp import (
 from .executor import _apply_node, _target_files
 from .identity import source_maps
 from .manifest import validate_spec
-from .mesh import parse_mesh
-from .planner import validate_plan
+from .planning.mesh import parse_mesh
+from .planning import validate_plan
 from .storage.file import FileStorage
 from .storage.router import StorageRouter
-from .tensor_io import verify_source_checksums
+from .planning.tensor_io import verify_source_checksums
 
 
 class CasExecutorError(RuntimeError):

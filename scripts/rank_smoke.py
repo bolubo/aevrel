@@ -15,10 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.remote import fetch_spec
 from shardferry.serve import build_server, _public_spec
-from shardferry.verify import verify
+from shardferry.verification import verify
 
 
 def local_ip() -> str:

@@ -16,15 +16,15 @@ import pytest
 import yaml
 
 from shardferry.executor import apply
-from shardferry.layout import DTYPE_BYTES
-from shardferry.planner import plan
+from shardferry.planning.layout import DTYPE_BYTES
+from shardferry.planning import plan
 from shardferry.serve import build_server
 from shardferry.remote import fetch_spec
 from shardferry.storage.file import StorageError
 from shardferry.storage.http import HttpStorage
 from shardferry.storage.router import StorageRouter
-from shardferry.tensor_io import byte_runs
-from shardferry.verify import verify
+from shardferry.planning.tensor_io import byte_runs
+from shardferry.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,

@@ -10,8 +10,8 @@ import tracemalloc
 from pathlib import Path
 
 from shardferry.executor import apply
-from shardferry.planner import plan
-from shardferry.proof import build_proof, verify_proof
+from shardferry.planning import plan
+from shardferry.verification import build_proof, verify_proof
 
 try:
     from scripts.cdp_benchmark import make_version

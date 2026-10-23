@@ -13,7 +13,7 @@ import yaml
 
 from . import __version__
 from .agent import AgentError, build_agent_server
-from .agent_executor import HttpArtifactResolver, TargetTaskExecutor
+from .agent.executor import HttpArtifactResolver, TargetTaskExecutor
 from .coordinator import expected_rank_work
 from .commands.readiness import run_readiness
 from .commands.restore_drill import run_restore_drill_command
@@ -36,7 +36,7 @@ from .state import (
 )
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
-from .target_ready import (
+from .verification import (
     CommandTargetReady,
     DcpTargetReady,
     HttpTargetReady,
@@ -53,14 +53,14 @@ from .demo import DemoError, run_demo
 from .executor import ExecutionError, apply
 from .inspect import inspect_toy
 from .manifest import ManifestError, load_payload, load_spec
-from .planner import PlannerError, plan
-from .proof import ProofError, build_proof, combine_proofs, verify_proof
+from .planning import PlannerError, plan
+from .verification import ProofError, build_proof, combine_proofs, verify_proof
 from .remote import fetch_spec, rewrite_source_uris
 from .reports import ReportError, load_reports, summarize_reports
 from .serve import serve
 from .storage.file import StorageError
-from .tensor_io import TensorIOError
-from .verify import VerificationError, verify
+from .planning.tensor_io import TensorIOError
+from .verification import VerificationError, verify
 
 
 _PUBLIC_COMMANDS = (

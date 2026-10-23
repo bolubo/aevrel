@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from shardferry.target_ready import DcpTargetReady, TargetReadyError
+from shardferry.verification import DcpTargetReady, TargetReadyError
 
 
 class JobState:

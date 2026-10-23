@@ -8,8 +8,8 @@ from pathlib import Path
 import yaml
 
 from shardferry.executor import apply
-from shardferry.planner import plan
-from shardferry.verify import verify
+from shardferry.planning import plan
+from shardferry.verification import verify
 
 
 GIB = 1024**3

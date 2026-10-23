@@ -10,14 +10,14 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from ..identity import resolve_source, source_maps
-from ..layout import DTYPE_BYTES, local_region
-from ..mesh import parse_mesh
-from ..planner import validate_plan
+from ..planning.layout import DTYPE_BYTES, local_region
+from ..planning.mesh import parse_mesh
+from ..planning import validate_plan
 from ..resources import resource_path
 from ..storage.file import FileStorage
 from ..storage.router import StorageRouter
 from ..targets import target_file_path
-from ..tensor_io import (
+from ..planning.tensor_io import (
     byte_runs,
     reduce_bytes,
 )

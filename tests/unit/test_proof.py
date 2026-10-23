@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from shardferry.executor import apply
-from shardferry.planner import plan
-from shardferry.proof import (
+from shardferry.planning import plan
+from shardferry.verification import (
     ProofError,
     build_proof,
     combine_proofs,

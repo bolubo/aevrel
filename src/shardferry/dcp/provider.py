@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .checkpoint import inventory_dcp_descriptors
 from ..manifest import validate_spec
-from ..planner import plan
+from ..planning import plan
 
 
 class DcpRangeSpecError(RuntimeError):

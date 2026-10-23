@@ -11,10 +11,10 @@ import pytest
 
 from shardferry.dcp import export_dcp, inspect_dcp
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.remote import fetch_spec
 from shardferry.serve import build_server
-from shardferry.verify import verify
+from shardferry.verification import verify
 
 
 pytestmark = pytest.mark.skipif(

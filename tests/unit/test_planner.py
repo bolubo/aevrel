@@ -9,7 +9,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from shardferry.manifest import load_spec
-from shardferry.planner import (
+from shardferry.planning import (
     PlannerError,
     _legacy_migration_id,
     plan,

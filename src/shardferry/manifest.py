@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 from jsonschema import Draft202012Validator
 
-from .mesh import parse_mesh, validate_placement_dims
+from .planning.mesh import parse_mesh, validate_placement_dims
 from .resources import resource_path
 
 SCHEMA_PATH = resource_path("migration-spec.schema.json")

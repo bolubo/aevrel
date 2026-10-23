@@ -13,10 +13,10 @@ import pytest
 from shardferry.agent import build_agent_server
 from shardferry.dcp import export_dcp, export_dcp_local, inspect_dcp
 from shardferry.executor import apply
-from shardferry.planner import plan
+from shardferry.planning import plan
 from shardferry.storage.file import FileStorage
-from shardferry.target_ready import DcpTargetReady
-from shardferry.verify import verify
+from shardferry.verification import DcpTargetReady
+from shardferry.verification import verify
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,
