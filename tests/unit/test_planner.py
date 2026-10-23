@@ -9,12 +9,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from shardferry.manifest import load_spec
-from shardferry.planning import (
-    PlannerError,
-    _legacy_migration_id,
-    plan,
-    validate_plan,
-)
+from shardferry.planning import PlannerError, plan, validate_plan
 from tests.fixtures.generated import (
     checksum,
     generate_partial_source_spec,
@@ -432,19 +427,6 @@ def test_migration_id_ignores_storage_locations_and_rank_endpoints() -> None:
     relocated["source"]["shards"].reverse()
     second = plan(relocated)["migration_id"]
     assert first == second
-
-
-def test_legacy_plan_id_is_accepted_for_resume() -> None:
-    spec, _, _ = generate_sharded_spec(
-        (8, 4),
-        (2, 2),
-        ("Shard(0)", "Shard(1)"),
-        (3, 1),
-        ("Shard(0)", "Replicate()"),
-    )
-    result = plan(spec)
-    result["migration_id"] = _legacy_migration_id(spec, "shardferry-plan-v2")
-    validate_plan(result, spec)
 
 
 def test_plan_handles_multiple_tensors() -> None:

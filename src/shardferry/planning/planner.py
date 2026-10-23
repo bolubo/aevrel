@@ -23,7 +23,6 @@ from .tensor_io import byte_runs, coalesce_runs
 
 PLAN_SCHEMA_PATH = resource_path("plan.schema.json")
 PLAN_POLICY = "shardferry-plan-v2"
-RESUME_PLAN_POLICIES = ("shardferry-plan-v2",)
 
 
 class PlannerError(ValueError):
@@ -280,7 +279,7 @@ def validate_plan(
         validate_spec(spec)
     if not _schema_validated:
         _validate_schema(plan_payload)
-    if plan_payload["migration_id"] not in _accepted_migration_ids(spec):
+    if plan_payload["migration_id"] != _migration_id(spec):
         raise PlannerError("migration_id does not match the spec")
 
     source_mesh = parse_mesh(spec["source"]["mesh"])
@@ -1087,20 +1086,3 @@ def _migration_id(spec: dict[str, Any]) -> str:
         ensure_ascii=True,
     )
     return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def _legacy_migration_id(spec: dict[str, Any], policy: str) -> str:
-    payload = policy + "\0" + json.dumps(
-        spec,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    )
-    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def _accepted_migration_ids(spec: dict[str, Any]) -> set[str]:
-    accepted = {_migration_id(spec)}
-    for policy in RESUME_PLAN_POLICIES:
-        accepted.add(_legacy_migration_id(spec, policy))
-    return accepted

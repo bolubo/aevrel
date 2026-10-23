@@ -120,7 +120,7 @@ class AdaptiveTokenBucket:
 
 
 class AdaptiveRateController(AdaptiveTokenBucket):
-    """Backward-friendly name for callers that want an explicit controller."""
+    """Explicit name for callers that want to manage a single limiter."""
 
 
 class AdaptiveRateRegistry:

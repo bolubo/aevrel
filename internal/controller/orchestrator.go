@@ -5,9 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
 	"reflect"
 	"sort"
 	"strconv"
@@ -75,9 +73,6 @@ func (o *Orchestrator) Prepare(
 	sort.Slice(endpoints, func(i, j int) bool {
 		return endpoints[i].Rank < endpoints[j].Rank
 	})
-	if len(endpoints) == 0 {
-		return Prepared{}, fmt.Errorf("source rankMap is empty")
-	}
 	if len(endpoints) == 0 {
 		return Prepared{}, fmt.Errorf("source rankMap is empty")
 	}
@@ -184,11 +179,6 @@ func (o *Orchestrator) InstallSourceMetadata(
 	}
 	data, digest, err := o.Agents.Metadata(ctx, ownerEndpoint)
 	if err != nil {
-		if metadataUnsupported(err) {
-			// 0.1 agents do not expose metadata transfer. They may still
-			// share .metadata directly; inventory validates that path.
-			return "", nil
-		}
 		return "", fmt.Errorf(
 			"fetch source metadata from rank %d: %w",
 			ownerRank,
@@ -225,12 +215,6 @@ func (o *Orchestrator) InstallSourceMetadata(
 	return digest, nil
 }
 
-func metadataUnsupported(err error) bool {
-	var agentErr *agentclient.AgentError
-	return errors.As(err, &agentErr) &&
-		agentErr.StatusCode == http.StatusNotFound
-}
-
 func (o *Orchestrator) Dispatch(
 	ctx context.Context,
 	migration *shardferryv1.CheckpointMigration,
@@ -249,9 +233,6 @@ func (o *Orchestrator) Dispatch(
 	sort.Slice(endpoints, func(i, j int) bool {
 		return endpoints[i].Rank < endpoints[j].Rank
 	})
-	if len(endpoints) == 0 {
-		return DispatchResult{}, fmt.Errorf("target rankMap is empty")
-	}
 	if len(endpoints) == 0 {
 		return DispatchResult{}, fmt.Errorf("target rankMap is empty")
 	}

@@ -17,7 +17,6 @@ type fakeAgentAPI struct {
 	metaHash     string
 	metaFetches  []string
 	metaInstalls []string
-	metaMissing  bool
 }
 
 type fakeTaskAPI struct {
@@ -88,12 +87,6 @@ func (f *fakeAgentAPI) Metadata(
 	endpoint string,
 ) ([]byte, string, error) {
 	f.metaFetches = append(f.metaFetches, endpoint)
-	if f.metaMissing {
-		return nil, "", &agentclient.AgentError{
-			StatusCode: 404,
-			Code:       "SOURCE_NOT_FOUND",
-		}
-	}
 	if f.metaHash == "" {
 		f.metaHash = "sha256:" + strings.Repeat("a", 64)
 	}
@@ -239,31 +232,6 @@ func TestPreparePublishesSpecAndPlanArtifacts(t *testing.T) {
 	}
 	if _, err := store.Get(context.Background(), prepared.PlanRef); err != nil {
 		t.Fatalf("read plan artifact: %v", err)
-	}
-}
-
-func TestPrepareFallsBackWhenLegacySourceHasSharedMetadata(t *testing.T) {
-	migration := validMigration("legacy-metadata")
-	agents := &fakeAgentAPI{
-		inventories: map[int32]agentclient.Inventory{
-			0: fakeInventory(0),
-			1: fakeInventory(1),
-		},
-		plan:        map[string]any{"version": "1", "nodes": []any{}},
-		metaMissing: true,
-	}
-	prepared, err := (&Orchestrator{Agents: agents}).Prepare(
-		context.Background(),
-		migration,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if prepared.Spec == nil {
-		t.Fatal("legacy metadata fallback did not build a spec")
-	}
-	if len(agents.metaInstalls) != 0 {
-		t.Fatalf("metadata installs = %d, want 0", len(agents.metaInstalls))
 	}
 }
 

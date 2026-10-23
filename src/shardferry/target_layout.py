@@ -452,8 +452,8 @@ class DirectIncrementalApplyFileProvider:
                     chunking=chunking,
                 )
             except Exception:
-                # The native path is an optimization; the canonical Python
-                # builder remains the compatibility fallback.
+                # The native path is an optimization; keep the canonical
+                # Python builder as the fallback.
                 pass
         return build_manifest_from_paths(
             version_id=kwargs["version_id"],
