@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNeedsKubeClientForOfflineCommands(t *testing.T) {
@@ -42,7 +44,13 @@ func TestMainMissingKubeconfigPrintsOfflineValidationHint(t *testing.T) {
 	}
 
 	var stderr bytes.Buffer
-	cmd := exec.Command(os.Args[0], "-test.run=^TestMainMissingKubeconfigPrintsOfflineValidationHint$")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(
+		ctx,
+		os.Args[0],
+		"-test.run=^TestMainMissingKubeconfigPrintsOfflineValidationHint$",
+	)
 	for _, entry := range os.Environ() {
 		if !strings.HasPrefix(entry, "KUBECONFIG=") &&
 			!strings.HasPrefix(entry, childEnv+"=") {
@@ -57,6 +65,9 @@ func TestMainMissingKubeconfigPrintsOfflineValidationHint(t *testing.T) {
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("child process timed out; stderr: %s", stderr.String())
+	}
 	exitErr, ok := err.(*exec.ExitError)
 	if !ok || exitErr.ExitCode() != 1 {
 		t.Fatalf("child exit = %v, want exit code 1; stderr: %s", err, stderr.String())
