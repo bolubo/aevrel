@@ -17,6 +17,18 @@ for bounded tasks with explicit validation.
 Start with an issue for design changes, new providers, scheduler integrations,
 public contract changes, or anything that affects recovery or safety.
 
+## Issue and discussion forms
+
+- Use the `task` form for a bounded engineering task with an expected outcome.
+- Use the `refactor` form for behavior-preserving changes.
+- Use the feature, bug, question, and integration forms for their matching
+  workflows.
+- State whether you plan to implement the issue; this helps maintainers avoid
+  duplicating scope.
+- Use the design/idea discussion forms for open-ended proposals when Discussions
+  is enabled. Do not start a large implementation PR before the design is
+  resolved.
+
 ## Scope
 
 shardferry is a scheduler-neutral training-state control plane. Checkpoint

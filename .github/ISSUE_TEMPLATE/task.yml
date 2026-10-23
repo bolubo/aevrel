@@ -1,0 +1,67 @@
+name: Implementation task
+description: A scoped engineering task with a clear outcome and validation
+title: "[task] "
+labels: ["help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for a bounded task that is ready to implement. Split
+        large ideas into independently mergeable tasks.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What user-visible or maintainer-visible outcome should exist?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and starting points
+      description: Relevant files, functions, commands, or docs.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete behavior, tests, or documentation to deliver.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Exact commands or tests a contributor should run.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and dependencies
+      description: Does this need Kubernetes, GPU, a fork, an upstream change, or special credentials?
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: What should not be changed in this task?
+  - type: dropdown
+    id: implementation_intent
+    attributes:
+      label: Are you planning to implement this?
+      options:
+        - "Yes — I plan to submit a PR"
+        - "Maybe — I can help with guidance"
+        - "No — I am proposing the task only"
+    validations:
+      required: true
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Task readiness
+      options:
+        - label: This task has a single expected outcome and a clear first file to open.
+          required: true
+        - label: This task does not require unstated production access.
+          required: true

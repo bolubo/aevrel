@@ -30,6 +30,16 @@ body:
     attributes:
       label: Sanitized logs / report
       render: shell
+  - type: dropdown
+    id: implementation_intent
+    attributes:
+      label: Are you planning to submit a fix?
+      options:
+        - "Yes — I plan to submit a PR"
+        - "Maybe — I can help with guidance"
+        - "No — I am reporting the bug only"
+    validations:
+      required: true
   - type: checkboxes
     id: safety
     attributes:

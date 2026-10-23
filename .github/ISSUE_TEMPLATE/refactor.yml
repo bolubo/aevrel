@@ -1,0 +1,55 @@
+name: Refactor task
+description: Improve structure without changing user-visible behavior
+title: "[refactor] "
+labels: ["help wanted", "kind/refactor"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current problem
+      description: What is hard to understand, test, or extend today?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Behavior that must not change
+      description: Public behavior, outputs, errors, or safety guarantees to preserve.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed boundary and files
+      description: Which package, module, or directory should move or change?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What should be true after the refactor?
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Exact tests and commands that prove behavior was preserved.
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: What should not change, and which follow-up refactors are separate?
+  - type: dropdown
+    id: implementation_intent
+    attributes:
+      label: Are you planning to implement this?
+      options:
+        - "Yes — I plan to submit a PR"
+        - "Maybe — I can help with guidance"
+        - "No — I am proposing the task only"
+    validations:
+      required: true

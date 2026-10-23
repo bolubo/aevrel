@@ -19,6 +19,17 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
+  - type: dropdown
+    id: implementation_intent
+    attributes:
+      label: Are you planning to implement this?
+      description: This helps maintainers scope the issue and avoid asking twice.
+      options:
+        - "Yes — I plan to submit a PR"
+        - "Maybe — I can help with guidance"
+        - "No — I am proposing the problem only"
+    validations:
+      required: true
   - type: checkboxes
     id: scope
     attributes:

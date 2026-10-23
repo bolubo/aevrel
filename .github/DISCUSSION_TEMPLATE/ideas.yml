@@ -1,0 +1,39 @@
+title: "[Idea] "
+labels: ["kind/feature"]
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Real workflow
+      description: What are you trying to do, with what kind of cluster, storage, and training runtime?
+    validations:
+      required: true
+  - type: textarea
+    id: pain
+    attributes:
+      label: Current pain
+      description: What happens today, and what is the cost of the workaround?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed idea
+      description: What would make the workflow better?
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and non-goals
+      description: What must stay unchanged? Is this local, cluster, GPU, or cross-cluster?
+  - type: dropdown
+    id: implementation_intent
+    attributes:
+      label: Are you planning to implement this?
+      options:
+        - "Yes — I plan to submit a PR"
+        - "Maybe — I can help with guidance"
+        - "No — I am sharing an idea only"
+    validations:
+      required: true

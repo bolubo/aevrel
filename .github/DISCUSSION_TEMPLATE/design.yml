@@ -1,0 +1,48 @@
+title: "[Design] "
+labels: ["design/rfc"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for a design discussion or RFC. Describe the problem
+        before proposing an implementation. Large changes should not start as
+        a pull request without a discussion.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and user workflow
+      description: Who is affected, what are they doing today, and where does it break?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What contract, component, or behavior should change?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and prior art
+      description: What existing tools, upstream work, or simpler options did you consider?
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks and open questions
+      description: Compatibility, safety, adoption, operations, and evidence still needed.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Suggested scope
+      description: What is in the first slice, and what is explicitly later?
+  - type: dropdown
+    id: implementation_intent
+    attributes:
+      label: Are you planning to implement this?
+      options:
+        - "Yes — I plan to submit a PR"
+        - "Maybe — I can help with guidance"
+        - "No — I am proposing the design only"
+    validations:
+      required: true

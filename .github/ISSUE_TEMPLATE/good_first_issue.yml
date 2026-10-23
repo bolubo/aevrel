@@ -43,6 +43,15 @@ body:
       label: Out of scope
       description: What should not be changed in this issue?
   - type: dropdown
+    id: implementation_intent
+    attributes:
+      label: Are you planning to implement this?
+      description: A contributor can claim the task in a comment.
+      options:
+        - "Yes — I plan to submit a PR"
+        - "Maybe — I can help with guidance"
+        - "No — I am proposing the task only"
+  - type: dropdown
     id: area
     attributes:
       label: Area

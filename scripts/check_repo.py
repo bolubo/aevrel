@@ -36,6 +36,10 @@ REQUIRED_FILES = (
     ".github/ISSUE_TEMPLATE/question.yml",
     ".github/ISSUE_TEMPLATE/integration.yml",
     ".github/ISSUE_TEMPLATE/good_first_issue.yml",
+    ".github/ISSUE_TEMPLATE/task.yml",
+    ".github/ISSUE_TEMPLATE/refactor.yml",
+    ".github/DISCUSSION_TEMPLATE/design.yml",
+    ".github/DISCUSSION_TEMPLATE/ideas.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     ".github/dependabot.yml",
@@ -109,6 +113,7 @@ def _check_links(errors: list[str]) -> None:
 def _check_yaml(errors: list[str]) -> None:
     paths = [
         *sorted((REPO / ".github/ISSUE_TEMPLATE").glob("*.yml")),
+        *sorted((REPO / ".github/DISCUSSION_TEMPLATE").glob("*.yml")),
         *sorted((REPO / ".github/workflows").glob("*.yml")),
     ]
     for path in paths:
