@@ -1,8 +1,10 @@
 # Changelog
 
-## 0.2.0 - 2026-10-23
+## 0.3.0 - 2026-10-23
 
-First public release under the clean-room repository history.
+Aevrel identity release. The project, Go module, Python package and CLI,
+Kubernetes API group, Helm chart, container images, and environment variables
+now use the Aevrel name.
 
 ### Added
 
@@ -30,6 +32,8 @@ First public release under the clean-room repository history.
 ### Changed
 
 - Public positioning is now a scheduler-neutral training-state control plane.
+- Replaced the previous project identity across code, package names, CLI,
+  CRDs, API group, Helm chart, images, documentation, and tests.
 - The roadmap focuses on resume-state closure, scheduler/runtime contracts,
   and checkpoint readiness/verification.
 - Commit and PR guidance uses plain, descriptive subjects and standard

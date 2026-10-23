@@ -49,7 +49,7 @@ reimplementing them.
 
 ## Status
 
-`0.2.0` is the current release. The local CPU path and control-plane contracts
+`0.3.0` is the current release. The local CPU path and control-plane contracts
 are usable, but real Kubernetes, multi-node, and GPU validation remain
 environment-specific.
 
@@ -91,7 +91,7 @@ python -m pip install -e ".[dev]"
 For the published release, install the wheel from the release assets:
 
 ```bash
-python -m pip install aevrel-0.2.0-py3-none-any.whl
+python -m pip install aevrel-0.3.0-py3-none-any.whl
 ```
 
 ## Quick start
@@ -248,7 +248,7 @@ docs/                 current product, usage, operator and integration docs
 - [Support](docs/SUPPORT.zh-CN.md)
 - [Helm installation](deploy/helm/aevrel/README.zh-CN.md)
 - [Checkpoint control-plane example](examples/checkpoint-control/README.zh-CN.md)
-- [Release notes](docs/RELEASE-NOTES-0.2.0.md)
+- [Release notes](docs/RELEASE-NOTES-0.3.0.md)
 - [Changelog](CHANGELOG.md)
 
 ## Community and governance

@@ -43,4 +43,4 @@
 ## 演示与发布
 
 - [Rescue Demo](RESCUE-DEMO.zh-CN.md)
-- [0.2.0 Release Notes](RELEASE-NOTES-0.2.0.md)
+- [0.3.0 Release Notes](RELEASE-NOTES-0.3.0.md)

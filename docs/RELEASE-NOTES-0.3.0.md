@@ -1,16 +1,19 @@
-# aevrel 0.2.0
+# Aevrel 0.3.0
 
 Release date: 2026-10-23
 
-This is the first public release under the clean-room repository history. It
-introduces the training-state control plane and the practical local/Kubernetes
-workflows built around it.
+This is the Aevrel identity release. It introduces the training-state control
+plane and the practical local/Kubernetes workflows built around it under the
+new project name.
 
 ## Highlights
 
 - **Training-state control plane:** `CheckpointRecord`, readiness,
   `RestoreDrill`, `RescueDecision`, `CheckpointMigration`, conditions, and
   proof-oriented status.
+- **Aevrel identity:** the Go module, Python package and CLI, Kubernetes API
+  group, Helm chart, container images, and environment variables now use
+  Aevrel.
 - **Local CLI and terminal control plane:** `aevrel demo`,
   `demo --dcp`, `doctor`, `capabilities`, `readiness`, `restore-drill`,
   `migrate`, `state`, `target-load`, `target-report`, `support-bundle`, and
@@ -52,7 +55,7 @@ workflows built around it.
 Install the wheel from the release assets:
 
 ```bash
-python -m pip install aevrel-0.2.0-py3-none-any.whl
+python -m pip install aevrel-0.3.0-py3-none-any.whl
 ```
 
 For DCP commands, install PyTorch in the same environment:
