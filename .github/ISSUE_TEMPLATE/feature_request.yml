@@ -1,6 +1,6 @@
 name: Feature request
 description: Propose a user-facing capability or design change
-labels: ["enhancement"]
+labels: ["kind/feature"]
 body:
   - type: textarea
     id: problem

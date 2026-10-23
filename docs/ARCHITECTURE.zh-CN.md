@@ -1,13 +1,14 @@
-# shardferry 架构：Checkpoint Control Plane
+# shardferry 架构：Training State Control Plane
 
-状态：架构冻结候选（2026-10-22）
-定位：训练状态的 readiness、决策、事务和证明
+状态：架构冻结候选
+定位：训练状态的事实、判断、决策、事务和证明
 
 ## 0. 一句话
 
 ```text
-常驻控制面持续回答：checkpoint 是否完整、是否新鲜、是否可加载、是否可迁移。
-迁移、restore drill、LRS 都是控制面发出的短生命周期动作。
+常驻控制面持续回答：训练状态是否完整、是否新鲜、是否可加载、是否可迁移。
+checkpoint 是第一个完整 vertical；迁移、restore drill、LRS 都是控制面发出的
+短生命周期动作。
 ```
 
 迁移不是主资源，也不是 controller 的中心。主资源是 `CheckpointRecord`。

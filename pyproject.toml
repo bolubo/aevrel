@@ -5,10 +5,17 @@ build-backend = "hatchling.build"
 [project]
 name = "shardferry"
 version = "0.2.0-rc.1"
-description = "Move and reshard local checkpoint shards across DeviceMeshes and clusters."
+description = "Scheduler-neutral training-state control plane for AI infrastructure."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "shardferry contributors" }]
+keywords = [
+  "ai-infrastructure",
+  "checkpoint",
+  "kubernetes",
+  "pytorch",
+  "scheduler",
+]
 requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -51,6 +58,8 @@ shardferry-live-worker = "shardferry.commands.live_worker:main"
 Homepage = "https://github.com/bolubo/shardferry"
 Repository = "https://github.com/bolubo/shardferry"
 Issues = "https://github.com/bolubo/shardferry/issues"
+Documentation = "https://github.com/bolubo/shardferry/blob/main/docs/INDEX.zh-CN.md"
+Changelog = "https://github.com/bolubo/shardferry/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

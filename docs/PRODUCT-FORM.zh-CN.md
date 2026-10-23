@@ -1,11 +1,14 @@
 # shardferry 产品形态与日常价值
 
-状态：产品定义冻结候选（2026-10-22）
+状态：产品方向冻结候选
 
 ## 0. 一句话
 
-shardferry 是训练状态的 **Checkpoint Readiness & Mobility Control Plane**：
-常驻部分持续回答“现在能不能恢复/迁移”，迁移和 LRS 只是按需执行的动作。
+shardferry 是 **scheduler-neutral 的 Training State Control Plane**：
+把 checkpoint 和训练运行时状态变成可查询、可判断、可执行、可证明的事实。
+
+Checkpoint 是第一个完整 vertical；迁移和 LRS 只是控制面按需执行的动作；
+Kueue、Volcano、Kubeflow 和未来 UI 都是这些事实的消费者。
 
 ## 1. 日常价值
 

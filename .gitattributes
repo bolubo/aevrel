@@ -4,3 +4,6 @@
 *.zip binary
 *.whl binary
 *.tar.gz binary
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

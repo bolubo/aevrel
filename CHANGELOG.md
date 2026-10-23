@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Repository governance and community entry points: Code of Conduct,
+  governance model, maintainer roster, contributor ladder, triage policy,
+  support, release process, CODEOWNERS, and expanded issue templates.
+- `shardferry demo --dcp` creates a real source/target DCP pair and verifies
+  target load.
+- `shardferry readiness --drill-report` accepts target-ready reports and
+  requires all checkpoint ranks before reporting `READY`.
+
+### Changed
+
+- Public positioning now describes a scheduler-neutral training-state control
+  plane; checkpoint readiness is the first complete vertical.
+- `shardferryctl plan --dry-run` is no longer advertised as an offline mode;
+  use `shardferryctl migrate -f FILE --dry-run` without a cluster.
+
+### Removed
+
+- Internal worklog, obsolete charter/verification notes, and legacy
+  compatibility paths from the public repository.
+
 ## 0.2.0-rc.1 - 2026-10-22
 
 Checkpoint mobility control-plane release candidate.

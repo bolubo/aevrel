@@ -24,6 +24,19 @@
 - [LRS on-demand worker](LRS-WORKER.zh-CN.md)
 - [Live Rank Split 用户流程](LIVE-RANK-SPLIT-USAGE.zh-CN.md)
 
+## 项目治理
+
+- [贡献指南](../CONTRIBUTING.md)
+- [治理模型](../GOVERNANCE.md)
+- [维护者](../MAINTAINERS.md)
+- [贡献者阶梯](../CONTRIBUTOR_LADDER.md)
+- [Triage 规则](../TRIAGE.md)
+- [支持入口](../SUPPORT.md)
+- [安全策略](../SECURITY.md)
+- [发布流程](../RELEASING.md)
+- [行为准则](../CODE_OF_CONDUCT.md)
+- [Changelog](../CHANGELOG.md)
+
 ## 演示与发布
 
 - [Rescue Demo](RESCUE-DEMO.zh-CN.md)

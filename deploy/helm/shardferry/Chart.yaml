@@ -1,6 +1,18 @@
 apiVersion: v2
 name: shardferry
-description: Checkpoint readiness and mobility control plane with optional LRS worker and Kueue preemption adapter.
+description: Scheduler-neutral training-state control plane for AI infrastructure.
 type: application
 version: 0.2.0-rc.1
 appVersion: "0.2.0-rc.1"
+home: https://github.com/bolubo/shardferry
+sources:
+  - https://github.com/bolubo/shardferry
+keywords:
+  - ai-infrastructure
+  - checkpoint
+  - kubernetes
+  - pytorch
+  - scheduler
+maintainers:
+  - name: bolubo
+    url: https://github.com/bolubo

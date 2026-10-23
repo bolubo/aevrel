@@ -1,0 +1,12 @@
+# Default owner for the project until additional maintainers are added.
+* @bolubo
+
+# High-risk surfaces get explicit ownership.
+/.github/ @bolubo
+/api/ @bolubo
+/cmd/controller/ @bolubo
+/internal/controller/ @bolubo
+/internal/kueueadapter/ @bolubo
+/src/shardferry/commands/ @bolubo
+/deploy/ @bolubo
+/docs/ @bolubo

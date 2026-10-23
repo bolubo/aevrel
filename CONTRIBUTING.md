@@ -1,19 +1,42 @@
 # Contributing
 
+Thanks for helping improve shardferry. By participating, you agree to follow
+the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Ways to contribute
+
+- reproduce and triage issues;
+- improve documentation, examples, and operator guidance;
+- add tests for recovery, commit boundaries, and failure behavior;
+- implement provider, scheduler, or runtime adapters;
+- review changes in an area where you have practical experience.
+
+Start with an issue for design changes, new providers, scheduler integrations,
+public contract changes, or anything that affects recovery or safety.
+
 ## Scope
 
-shardferry is a checkpoint readiness and mobility control plane. Keep changes
-focused on observable readiness, safe recovery, source immutability, explicit
-provider boundaries, and operator/user experience. LRS and Kueue are adapters;
-they must not become alternate sources of truth for core status.
+shardferry is a scheduler-neutral training-state control plane. Checkpoint
+readiness is the first complete vertical; transfer is one action.
+
+Keep core changes focused on:
+
+- observable state and readiness semantics;
+- source immutability and fail-closed behavior;
+- explicit provider boundaries;
+- portable contracts and proof;
+- user and operator experience.
+
+Kueue, LRS, storage backends, and training frameworks are adapters or
+providers. They must not become alternate sources of truth for core status.
 
 ## Development setup
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -U pip
-pip install -e ".[dev]"
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
 go test ./...
 helm lint deploy/helm/shardferry
 ```
@@ -21,32 +44,60 @@ helm lint deploy/helm/shardferry
 For real DCP work, install the CPU PyTorch extra:
 
 ```bash
-pip install -e ".[dcp]"
+python -m pip install -e ".[dcp]"
 ```
+
+The repository is split deliberately:
+
+- Go owns the Kubernetes/control-plane authority;
+- Python owns training-runtime and data-plane adapters;
+- cross-language contracts live under `spec/`;
+- public product docs live under `docs/`; internal research and worklogs do not.
 
 ## Validation
 
-Before opening a pull request:
+Run the relevant checks before opening a pull request:
 
 ```bash
+python scripts/check_repo.py
+python scripts/check_release.py
 python -m pytest -q
 go test ./...
 go vet ./...
 go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
 helm lint deploy/helm/shardferry
-helm template shardferry deploy/helm/shardferry --include-crds >/tmp/shardferry.yaml
-```
-
-Use `scripts/product_acceptance.py` for the local product path. Physical
-multi-node and GPU checks are environment-dependent and should be recorded as
-evidence, not silently skipped. Optional components should also render with
-both enabled:
-
-```bash
 helm template shardferry deploy/helm/shardferry --include-crds \
   --set liveWorker.enabled=true --set kueueAdapter.enabled=true \
   >/tmp/shardferry-all-components.yaml
+python scripts/product_acceptance.py
 ```
+
+Physical multi-node and GPU checks are environment-dependent. Record them as
+evidence when they actually run; never describe them as validated when they
+were skipped.
+
+## Pull requests
+
+- Keep the change focused and explain the behavior change, not only the files.
+- Link the issue or user workflow that motivates the change.
+- Add a regression test for write boundaries, retry, recovery, and failure
+  paths.
+- Update public docs when the user-visible contract changes.
+- Add a `CHANGELOG.md` entry for user-visible changes.
+- Call out breaking changes and required upgrade steps explicitly.
+- Use a Conventional Commit style subject such as
+  `feat: add readiness signal` or `docs: clarify recovery limits`.
+- Rebase or update the branch so CI runs against `main`; do not force-push
+  someone else's branch.
+
+## Review and merge
+
+Normal changes use lazy consensus and require maintainer approval. New
+providers, scheduler integrations, public contracts, and breaking changes need
+a `design/rfc` issue first. See [GOVERNANCE.md](GOVERNANCE.md).
+
+Pull requests are never merged solely because they are old. Maintainers may
+close a change that is unsafe, unmaintainable, out of scope, or abandoned.
 
 ## Safety rules
 
@@ -55,7 +106,13 @@ helm template shardferry deploy/helm/shardferry --include-crds \
   internal machine paths.
 - Keep target staging separate from committed target data.
 - A failed rank must not be reported as a successful migration.
-- Add a regression test for every write-boundary, retry, or recovery bug.
+- Do not silently weaken readiness, quorum, coverage, or target-load checks.
+
+## Security and conduct
+
+Report vulnerabilities through [SECURITY.md](SECURITY.md), not a public issue.
+Report conduct concerns through the channel in
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 By contributing, you agree that your contribution is licensed under the
 project's Apache-2.0 license.

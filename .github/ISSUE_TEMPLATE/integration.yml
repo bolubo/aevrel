@@ -1,0 +1,40 @@
+name: Integration request
+description: Propose a scheduler, storage, runtime, or platform integration
+labels: ["kind/feature", "area/control-plane"]
+body:
+  - type: input
+    id: upstream
+    attributes:
+      label: Upstream project
+      description: Name, repository, and version or commit of the integration target.
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Real user workflow
+      description: Who needs this, what are they doing today, and where does it break?
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Integration contract
+      description: What data/events/actions must move between shardferry and the upstream project?
+    validations:
+      required: true
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Direction
+      options:
+        - shardferry consumes upstream state
+        - shardferry publishes state to upstream
+        - bidirectional
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, credentials, and checkpoint contents.
+          required: true

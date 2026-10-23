@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/bolubo/shardferry/blob/main/docs/INDEX.zh-CN.md
+    about: Start with the product and usage documentation.
+  - name: Security report
+    url: https://github.com/bolubo/shardferry/security/advisories/new
+    about: Report vulnerabilities privately. Never post secrets or checkpoint data publicly.
