@@ -1,0 +1,99 @@
+name: Design / RFC
+description: Propose or discuss a technical direction with evidence and trade-offs
+title: "[RFC] "
+labels: ["design/rfc"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for a design decision that affects contracts, state
+        semantics, safety, or a cross-module boundary. Do not present an
+        assumption as a measured fact. Link to code, issues, KEPs, or tests
+        whenever possible.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem are we solving? Who encounters it?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Real issues, KEPs, reproductions, code paths, or tests. Mark assumptions and unknowns explicitly.
+    validations:
+      required: true
+  - type: textarea
+    id: current_behavior
+    attributes:
+      label: Current behavior and boundaries
+      description: How does the current system behave? Which files and APIs are involved?
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: What must become true?
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What should this RFC explicitly not solve?
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Design options and trade-offs
+      description: Describe plausible alternatives, including the current behavior and why it is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Invariants and failure semantics
+      description: What must never happen? What is fail-closed, atomic, read-only, or eventually consistent?
+  - type: textarea
+    id: open_questions
+    attributes:
+      label: Open questions
+      description: What decisions are still unresolved, and who needs to decide them?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance / exit criteria
+      description: How will we know this RFC is resolved or accepted?
+    validations:
+      required: true
+  - type: textarea
+    id: decomposition
+    attributes:
+      label: Possible implementation decomposition
+      description: Which parts could become independent implementation issues?
+  - type: textarea
+    id: security
+    attributes:
+      label: Security, compatibility, and operational risks
+      description: Authentication, secrets, source immutability, upgrade, and failure blast radius.
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Issues, KEPs, docs, tests, commits, or prior art.
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Discussion readiness
+      options:
+        - label: I separated evidence from assumptions and marked unknowns.
+          required: true
+        - label: This is not a request to silently introduce a breaking contract.
+          required: true
+        - label: I removed secrets, credentials, and private checkpoint contents.
+          required: true

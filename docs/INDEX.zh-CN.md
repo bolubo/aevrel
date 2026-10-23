@@ -16,6 +16,8 @@
 
 - [产品形态与日常价值](PRODUCT-FORM.zh-CN.md)
 - [架构](ARCHITECTURE.zh-CN.md)
+- [RFC 指南](RFC-GUIDE.zh-CN.md)
+- [RFC 模板](RFC-TEMPLATE.zh-CN.md)
 - [项目建设方向](CONSTRUCTION.zh-CN.md)
 - [路线图](ROADMAP.zh-CN.md)
 

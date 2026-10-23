@@ -16,6 +16,8 @@ for bounded tasks with explicit validation.
 
 Start with an issue for design changes, new providers, scheduler integrations,
 public contract changes, or anything that affects recovery or safety.
+Use the [RFC guide](docs/RFC-GUIDE.zh-CN.md) for design decisions rather than
+opening an implementation PR first.
 
 ## Issue and discussion forms
 
