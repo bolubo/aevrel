@@ -23,7 +23,7 @@ from .tensor_io import byte_runs, coalesce_runs
 
 PLAN_SCHEMA_PATH = resource_path("plan.schema.json")
 PLAN_POLICY = "shardferry-plan-v2"
-LEGACY_PLAN_POLICIES = ("shardferry-plan-v2", "shardferry-plan-v1")
+RESUME_PLAN_POLICIES = ("shardferry-plan-v2",)
 
 
 class PlannerError(ValueError):
@@ -1101,6 +1101,6 @@ def _legacy_migration_id(spec: dict[str, Any], policy: str) -> str:
 
 def _accepted_migration_ids(spec: dict[str, Any]) -> set[str]:
     accepted = {_migration_id(spec)}
-    for policy in LEGACY_PLAN_POLICIES:
+    for policy in RESUME_PLAN_POLICIES:
         accepted.add(_legacy_migration_id(spec, policy))
     return accepted

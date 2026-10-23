@@ -83,7 +83,6 @@ _INTERNAL_COMMANDS = (
     "proof-merge",
     "serve",
     "agent",
-    "cutover-serve",
     "dcp-inspect",
     "dcp-export",
     "dcp-migrate",
@@ -556,10 +555,6 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     arguments = list(sys.argv[1:] if argv is None else argv)
-    if arguments and arguments[0] == "cutover-serve":
-        # Keep the internal name as a compatibility alias without advertising
-        # it in the product command surface.
-        arguments[0] = "handoff"
     if (
         arguments
         and not arguments[0].startswith("-")
@@ -778,7 +773,7 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError, AgentError) as exc:
             print(f"shardferry agent: {exc}", file=sys.stderr)
             return 2
-    if args.command in {"cutover-serve", "handoff"}:
+    if args.command == "handoff":
         command_name = args.command
         token = args.token or os.environ.get("SHARDFERRY_CUTOVER_TOKEN", "")
         if not token:
