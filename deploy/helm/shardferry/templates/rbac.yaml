@@ -12,14 +12,13 @@ rules:
     resources: ["checkpointmigrations/status"]
     verbs: ["get", "update", "patch"]
   - apiGroups: ["shardferry.io"]
-    resources: ["checkpointrecords", "restoredrills", "rescuedecisions", "mobilitytransactions"]
+    resources: ["checkpointrecords", "restoredrills", "rescuedecisions"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: ["shardferry.io"]
     resources:
       - checkpointrecords/status
       - restoredrills/status
       - rescuedecisions/status
-      - mobilitytransactions/status
     verbs: ["get", "update", "patch"]
   - apiGroups: ["shardferry.io"]
     resources: ["shardferryclusters"]

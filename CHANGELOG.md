@@ -13,8 +13,8 @@ Checkpoint mobility control-plane release candidate.
 - Added CPU 4-rank LRS proof and a torchcomms reconfigure preflight; live
   rank split remains experimental until real 4-GPU validation.
 - Added the first checkpoint-control-plane slice: local `shardferry readiness`,
-  Go readiness models/CRDs for CheckpointRecord/RestoreDrill/RescueDecision/
-  MobilityTransaction, and cross-language schemas.
+  Go readiness models/CRDs for CheckpointRecord/RestoreDrill/RescueDecision,
+  and cross-language schemas.
 - Added a real target-command `shardferry restore-drill` path that requires
   model/optimizer load and N training steps before accepting the drill proof.
 - Added template-created Indexed restore-drill Jobs, multi-agent
@@ -22,9 +22,6 @@ Checkpoint mobility control-plane release candidate.
   version/digest-bound drill evidence.
 - Added fail-closed `RescueDecision` policy plus a generic Kubernetes Warning
   event watcher; rescue works without Kueue.
-- Added `MobilityTransaction` compatibility projection over existing
-  `CheckpointMigration` lifecycle, plus `migrationSpec` creation of an owned
-  migration that still uses the existing planner/executor.
 - Added `shardferry-live-worker`, a durable `/v1/live/reconcile` CPU contract
   worker with phase/coverage/quorum/proof output; the Go live path now has a
   concrete on-demand worker instead of failing on a missing service.

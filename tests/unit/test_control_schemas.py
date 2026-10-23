@@ -91,29 +91,3 @@ def test_control_schemas_accept_lifecycle_objects() -> None:
             "decided_at": "2026-10-22T00:00:00+00:00",
         }
     )
-    Draft202012Validator(_schema("mobility-transaction")).validate(
-        {
-            "record_version": "step-100",
-            "mode": "static",
-            "phase": "Preparing",
-            "source": "cluster-a",
-            "target": "cluster-b",
-            "proof_ref": "",
-            "reasons": [],
-        }
-    )
-    Draft202012Validator(_schema("mobility-transaction")).validate(
-        {
-            "record_version": "step-100",
-            "migration_ref": "training-move",
-            "migration_spec": None,
-            "mode": "static",
-            "phase": "Succeeded",
-            "migration_phase": "succeeded",
-            "source": "cluster-a",
-            "target": "cluster-b",
-            "proof_ref": "proof://migration/training-move",
-            "target_ready": {"ready": True, "ranks_ready": 2},
-            "reasons": [],
-        }
-    )

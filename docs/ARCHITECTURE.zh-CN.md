@@ -28,7 +28,7 @@
 Go 是控制面权威实现：
 
 - CRD/API、controller、leader election、watch/reconcile；
-- CheckpointRecord/Readiness/RescueDecision/MobilityTransaction 状态机；
+- CheckpointRecord/Readiness/RescueDecision 状态机；
 - policy、quorum/coverage、事务和 proof 引用；
 - `shardferryctl`、gateway、event adapters、target-ready 门禁。
 
@@ -122,24 +122,6 @@ workload 通过 label/annotation opt-in。Kueue/Volcano 只提供更丰富的
 workload adapter，不是 rescue 的前置条件。Decision 只做建议，不自动启动
 第二份训练，避免 split-brain。
 
-### MobilityTransaction
-
-一次状态移动的事务，包含 static 和 live 两种 mode：
-
-```text
-MobilityTransaction.spec
-  recordRef, source, target, mode, policy
-MobilityTransaction.status
-  phase, coverage, quorum, inFlight, commit state
-  sourceDigest, targetDigest, proofRef
-```
-
-`CheckpointMigration` v1 保留为兼容入口；`MobilityTransaction` 通过
-`migrationRef`（为空时按同名）投影其 phase、proof 和 target-ready，迁移
-算法本身不复制；设置 `migrationSpec` 时，transaction 会创建一个带
-ownerReference 的同名 `CheckpointMigration`，仍由既有 planner/executor
-执行。完全脱离兼容 CR 的新执行器是下一步。
-
 ### Proof
 
 不可变、内容寻址的证据，不在 CR 里塞大对象：
@@ -159,7 +141,7 @@ scan
   -> CheckpointRecord
   -> Readiness
   -> RescueDecision
-  -> RestoreDrill / MobilityTransaction
+  -> RestoreDrill / CheckpointMigration
   -> Proof
   -> Readiness 更新
 ```
@@ -207,14 +189,12 @@ api/v1/
   checkpointrecord_types.go
   restoredrill_types.go
   rescuedecision_types.go
-  mobilitytransaction_types.go
-  checkpointmigration_types.go   # compatibility
+  checkpointmigration_types.go
 
 internal/controller/
   readiness.go
   drill.go
   rescue.go
-  mobility.go
   live_rank_split.go             # existing contract
   reconciler.go                  # dispatch only
 
@@ -267,8 +247,7 @@ ProviderCapabilities
 | `CheckpointRecord` | checkpoint 事实和 readonly inventory | 是 |
 | `RestoreDrill` | 可执行验证 | 是 |
 | `RescueDecision` | 恢复动作建议 | 是 |
-| `MobilityTransaction` | 状态移动事务 | 是 |
-| `CheckpointMigration` | v1 兼容 action | 否 |
+| `CheckpointMigration` | static/live 执行 action | 是 |
 | `CheckpointReadiness` | `CheckpointRecord.status` | 否（不做 CRD） |
 | `Proof` | artifact/ref | 否（不做大 CRD） |
 
@@ -277,7 +256,7 @@ API 规则：
 - 只有 controller 写 status；
 - agent 只写自己的 observation，不写最终 readiness；
 - adapter 只读取/建议，不拥有核心状态机；
-- `CheckpointMigration` 未来只做 shim，不新增语义。
+- `CheckpointMigration` 是当前执行资源；新增语义必须先设计再扩展。
 
 ## 7. 部署形态
 
@@ -332,13 +311,6 @@ RescueDecision：
 
 ```text
 Pending -> Decided(restore|restart|migrate|hold) | Blocked
-```
-
-MobilityTransaction：
-
-```text
-Pending -> Preparing -> Transferring -> Verifying -> Committing
-        -> Succeeded | Failed | Cancelled | CommitIncomplete
 ```
 
 Live mode 额外包含 `following/cutover/target-validating`；任何失败都必须

@@ -101,7 +101,6 @@ func printUsage(out io.Writer) {
 	fmt.Fprintln(out, "       shardferryctl kueue status|explain NAME")
 	fmt.Fprintln(out, "       shardferryctl rescue --event REASON [--workload NAME] [--checkpoint NAME] [--target TARGET] [--fallback hold|restart]")
 	fmt.Fprintln(out, "       shardferryctl get rescuedecisions|rescuedecision NAME")
-	fmt.Fprintln(out, "       shardferryctl get mobilitytransactions|mobilitytransaction NAME")
 	fmt.Fprintln(out, "       shardferryctl get migrations|migration NAME")
 	fmt.Fprintln(out, "       shardferryctl get clusters|cluster NAME")
 	fmt.Fprintln(out, "       shardferryctl describe migration NAME")
@@ -276,26 +275,6 @@ func executeGet(
 			return fmt.Errorf("usage: shardferryctl get rescuedecision NAME")
 		}
 		return executeGetRescueDecision(
-			ctx,
-			kubeClient,
-			namespace,
-			args[1],
-			jsonOut,
-			out,
-		)
-	case "mobilitytransactions":
-		return executeGetMobilityTransactions(
-			ctx,
-			kubeClient,
-			namespace,
-			jsonOut,
-			out,
-		)
-	case "mobilitytransaction":
-		if len(args) < 2 {
-			return fmt.Errorf("usage: shardferryctl get mobilitytransaction NAME")
-		}
-		return executeGetMobilityTransaction(
 			ctx,
 			kubeClient,
 			namespace,

@@ -45,23 +45,6 @@ class RescueAction(str, Enum):
     HOLD = "hold"
 
 
-class TransactionMode(str, Enum):
-    STATIC = "static"
-    LIVE = "live"
-
-
-class TransactionPhase(str, Enum):
-    PENDING = "Pending"
-    PREPARING = "Preparing"
-    TRANSFERRING = "Transferring"
-    VERIFYING = "Verifying"
-    COMMITTING = "Committing"
-    SUCCEEDED = "Succeeded"
-    FAILED = "Failed"
-    CANCELLED = "Cancelled"
-    COMMIT_INCOMPLETE = "CommitIncomplete"
-
-
 @dataclass(frozen=True)
 class Reason:
     code: str
@@ -232,32 +215,4 @@ class RescueDecision:
             "target": self.target,
             "proof_ref": self.proof_ref,
             "decided_at": self.decided_at,
-        }
-
-
-@dataclass(frozen=True)
-class MobilityTransaction:
-    record_version: str
-    mode: TransactionMode
-    phase: TransactionPhase
-    source: str
-    target: str
-    migration_ref: str = ""
-    migration_phase: str = ""
-    target_ready: dict[str, Any] | None = None
-    proof_ref: str = ""
-    reasons: tuple[Reason, ...] = ()
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "record_version": self.record_version,
-            "mode": self.mode.value,
-            "phase": self.phase.value,
-            "source": self.source,
-            "target": self.target,
-            "migration_ref": self.migration_ref,
-            "migration_phase": self.migration_phase,
-            "target_ready": self.target_ready,
-            "proof_ref": self.proof_ref,
-            "reasons": [reason.to_dict() for reason in self.reasons],
         }

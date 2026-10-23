@@ -5,7 +5,6 @@ from .models import (
     CheckpointReadiness,
     CheckpointRecord,
     DrillOutcome,
-    MobilityTransaction,
     RankInventory,
     Reason,
     ReasonCode,
@@ -14,8 +13,6 @@ from .models import (
     ReadinessStatus,
     RestoreDrill,
     ShardRef,
-    TransactionMode,
-    TransactionPhase,
 )
 
 __all__ = [
@@ -23,7 +20,6 @@ __all__ = [
     "CheckpointRecord",
     "LocalError",
     "DrillOutcome",
-    "MobilityTransaction",
     "RankInventory",
     "ReadinessStatus",
     "Reason",
@@ -32,6 +28,4 @@ __all__ = [
     "RescueDecision",
     "RestoreDrill",
     "ShardRef",
-    "TransactionMode",
-    "TransactionPhase",
 ]

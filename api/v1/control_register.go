@@ -10,12 +10,9 @@ func init() {
 		&RestoreDrillList{},
 		&RescueDecision{},
 		&RescueDecisionList{},
-		&MobilityTransaction{},
-		&MobilityTransactionList{},
 	)
 }
 
 var _ runtime.Object = &CheckpointRecord{}
 var _ runtime.Object = &RestoreDrill{}
 var _ runtime.Object = &RescueDecision{}
-var _ runtime.Object = &MobilityTransaction{}

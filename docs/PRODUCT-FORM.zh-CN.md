@@ -39,7 +39,7 @@ READY | STALE | INCOMPLETE | TARGET_BLOCKED | UNVERIFIED
 readiness      查询一个 job 或整个集群
 restore-drill  显式触发真实 target load + N step
 rescue-decide  restore / restart / migrate / hold
-migrate        static 或 live mobility transaction
+migrate        static 或 live CheckpointMigration
 proof          source digest、target readiness、timeline
 ```
 
@@ -297,7 +297,7 @@ torchcomms probe；本地 rescue demo、进度 UX 和 LRS 用户流程。
 下一步：
 
 1. 本地 acceptance matrix 和 kind 多 Pod/128-rank 环境验证；
-2. 把 `MobilityTransaction` 从“创建兼容 migration”升级为完全直接驱动 planning/executor；
+2. 需要新事务抽象时，再设计直接驱动 planning/executor 的资源；
 3. 把 decision 接到显式执行入口，但保持不自动启动第二份训练；
 4. 做 LRS 按需 worker 接入与 4 GPU/2 节点验收。
 

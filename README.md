@@ -15,7 +15,7 @@ checkpoint storage
         -> CheckpointRecord
         -> readiness (complete / fresh / loadable / movable)
         -> RescueDecision
-        -> RestoreDrill or MobilityTransaction
+        -> RestoreDrill or CheckpointMigration
         -> proof
         -> updated readiness
 ```
@@ -82,8 +82,7 @@ See [`docs/QUICKSTART.zh-CN.md`](docs/QUICKSTART.zh-CN.md) and
 | `CheckpointRecord` | read-only checkpoint/rank/shard inventory and readiness |
 | `RestoreDrill` | real target load plus N training steps, or observe an existing Job |
 | `RescueDecision` | advisory `restore / restart / migrate / hold` after an event |
-| `MobilityTransaction` | compatibility view over `CheckpointMigration`; can create an owned migration |
-| `CheckpointMigration` | existing static/live execution path |
+| `CheckpointMigration` | static/live execution path |
 
 Drill proof is bound to checkpoint version and metadata digest. A changed
 checkpoint invalidates the old `loadable=true`; metadata presence is never

@@ -113,34 +113,3 @@ type RescueDecision struct {
 	ProofRef  string       `json:"proof_ref,omitempty"`
 	DecidedAt string       `json:"decided_at,omitempty"`
 }
-
-type TransactionMode string
-
-const (
-	TransactionStatic TransactionMode = "static"
-	TransactionLive   TransactionMode = "live"
-)
-
-type TransactionPhase string
-
-const (
-	TransactionPending          TransactionPhase = "Pending"
-	TransactionPreparing        TransactionPhase = "Preparing"
-	TransactionTransferring     TransactionPhase = "Transferring"
-	TransactionVerifying        TransactionPhase = "Verifying"
-	TransactionCommitting       TransactionPhase = "Committing"
-	TransactionSucceeded        TransactionPhase = "Succeeded"
-	TransactionFailed           TransactionPhase = "Failed"
-	TransactionCancelled        TransactionPhase = "Cancelled"
-	TransactionCommitIncomplete TransactionPhase = "CommitIncomplete"
-)
-
-type MobilityTransaction struct {
-	RecordVersion string           `json:"record_version"`
-	Mode          TransactionMode  `json:"mode"`
-	Phase         TransactionPhase `json:"phase"`
-	Source        string           `json:"source"`
-	Target        string           `json:"target"`
-	ProofRef      string           `json:"proof_ref,omitempty"`
-	Reasons       []Reason         `json:"reasons,omitempty"`
-}

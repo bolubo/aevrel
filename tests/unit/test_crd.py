@@ -90,7 +90,6 @@ def test_control_plane_crds_and_helm_copies_are_in_sync() -> None:
         "checkpointrecords": "checkpointrecord",
         "restoredrills": "restoredrill",
         "rescuedecisions": "rescuedecision",
-        "mobilitytransactions": "mobilitytransaction",
     }
     for plural, singular in pairs.items():
         config = (
@@ -159,22 +158,3 @@ def test_control_plane_crd_contracts() -> None:
         "properties"
     ]["status"]["properties"]
     assert "reasonCode" in rescue_status
-
-    mobility = yaml.safe_load(
-        (
-            ROOT
-            / "config"
-            / "crd"
-            / "bases"
-            / "shardferry.io_mobilitytransactions.yaml"
-        ).read_text(encoding="utf-8")
-    )
-    mobility_spec = mobility["spec"]["versions"][0]["schema"][
-        "openAPIV3Schema"
-    ]["properties"]["spec"]["properties"]
-    assert "migrationRef" in mobility_spec
-    mobility_status = mobility["spec"]["versions"][0]["schema"][
-        "openAPIV3Schema"
-    ]["properties"]["status"]["properties"]
-    assert "migrationPhase" in mobility_status
-    assert "targetReady" in mobility_status

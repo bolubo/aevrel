@@ -77,35 +77,3 @@ metadata:
 `Evicted`、`Preempted`、`BackoffLimitExceeded`、`FailedScheduling`、
 `OOMKilled` 等 Warning event 会生成一个 `RescueDecision`。事件 watcher
 不依赖任何调度器；Kueue/Volcano 只可提供更丰富的 workload 语义。
-
-## 5. 统一事务视图
-
-已有 `CheckpointMigration` 可以通过 `MobilityTransaction` 暴露统一的
-phase/proof/target-ready 视图：
-
-```bash
-kubectl apply -f mobility-transaction.yaml
-kubectl get sfmove
-kubectl get sfmove training-move-view -o yaml
-```
-
-`migrationRef` 为空时按同名 `CheckpointMigration` 关联。这个兼容投影不改写
-static/live 执行算法；旧 `CheckpointMigration` 可继续独立运行。
-
-如果希望由 transaction 创建并持有迁移，可把原 `CheckpointMigration.spec`
-原样放进 `migrationSpec`：
-
-```yaml
-spec:
-  recordRef: training-step-100
-  mode: static
-  source: cluster-a
-  target: cluster-b
-  migrationSpec:
-    mode: static
-    # 其余字段与 examples/target-ready/migration.yaml 的 spec 相同
-```
-
-controller 会创建一个同名、带 ownerReference 的 `CheckpointMigration`，由
-现有 planner/executor 真正执行；未由该 transaction 控制的同名旧迁移不会被
-静默接管。`migrationRef` 与 `migrationSpec` 二选一。
