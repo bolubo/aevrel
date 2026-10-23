@@ -10,6 +10,36 @@ body:
         semantics, safety, or a cross-module boundary. Do not present an
         assumption as a measured fact. Link to code, issues, KEPs, or tests
         whenever possible.
+  - type: dropdown
+    id: status
+    attributes:
+      label: RFC status
+      options:
+        - Draft
+        - Under discussion
+        - Accepted
+        - Rejected
+        - Superseded
+    validations:
+      required: true
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Target direction
+      options:
+        - Resume-state closure
+        - Scheduler / runtime contract
+        - Readiness / verification semantics
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: RFC owner
+      description: GitHub handle or name responsible for driving the discussion.
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
