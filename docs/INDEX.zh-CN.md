@@ -16,6 +16,7 @@
 
 - [产品形态与日常价值](PRODUCT-FORM.zh-CN.md)
 - [架构](ARCHITECTURE.zh-CN.md)
+- [项目建设方向](CONSTRUCTION.zh-CN.md)
 - [路线图](ROADMAP.zh-CN.md)
 
 ## 集成

@@ -222,6 +222,7 @@ docs/                 current product, usage, operator and integration docs
 - [Quick start](docs/QUICKSTART.zh-CN.md)
 - [Product form](docs/PRODUCT-FORM.zh-CN.md)
 - [Architecture](docs/ARCHITECTURE.zh-CN.md)
+- [Construction direction](docs/CONSTRUCTION.zh-CN.md)
 - [Roadmap](docs/ROADMAP.zh-CN.md)
 - [Usage](docs/USAGE.zh-CN.md)
 - [Support](docs/SUPPORT.zh-CN.md)

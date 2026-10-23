@@ -37,10 +37,12 @@ REQUIRED_FILES = (
     ".github/ISSUE_TEMPLATE/integration.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
+    ".github/dependabot.yml",
     "docs/INDEX.zh-CN.md",
     "docs/QUICKSTART.zh-CN.md",
     "docs/PRODUCT-FORM.zh-CN.md",
     "docs/ARCHITECTURE.zh-CN.md",
+    "docs/CONSTRUCTION.zh-CN.md",
     "docs/ROADMAP.zh-CN.md",
     "docs/USAGE.zh-CN.md",
     "docs/SUPPORT.zh-CN.md",
@@ -116,13 +118,6 @@ def _check_yaml(errors: list[str]) -> None:
             errors.append(f"invalid YAML {path.relative_to(REPO)}: {exc}")
 
 
-def _check_no_scheduled_workflows(errors: list[str]) -> None:
-    for path in sorted((REPO / ".github/workflows").glob("*.yml")):
-        text = path.read_text(encoding="utf-8")
-        if re.search(r"^\s*schedule\s*:", text, re.MULTILINE):
-            errors.append(f"scheduled workflow is not allowed: {path.relative_to(REPO)}")
-
-
 def _check_governance_content(errors: list[str]) -> None:
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     for required in (
@@ -130,6 +125,7 @@ def _check_governance_content(errors: list[str]) -> None:
         "GOVERNANCE.md",
         "SECURITY.md",
         "SUPPORT.md",
+        "CONSTRUCTION.zh-CN.md",
         "ROADMAP.zh-CN.md",
         "shardferry demo --dcp",
         "shardferry-target-load",
@@ -156,7 +152,6 @@ def check() -> dict[str, Any]:
     _check_forbidden(errors)
     _check_links(errors)
     _check_yaml(errors)
-    _check_no_scheduled_workflows(errors)
     _check_governance_content(errors)
     return {
         "status": "ok" if not errors else "failed",

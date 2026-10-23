@@ -53,6 +53,10 @@ approval and should be recorded in this file.
 
 ## Automation boundary
 
-Project operations are event-driven. The repository does not use scheduled
-issue-closing bots, scheduled dependency updates, or other periodic automation
-to make maintainership decisions.
+Codex-created automations (heartbeats, assistant cron jobs, or similar
+assistant-side scheduled work) are not used for this repository. That is a
+constraint on the assistant runtime, not on GitHub.
+
+GitHub-native scheduled workflows and Dependabot are allowed when they have a
+clear maintenance purpose. They must not make maintainer decisions, auto-merge
+changes, or auto-close issues without human review.

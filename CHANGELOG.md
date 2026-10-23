@@ -11,6 +11,10 @@
   target load.
 - `shardferry readiness --drill-report` accepts target-ready reports and
   requires all checkpoint ranks before reporting `READY`.
+- Added a construction direction document for UI/UX, test coverage, and
+  language/package refactoring.
+- Added weekly GitHub-native Dependabot coverage for pip, Go modules, and
+  GitHub Actions.
 
 ### Changed
 
@@ -18,6 +22,8 @@
   plane; checkpoint readiness is the first complete vertical.
 - `shardferryctl plan --dry-run` is no longer advertised as an offline mode;
   use `shardferryctl migrate -f FILE --dry-run` without a cluster.
+- Public roadmap now describes outcomes and workstreams without promising
+  dates or version contents.
 
 ### Removed
 

@@ -23,6 +23,7 @@ follow [SECURITY.md](SECURITY.md) and must not be filed publicly.
 | `needs-repro` | Reporter must provide a minimal reproduction |
 | `needs-design` | Contract or architecture decision is unresolved |
 | `design/rfc` | Proposal needs a documented design decision |
+| `dependencies` | Dependency or toolchain update |
 | `blocked` | Waiting on an external dependency or owner decision |
 | `good first issue` | Suitable for a first contribution |
 | `help wanted` | Maintainer would welcome a contributor |
