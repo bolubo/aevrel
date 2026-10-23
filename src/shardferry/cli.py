@@ -105,15 +105,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="shardferry",
         description=(
-            "Move a local PyTorch DCP checkpoint to a different GPU topology "
-            "without creating a global checkpoint copy."
+            "Inspect checkpoint readiness and execute checkpoint recovery, "
+            "mobility, and restore-drill actions."
         ),
         epilog=(
             "Start here:\n"
             "  shardferry demo\n"
-            "  shardferry doctor --checkpoint /path/to/source.dcp\n"
-            "  shardferry migrate --checkpoint /path/to/source.dcp "
+            "  shardferry readiness --checkpoint /path/to/source.dcp "
             "--target-world 3\n"
+            "  shardferry restore-drill --checkpoint /path/to/target.dcp "
+            "--target-command 'python train_resume.py --checkpoint {checkpoint}'\n"
+            "  shardferry migrate --checkpoint /path/to/source.dcp --target-world 3\n"
             "Advanced: shardferry state; experimental: shardferry handoff"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

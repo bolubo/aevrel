@@ -100,8 +100,7 @@ MobilityPlan / MobilityProof
 结论：需求信号成立，但现有方案碎片化；没有发现一个中立的、跨控制域的
 checkpoint readiness 层。这个判断以内部验收矩阵和真实环境测试为准。
 
-更完整的生态盘点、竞品矩阵和用户证据见
-[Checkpoint 生态与用户需求调研](CHECKPOINT-RESEARCH.zh-CN.md)。
+更完整的生态盘点、竞品矩阵和用户证据属于内部产品研究，不放在公开文档树。
 模块边界、接口和依赖方向见
 [控制面架构](ARCHITECTURE.zh-CN.md)。
 

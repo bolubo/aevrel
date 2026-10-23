@@ -48,6 +48,18 @@ python3 -m venv .venv
 
 Windows 把 `.venv/bin/python` 换成 `.\.venv\Scripts\python.exe`。
 
+## 2.1 构建 Kubernetes CLI
+
+`shardferryctl` 是 Go 控制面的命令行入口：
+
+```bash
+go build -o bin/shardferryctl ./cmd/ctl
+export PATH="$PWD/bin:$PATH"   # Linux/WSL
+```
+
+Kubernetes 用户路径还需要 kubeconfig；不安装 controller 时，
+`preflight`/`plan`/migrate 的本地 `--dry-run` 仍可使用。
+
 ## 3. 先跑不需要任何数据的 demo
 
 Windows：
@@ -243,7 +255,7 @@ plan 做完整性汇总：
   仍需后续验证。
 
 实验入口失败时不得回退成“看起来成功”的静态迁移。先看
-`docs/PRODUCT.zh-CN.md` 和 `docs/ERROR-CATALOG.zh-CN.md`。
+`docs/PRODUCT-FORM.zh-CN.md` 和 `docs/SUPPORT.zh-CN.md`。
 
 ## 10. 常见问题
 
@@ -268,4 +280,4 @@ plan 做完整性汇总：
 
 不要删除 `.shardferry` 工作目录；它包含 journal 和已完成节点，重新执行同一命令会续跑。
 
-物理双机的完整实验步骤见 `AB-EXPERIMENT.zh-CN.md`。
+物理双机实验需要单独的环境与证据记录；公开文档只保留可重复的 CPU 路径。

@@ -49,5 +49,4 @@ published release remains `0.1.1` until the GPU and cross-machine gates pass.
 ## Upgrade
 
 Use the `0.1.1` release for the currently published static path. Use this
-candidate from source only after reading
-[`0.2-ACCEPTANCE.zh-CN.md`](0.2-ACCEPTANCE.zh-CN.md).
+candidate from source only after the internal acceptance gate passes.

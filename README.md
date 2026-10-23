@@ -63,6 +63,8 @@ run real steps. `readiness` is read-only; a complete checkpoint stays
 Kubernetes flow:
 
 ```bash
+go build -o bin/shardferryctl ./cmd/ctl
+export PATH="$PWD/bin:$PATH"
 kubectl apply -f examples/checkpoint-control/checkpoint-record-selector.yaml
 shardferryctl readiness training-step-100
 kubectl apply -f examples/checkpoint-control/restore-drill.yaml
@@ -172,13 +174,12 @@ api/ + config/crd/    CRD types and generated definitions
 spec/                 cross-language v1 contracts
 deploy/               Dockerfiles and Helm chart
 examples/             user-facing manifests
-docs/                 product, user, operator, research and archive
+docs/                 current product, user, operator and integration docs
 ```
 
 ## Documentation and development
 
-- [Documentation entry](docs/README.md)
-- [中文文档索引](docs/INDEX.zh-CN.md)
+- [Documentation index](docs/INDEX.zh-CN.md)
 - [Product form](docs/PRODUCT-FORM.zh-CN.md)
 - [Architecture](docs/ARCHITECTURE.zh-CN.md)
 - [Roadmap](docs/ROADMAP.zh-CN.md)
