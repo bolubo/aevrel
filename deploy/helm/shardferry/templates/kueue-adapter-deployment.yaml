@@ -46,17 +46,6 @@ spec:
             - --require-checkpoint-complete={{ .Values.kueueAdapter.requireCheckpointComplete }}
             - --protect-unknown={{ .Values.kueueAdapter.protectUnknown }}
             - --sync-interval={{ .Values.kueueAdapter.syncInterval }}
-            {{- if .Values.kueueAdapter.handoffURL }}
-            - --handoff-url={{ .Values.kueueAdapter.handoffURL }}
-            {{- end }}
-          env:
-            {{- if and .Values.kueueAdapter.handoffURL .Values.kueueAdapter.handoffToken.existingSecret }}
-            - name: SHARDFERRY_CUTOVER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.kueueAdapter.handoffToken.existingSecret }}
-                  key: {{ .Values.kueueAdapter.handoffToken.key }}
-            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

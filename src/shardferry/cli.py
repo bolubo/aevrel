@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shlex
 import sys
 import time
 from math import prod
@@ -18,14 +17,6 @@ from .coordinator import expected_rank_work
 from .commands.readiness import run_readiness
 from .commands.restore_drill import run_restore_drill_command
 from .contracts import contract_version, validate_capabilities
-from .cdp import ChunkingPolicy
-from .cutover import CutoverPolicy
-from .cutover_service import (
-    CutoverService,
-    CutoverServiceError,
-    build_cutover_server,
-)
-from .handoff import CommandPauseHook
 from .state import (
     StateBundle,
     StateBundleError,
@@ -36,13 +27,6 @@ from .state import (
 )
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
-from .verification import (
-    CommandTargetReady,
-    DcpTargetReady,
-    HttpTargetReady,
-    TargetReadyChain,
-)
-from .target_job import KubernetesTargetReady, TargetJobConfig
 from .defaults import (
     DEFAULT_LISTEN,
     DEFAULT_PUBLIC_LISTEN,
@@ -70,7 +54,6 @@ _PUBLIC_COMMANDS = (
     "capabilities",
     "readiness",
     "restore-drill",
-    "handoff",
     "state",
 )
 _INTERNAL_COMMANDS = (
@@ -115,14 +98,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "  shardferry restore-drill --checkpoint /path/to/target.dcp "
             "--target-command 'python train_resume.py --checkpoint {checkpoint}'\n"
             "  shardferry migrate --checkpoint /path/to/source.dcp --target-world 3\n"
-            "Advanced: shardferry state; experimental: shardferry handoff"
+            "Advanced: shardferry state"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="store_true", help="print version")
     sub = parser.add_subparsers(
         dest="command",
-        metavar="{demo,migrate,doctor,capabilities,readiness,restore-drill,state,handoff}",
+        metavar="{demo,migrate,doctor,capabilities,readiness,restore-drill,state}",
     )
 
     inspect = sub.add_parser("inspect")
@@ -203,112 +186,6 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="verify each completed target rank with a local DCP load",
     )
-
-    cutover = sub.add_parser(
-        "handoff",
-        help="run the experimental warm-target checkpoint handoff service",
-    )
-    cutover.add_argument("--source", required=True)
-    cutover.add_argument("--target", required=True)
-    cutover.add_argument("--listen", default="0.0.0.0:9450")
-    cutover.add_argument("--owner", default="shardferry-controller")
-    cutover.add_argument("--epoch", type=int, default=1)
-    cutover.add_argument("--token", default="")
-    cutover.add_argument(
-        "--chunk-bytes",
-        type=int,
-        default=4 * 1024 * 1024,
-        help="chunk size when --chunk-alg fixed",
-    )
-    cutover.add_argument(
-        "--chunk-alg",
-        choices=("file", "fixed", "cdc"),
-        default="file",
-        help="file is the default fast RTO path; fixed/cdc trade speed for delta",
-    )
-    cutover.add_argument(
-        "--target-ready-command",
-        default="",
-        help="shell-like command run after promote; {version_id} is substituted",
-    )
-    cutover.add_argument(
-        "--target-ready-url",
-        default="",
-        help="readiness endpoint polled after promote; {version_id} is substituted",
-    )
-    cutover.add_argument("--target-ready-dcp-checkpoint", default="")
-    cutover.add_argument("--target-ready-dcp-metadata", default="")
-    cutover.add_argument("--target-ready-dcp-rank", type=int, default=None)
-    cutover.add_argument(
-        "--target-ready-token",
-        default=os.environ.get("SHARDFERRY_TARGET_READY_TOKEN", ""),
-    )
-    cutover.add_argument("--target-ready-interval", type=float, default=0.5)
-    cutover.add_argument("--target-ready-timeout", type=float, default=300.0)
-    cutover.add_argument(
-        "--target-job-template",
-        default="",
-        help="Kubernetes batch/v1 Job template for real target validation",
-    )
-    cutover.add_argument("--target-job-namespace", default="default")
-    cutover.add_argument("--target-job-id", default="handoff")
-    cutover.add_argument("--target-world-size", type=int, default=1)
-    cutover.add_argument("--validation-steps", type=int, default=1)
-    cutover.add_argument("--target-validation-timeout", type=float, default=900.0)
-    cutover.add_argument(
-        "--target-checkpoint-template",
-        default="{target}/shadow/{version_id}/rank{rank}",
-        help="checkpoint path template injected into target Jobs",
-    )
-    cutover.add_argument("--kubectl", default="kubectl")
-    cutover.add_argument(
-        "--max-pause-seconds",
-        type=float,
-        default=300.0,
-        help="hard upper bound for source pause, including target readiness",
-    )
-    cutover.add_argument(
-        "--pause-command",
-        default="",
-        help="argv template run before final delta; {version_id} is substituted",
-    )
-    cutover.add_argument(
-        "--resume-command",
-        default="",
-        help="argv template run when cutover fails or is recovered",
-    )
-    cutover.add_argument(
-        "--pause-timeout",
-        type=float,
-        default=60.0,
-        help="timeout for pause/resume commands",
-    )
-    cutover.add_argument(
-        "--follow-interval",
-        type=float,
-        default=2.0,
-        help="background shadow catch-up interval in seconds",
-    )
-    cutover.add_argument(
-        "--no-auto-follow",
-        action="store_true",
-        help="disable background catch-up; /v1/follow remains available",
-    )
-    cutover.add_argument(
-        "--max-follow-versions",
-        type=int,
-        default=8,
-        help="maximum versions staged per background catch-up cycle",
-    )
-    cutover.add_argument(
-        "--retain-versions",
-        type=int,
-        default=0,
-        help="keep this many recent target versions (0 disables retention)",
-    )
-    cutover.add_argument("--tls-cert", default="")
-    cutover.add_argument("--tls-key", default="")
-    cutover.add_argument("--tls-ca", default="")
 
     dcp_inspect = sub.add_parser("dcp-inspect")
     dcp_inspect.add_argument("--input", required=True)
@@ -772,125 +649,6 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         except (OSError, ValueError, AgentError) as exc:
             print(f"shardferry agent: {exc}", file=sys.stderr)
-            return 2
-    if args.command == "handoff":
-        command_name = args.command
-        token = args.token or os.environ.get("SHARDFERRY_CUTOVER_TOKEN", "")
-        if not token:
-            print(
-                f"shardferry {command_name}: --token or "
-                "SHARDFERRY_CUTOVER_TOKEN is required",
-                file=sys.stderr,
-            )
-            return 2
-        try:
-            pause_hook = None
-            if bool(args.pause_command) != bool(args.resume_command):
-                raise ValueError(
-                    "--pause-command and --resume-command must be used together"
-                )
-            if args.pause_command:
-                pause_hook = CommandPauseHook(
-                    args.pause_command,
-                    args.resume_command,
-                    timeout=args.pause_timeout,
-                )
-            checks = []
-            if args.target_ready_command:
-                checks.append(
-                    CommandTargetReady(
-                        shlex.split(args.target_ready_command),
-                        timeout=args.target_ready_timeout,
-                    )
-                )
-            if args.target_ready_dcp_checkpoint:
-                checks.append(
-                    DcpTargetReady(
-                        args.target_ready_dcp_checkpoint,
-                        metadata_dir=args.target_ready_dcp_metadata or None,
-                        rank=args.target_ready_dcp_rank,
-                    )
-                )
-            if args.target_ready_url:
-                checks.append(
-                    HttpTargetReady(
-                        args.target_ready_url,
-                        timeout=args.target_ready_timeout,
-                        interval=args.target_ready_interval,
-                        token=args.target_ready_token or None,
-                    )
-                )
-            if args.target_job_template:
-                checks.append(
-                    KubernetesTargetReady(
-                        TargetJobConfig(
-                            template=Path(args.target_job_template),
-                            namespace=args.target_job_namespace,
-                            world_size=args.target_world_size,
-                            steps=args.validation_steps,
-                            job_id=args.target_job_id,
-                            checkpoint_template=(
-                                args.target_checkpoint_template.replace(
-                                    "{target}",
-                                    str(Path(args.target).resolve()),
-                                )
-                            ),
-                            timeout=args.target_validation_timeout,
-                            kubectl=args.kubectl,
-                        )
-                    )
-                )
-            if len(checks) == 1:
-                target_ready = checks[0]
-            elif checks:
-                target_ready = TargetReadyChain(*checks)
-            else:
-                target_ready = None
-            service = CutoverService(
-                args.source,
-                args.target,
-                owner=args.owner,
-                epoch=args.epoch,
-                chunking=_cutover_chunking(args),
-                policy=CutoverPolicy(
-                    max_pause_seconds=args.max_pause_seconds,
-                    max_lag_versions=10,
-                ),
-                target_ready=target_ready,
-                pause_hook=pause_hook,
-                follow_interval=(
-                    None if args.no_auto_follow else args.follow_interval
-                ),
-                max_versions_per_cycle=args.max_follow_versions,
-                retain_versions=args.retain_versions,
-                accept_pause_version=(
-                    True if args.pause_command else False
-                ),
-            )
-            server = build_cutover_server(
-                args.listen,
-                service,
-                token,
-                tls_cert=args.tls_cert or None,
-                tls_key=args.tls_key or None,
-                tls_ca=args.tls_ca or None,
-            )
-            print(
-                f"shardferry {command_name} listening on "
-                f"{server.server_address[0]}:{server.server_address[1]}"
-            )
-            try:
-                if not args.no_auto_follow:
-                    service.start_following()
-                server.serve_forever()
-            except KeyboardInterrupt:
-                pass
-            finally:
-                service.close()
-                server.server_close()
-            return 0
-        except (CutoverServiceError, OSError, ValueError) as exc:
-            print(f"shardferry {command_name}: {exc}", file=sys.stderr)
             return 2
     if args.command == "dcp-inspect":
         try:
@@ -1443,14 +1201,6 @@ def _parse_shape(value: str | None) -> tuple[int, ...] | None:
     if value is None:
         return None
     return tuple(int(item) for item in value.split(",") if item.strip())
-
-
-def _cutover_chunking(args: argparse.Namespace) -> ChunkingPolicy:
-    if args.chunk_alg == "file":
-        return ChunkingPolicy.file()
-    if args.chunk_alg == "cdc":
-        return ChunkingPolicy.content_defined()
-    return ChunkingPolicy.fixed(args.chunk_bytes)
 
 
 if __name__ == "__main__":

@@ -38,7 +38,6 @@ adapter 不创建、不删除、不 suspend、不 reprioritize Workload。
 metadata:
   annotations:
     shardferry.io/preemption-protection: "enabled"
-    shardferry.io/handoff: "enabled"
     shardferry.io/training-progress-percent: "85"
     shardferry.io/checkpoint-complete: "1"
     shardferry.io/checkpoint-version: "step-8500"
@@ -50,7 +49,6 @@ metadata:
 | 字段 | 必填 | 含义 |
 | --- | --- | --- |
 | `preemption-protection` | 是 | `enabled` / `true` / `1` 才处理 |
-| `handoff` | 否 | 允许 eviction 后触发在线 handoff cutover |
 | `training-progress-percent` | 否 | `0..100`；缺失表示未知 |
 | `checkpoint-complete` | 否 | `1/0` 或 `true/false` |
 | `checkpoint-version` | 否 | 最近完整 checkpoint 的版本标识；当前仅保留 |
@@ -64,11 +62,6 @@ step/mtime 选最新，完全无法区分时 fail closed。只有 readiness 为 
 protected。
 `checkpoint-version` 和 `checkpoint-age-seconds` 暂不参与二元决策，避免
 MVP 偷偷变成 cost scorer。
-
-当 `--handoff-url` 配置且 Workload 出现 `Evicted=True` 时，adapter 会调用
-cutover service 的 `/v1/cutover`。成功后在 Workload annotation
-`shardferry.io/handoff-state` 记录 `requested`/`promoted`；失败记录
-`failed` 并保留重试路径。这个开关默认关闭。
 
 ## 决策表
 

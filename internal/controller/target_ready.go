@@ -743,11 +743,6 @@ func (r *Reconciler) finishTargetReady(
 			message,
 		)
 	}
-	if ready {
-		if err := r.reconcileCutover(ctx, updated); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
 	return ctrl.Result{}, nil
 }
 

@@ -18,7 +18,7 @@
 | 单机、NFS、对象存储挂载后能看到完整 DCP 目录 | 是，三条命令 | 可以，前提是先有可安装包 |
 | 单机 DCP，2D mesh | 是，但需显式传 mesh/placement | 有条件可以 |
 | 128 个节点各自 local disk，没有共享路径 | `shardferryctl migrate + agentSelector` | 已有产品入口，待真实多节点验收 |
-| 训练不停机在线切换 | live-rank-split 契约 + 实验 handoff | 还不能，Python LRS 执行器和 4-GPU 验证未闭环 |
+| 训练不停机在线切换 | live-rank-split 契约 + CPU contract worker | 还不能，GPU 和跨机验证未闭环 |
 
 ## 2. 场景 A：一个人恢复一个 DCP checkpoint
 
@@ -267,83 +267,14 @@ local-disk 场景把所有 rank 汇总到一台机器。完整目标任务的 `l
 
 ## 4. 场景 C：训练不停机在线切换（实验）
 
-CDP、fencing、pause、promote/rollback 和 cutover 服务基础已经存在。当前
-用户入口是实验性的 `shardferry handoff` 和 `CheckpointMigration`
-`mode: live-rank-split`；在 Python 执行器和 4-GPU 验收前，仍不要对外宣传
-“在线热迁移已完成”。用户操作顺序见
+当前唯一用户入口是 `CheckpointMigration` 的 `mode: live-rank-split`。
+操作顺序、字段和验收边界见
 [Live Rank Split 用户流程](LIVE-RANK-SPLIT-USAGE.zh-CN.md)。
 
-`cutover-serve` 默认每 `--follow-interval` 秒后台追赶 source 完整版本，
-持续维护 target shadow；`/v1/status` 会同时返回 `follow_state`、lag 和最近
-一次错误。出于排障可以传 `--no-auto-follow`，此时只保留显式
-`/v1/follow`：
-
-```bash
-shardferry cutover-serve \
-  --source /checkpoints/job42 \
-  --target /targets/job42 \
-  --token "$SHARDFERRY_CUTOVER_TOKEN" \
-  --follow-interval 2 \
-  --retain-versions 3
-```
-
-默认分块策略是 `file`，这是 RTO 优先路径；需要更小的字节增量时可显式传
-`--chunk-alg cdc`，需要固定块验证时传 `--chunk-alg fixed --chunk-bytes ...`。
-
-`--retain-versions N` 默认关闭（0）；显式开启后，每轮 follow 成功后会保留
-最近 N 个 target 版本，并额外保护 `current` 和 fence 指向的版本。旧 shadow
-和 manifest 删除后，只 GC 不再被保留 manifest 引用的 CAS chunk；source
-永远不删除。删除前会先检查所有保留版本的 chunk 和 shadow，发现缺失就中止，
-不会继续扩大清理。`/v1/status.retention` 返回最近一次删除的版本、chunk 数和
-释放字节数。
-
-切流时 `--target-ready-command` 会在 promote 后执行；命令返回非零或超时会
-回滚 target pointer 并恢复 source。`--max-pause-seconds` 必须覆盖 final delta
-和 target ready，不能把它设得比实际 target 启动时间还短。
-
-仓库提供一个最小真实探针，可直接作为 target-ready command：
-
-```bash
-python -m shardferry.target_probe \
-  --target-root /targets/job42 \
-  --version-id "{version_id}" \
-  --timeout 60
-```
-
-它等待 target `current` 指向指定版本，并校验 manifest root、CAS chunk 和
-shadow 文件。GPU 训练侧的真实 load hook 应在下一步替换/包装这个命令。
-`/v1/status.last_cutover` 会保留最近一次 `paused_seconds` 与
-`target_ready_seconds`，用于 RTO 报告。
-
-如果 target job 暴露 readiness endpoint，也可以直接使用
-`--target-ready-url https://target-job/readyz?version={version_id}`；
-2xx 视为 ready，404/409/425/429/5xx 会在 timeout 内重试，其他 4xx 立即失败。
-两个参数可以同时提供，执行顺序固定为 checkpoint probe -> target job URL。
-如果 target 已经是 DCP 目录，可加
-`--target-ready-dcp-checkpoint /targets/job42` 做真实 CPU DCP load；它会占用
-目标 state dict 的内存，适合作为 target job 的内部 hook，不作为大模型默认探针。
-也可以直接在 target job 内执行：
-
-```bash
-python -m shardferry.target_probe \
-  --dcp-checkpoint /targets/job42 \
-  --version-id "{version_id}"
-```
-
-local-disk target 每个 rank 只持有自己的分片时，加 `--dcp-rank N`（或
-`cutover-serve --target-ready-dcp-rank N`）：它只反序列化本 rank 的
-`.distcp` chunk，不构造 global state dict。
-
-如果用户要的是训练不中断，验收必须额外包含：
-
-- source 暂停窗口；
-- 最终 delta 追赶；
-- target model/optimizer 真正 load；
-- 失败 rollback；
-- controller 重启；
-- 端到端 RTO/RPO。
-
-这些是另一个产品门禁，不应和离线 `migrate` 混在一起。
+该路径仍是实验能力：CPU contract worker、controller 状态机和
+`target-ready` 门禁已经接通，但真实 GPU collective、跨机训练连续性和
+端到端 RTO/RPO 尚未验证。目标侧必须真实加载 model/optimizer 并完成训练
+step，不能把“文件已到 target”当作成功。
 
 ## 5. 当前产品判断
 

@@ -8,7 +8,7 @@ states.**
 
 shardferry answers a control-plane question: is the latest checkpoint
 complete, fresh, loadable, and movable? Restore, migration and live rank
-handoff are actions it performs only after readiness is established.
+split are actions it performs only after readiness is established.
 
 ```text
 checkpoint storage

@@ -2,13 +2,10 @@ package kueueadapter
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -47,7 +44,6 @@ type Reconciler struct {
 	RefreshInterval time.Duration
 	Source          ObservationSource
 	Projector       DecisionProjector
-	Handoff         HandoffTrigger
 }
 
 func (r *Reconciler) Reconcile(
@@ -92,61 +88,11 @@ func (r *Reconciler) Reconcile(
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.maybeHandoff(ctx, source.Object, workload); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	requeue := r.RefreshInterval
 	if requeue <= 0 {
 		requeue = 30 * time.Second
 	}
 	return ctrl.Result{RequeueAfter: requeue}, nil
-}
-
-func (r *Reconciler) maybeHandoff(
-	ctx context.Context,
-	source metav1.Object,
-	workload *unstructured.Unstructured,
-) error {
-	if r.Handoff == nil ||
-		!IsHandoffEnabled(source) ||
-		!isEvicted(workload) {
-		return nil
-	}
-	state := workload.GetAnnotations()[AnnotationHandoffState]
-	if state == "requested" || state == "promoted" {
-		return nil
-	}
-	result, err := r.Handoff.Trigger(ctx)
-	if err != nil {
-		_ = r.setHandoffState(ctx, workload, "failed")
-		return err
-	}
-	if result == "" {
-		result = "requested"
-	}
-	return r.setHandoffState(ctx, workload, result)
-}
-
-func (r *Reconciler) setHandoffState(
-	ctx context.Context,
-	workload *unstructured.Unstructured,
-	state string,
-) error {
-	base := workload.DeepCopy()
-	annotations := workload.GetAnnotations()
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-	annotations[AnnotationHandoffState] = state
-	workload.SetAnnotations(annotations)
-	if reflect.DeepEqual(base.GetAnnotations(), workload.GetAnnotations()) {
-		return nil
-	}
-	if err := r.Patch(ctx, workload, client.MergeFrom(base)); err != nil {
-		return fmt.Errorf("patch Workload handoff state: %w", err)
-	}
-	return nil
 }
 
 func (r *Reconciler) observationSource() ObservationSource {

@@ -12,8 +12,6 @@ const (
 	// AnnotationProtection is the explicit opt-in. The adapter does not modify
 	// unrelated Kueue Workloads.
 	AnnotationProtection       = "shardferry.io/preemption-protection"
-	AnnotationHandoff          = "shardferry.io/handoff"
-	AnnotationHandoffState     = "shardferry.io/handoff-state"
 	AnnotationCheckpointRecord = "shardferry.io/checkpoint-record"
 
 	// Checkpoint publisher contract. Annotations are authoritative; labels are
@@ -42,13 +40,6 @@ func IsProtectionEnabled(object metav1.Object) bool {
 		}
 	}
 	return false
-}
-
-func IsHandoffEnabled(object metav1.Object) bool {
-	value := strings.TrimSpace(
-		strings.ToLower(object.GetAnnotations()[AnnotationHandoff]),
-	)
-	return value == "enabled" || value == "true" || value == "1"
 }
 
 // ParseObservation reads checkpoint state from a Job or Workload. Missing

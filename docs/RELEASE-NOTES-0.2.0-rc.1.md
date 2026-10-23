@@ -11,7 +11,7 @@ published release remains `0.1.1` until the GPU and cross-machine gates pass.
 - Target-ready Indexed Jobs with per-rank reports and fail-closed status.
 - Rank-local state bundle capture, verification and restore.
 - CPU 4-rank LRS proof and a torchcomms reconfigure preflight.
-- Clear experimental boundaries for warm handoff and live rank split.
+- Clear experimental boundary for live rank split.
 - Real transfer progress for local migrations and rank/ownership progress for
   control-plane migrations; LRS concurrency is user-configurable with
   `maxInFlight` / `--max-in-flight`.
@@ -35,7 +35,7 @@ published release remains `0.1.1` until the GPU and cross-machine gates pass.
 
 ## Not yet proven
 
-- 4-rank NCCL reconfigure and a real 4-GPU live cutover.
+- 4-rank NCCL reconfigure and a real 4-GPU live rank split.
 - Cross-machine/跨集群 live rank split.
 - Full training-loop continuity across arbitrary frameworks and schedulers.
 - Multi-rank local restore-drill execution outside Kubernetes.

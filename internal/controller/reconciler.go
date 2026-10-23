@@ -27,17 +27,15 @@ import (
 
 type Reconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	Orchestrator       *Orchestrator
-	Runner             *execution.Runner
-	Preparer           *PreparationRunner
-	Resolver           *AgentResolver
-	Cleaner            TargetCleaner
-	Artifacts          artifactstore.Store
-	Recorder           record.EventRecorder
-	Cutover            CutoverManager
-	CutoverAutoPromote bool
-	Live               LiveRankSplitExecutor
+	Scheme       *runtime.Scheme
+	Orchestrator *Orchestrator
+	Runner       *execution.Runner
+	Preparer     *PreparationRunner
+	Resolver     *AgentResolver
+	Cleaner      TargetCleaner
+	Artifacts    artifactstore.Store
+	Recorder     record.EventRecorder
+	Live         LiveRankSplitExecutor
 }
 
 type TargetCleaner interface {
@@ -91,9 +89,6 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, nil
 	}
 	if migration.Status.Phase == shardferryv1.MigrationPhaseSucceeded {
-		if r.Cutover != nil {
-			return ctrl.Result{}, r.reconcileCutover(ctx, &migration)
-		}
 		return ctrl.Result{}, nil
 	}
 	if r.Preparer != nil && migration.Status.ExecutionRef == "" {
@@ -148,9 +143,6 @@ func (r *Reconciler) Reconcile(
 				if latest.Spec.Target.Validation != nil {
 					return r.reconcileTargetReady(ctx, &latest)
 				}
-				if err := r.reconcileCutover(ctx, &latest); err != nil {
-					return ctrl.Result{}, err
-				}
 			}
 			return ctrl.Result{}, nil
 		}
@@ -201,7 +193,7 @@ func (r *Reconciler) Reconcile(
 				if migration.Spec.Target.Validation != nil {
 					return r.reconcileTargetReady(ctx, &migration)
 				}
-				return ctrl.Result{}, r.reconcileCutover(ctx, &migration)
+				return ctrl.Result{}, nil
 			}
 		}
 		return ctrl.Result{}, r.setPlanReady(ctx, &migration, prepared)

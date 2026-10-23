@@ -51,7 +51,7 @@
 
 不把下面内容塞进 0.1.x：
 
-- 在线 cutover / live handoff；
+- 在线 rank 迁移（Live Rank Split）；
 - 新 checkpoint 格式；
 - 新调度器或训练框架；
 - 大规模重写数据面。
@@ -153,7 +153,7 @@ Feature 1/3 不在这个分支内。
 - CUDA context / Python 堆的内存在线迁移；
 - 任意 tensor/pipeline parallel 布局自动转换；
 - 未保存 dataloader/RNG/scheduler 时的“完全相同训练轨迹”承诺；
-- Live Handoff（放到 0.3+，不是 0.2 发布门槛）；
+- Live Rank Split 的 GPU/跨机生产化（放到 0.3+，不是 0.2 发布门槛）；
 - 生产 SLA 和任意公网条件下的 RTO 承诺。
 
 详细门槛属于内部发布验收，不放在公开文档树。
@@ -170,14 +170,14 @@ Feature 1/3 不在这个分支内。
 - 网络整形、带宽退避和 backpressure；
 - dataloader/RNG/scheduler 的可选状态扩展；
 - 更丰富的 proof、timeline 和故障注入；
-- 训练平台/Kueue 的显式 handoff 集成。
+- 训练平台/Kueue 的显式恢复动作集成。
 
-## 0.3：Provider planner + Live Handoff + Autopilot
+## 0.3：Provider planner + Live Rank Split + Autopilot
 
-从“用户显式 handoff”提升到“平台策略触发 handoff”：
+从“用户显式迁移”提升到“平台策略触发迁移”：
 
 - 抽象 StateProvider / TransportProvider / TargetLoader；
-- 将 Live Handoff 作为显式可选模式，而不是默认路径；
+- 将 Live Rank Split 作为显式可选模式，而不是默认路径；
 - 在 DCP 原生、ByteCheckpoint、ETC/Tenplex、TierCheck/FastCheck、
   shardferry range transport 之间做成本/兼容性选择；
 - 有共享盘时明确推荐 DCP 原生，不强行走 shardferry；

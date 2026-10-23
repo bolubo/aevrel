@@ -121,7 +121,6 @@ def test_help_only_exposes_product_commands(capsys) -> None:
         "readiness",
         "restore-drill",
         "state",
-        "handoff",
     ):
         assert command in output
     for command in ("inspect", "dcp-migrate", "serve", "apply"):

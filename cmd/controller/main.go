@@ -20,7 +20,6 @@ import (
 	"github.com/shardferry/shardferry/internal/artifactstore"
 	"github.com/shardferry/shardferry/internal/clusterclient"
 	"github.com/shardferry/shardferry/internal/controller"
-	"github.com/shardferry/shardferry/internal/cutoverclient"
 	"github.com/shardferry/shardferry/internal/execution"
 	"github.com/shardferry/shardferry/internal/liveclient"
 )
@@ -37,9 +36,7 @@ func main() {
 	var artifactCert string
 	var artifactKey string
 	var artifactClientCA string
-	var cutoverURL string
 	var liveURL string
-	var cutoverAutoPromote bool
 	var enableLeaderElection bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "metrics endpoint address")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "health probe address")
@@ -52,9 +49,7 @@ func main() {
 	flag.StringVar(&artifactCert, "artifact-tls-cert", "", "artifact server TLS certificate")
 	flag.StringVar(&artifactKey, "artifact-tls-key", "", "artifact server TLS key")
 	flag.StringVar(&artifactClientCA, "artifact-tls-client-ca", "", "client CA for artifact mTLS")
-	flag.StringVar(&cutoverURL, "cutover-url", "", "optional CutoverService base URL")
 	flag.StringVar(&liveURL, "live-url", "", "optional live-rank-split executor base URL")
-	flag.BoolVar(&cutoverAutoPromote, "cutover-auto-promote", false, "automatically promote the latest cutover version")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "enable leader election")
 	flag.Parse()
 
@@ -138,28 +133,6 @@ func main() {
 	runner.SetArtifacts(artifacts)
 	runner.SetProofMerger(agents)
 
-	var cutover controller.CutoverManager
-	if cutoverURL != "" {
-		cutoverToken := os.Getenv("SHARDFERRY_CUTOVER_TOKEN")
-		if cutoverToken == "" {
-			cutoverToken = agentToken
-		}
-		if agentCert != "" || agentKey != "" || agentCA != "" {
-			cutover, err = cutoverclient.NewWithTLS(
-				cutoverURL,
-				cutoverToken,
-				agentCA,
-				agentCert,
-				agentKey,
-			)
-		} else {
-			cutover = cutoverclient.New(cutoverURL, cutoverToken)
-		}
-		if err != nil {
-			ctrl.Log.Error(err, "configure cutover client")
-			os.Exit(1)
-		}
-	}
 	var live controller.LiveRankSplitExecutor
 	if liveURL != "" {
 		liveToken := os.Getenv("SHARDFERRY_LIVE_TOKEN")
@@ -237,18 +210,16 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.Reconciler{
-		Client:             mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		Runner:             runner,
-		Preparer:           preparer,
-		Resolver:           resolver,
-		Cleaner:            agents,
-		Artifacts:          artifacts,
-		Orchestrator:       orchestrator,
-		Cutover:            cutover,
-		CutoverAutoPromote: cutoverAutoPromote,
-		Live:               live,
-		Recorder:           mgr.GetEventRecorderFor("shardferry-controller"),
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Runner:       runner,
+		Preparer:     preparer,
+		Resolver:     resolver,
+		Cleaner:      agents,
+		Artifacts:    artifacts,
+		Orchestrator: orchestrator,
+		Live:         live,
+		Recorder:     mgr.GetEventRecorderFor("shardferry-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create controller")
 		os.Exit(1)

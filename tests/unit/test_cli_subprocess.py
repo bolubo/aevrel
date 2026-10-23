@@ -44,7 +44,6 @@ def test_module_entrypoint_and_product_help() -> None:
     assert "shardferry demo" in result.stdout
     assert "readiness" in result.stdout
     assert "state" in result.stdout
-    assert "handoff" in result.stdout
     assert "dcp-migrate" not in result.stdout
 
 

@@ -246,8 +246,6 @@ plan 做完整性汇总：
 
 - `shardferry state capture|verify|restore`：高级入口，用于 rank-local
   resume state bundle；target-ready L4 需要在确认状态闭包时使用。
-- `shardferry handoff`：实验入口，warm-target checkpoint 追赶/切换服务；
-  需要 source/target 路径、token 和暂停/恢复命令，不提供生产 SLA。
 - `shardferryctl migrate ... --max-in-flight N`：live-rank-split 时一次
   同时在途的 rank 数；按网络和 target 容量设置，不能假设系统只迁一个。
 - `shardferry-live-worker`：Go live 路径的按需 HTTP worker；当前是 CPU

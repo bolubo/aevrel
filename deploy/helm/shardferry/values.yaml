@@ -74,10 +74,6 @@ kueueAdapter:
   requireCheckpointComplete: true
   protectUnknown: true
   syncInterval: 30s
-  handoffURL: ""
-  handoffToken:
-    existingSecret: ""
-    key: token
   resources:
     requests:
       cpu: 50m
