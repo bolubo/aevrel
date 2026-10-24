@@ -9,8 +9,8 @@
   and describe the real user workflow.
 - **Security issue:** follow [SECURITY.md](SECURITY.md) and do not open a
   public issue.
-- **Product documentation:** start at [docs/INDEX.zh-CN.md](docs/INDEX.zh-CN.md)
-  and [docs/SUPPORT.zh-CN.md](docs/SUPPORT.zh-CN.md).
+- **Product documentation:** start at [docs/INDEX.md](docs/INDEX.md)
+  and [docs/SUPPORT.md](docs/SUPPORT.md).
 
 ## What to include
 

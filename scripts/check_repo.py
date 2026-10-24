@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -44,33 +45,21 @@ REQUIRED_FILES = (
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     ".github/dependabot.yml",
-    "docs/INDEX.zh-CN.md",
-    "docs/QUICKSTART.zh-CN.md",
-    "docs/FIRST-CONTRIBUTION.zh-CN.md",
-    "docs/DEVELOPMENT-MAP.zh-CN.md",
-    "docs/PRODUCT-FORM.zh-CN.md",
-    "docs/ARCHITECTURE.zh-CN.md",
-    "docs/CONSTRUCTION.zh-CN.md",
-    "docs/RFC-GUIDE.zh-CN.md",
-    "docs/RFC-TEMPLATE.zh-CN.md",
-    "docs/ROADMAP.zh-CN.md",
-    "docs/USAGE.zh-CN.md",
-    "docs/SUPPORT.zh-CN.md",
+    "docs/INDEX.md",
+    "docs/QUICKSTART.md",
+    "docs/FIRST-CONTRIBUTION.md",
+    "docs/DEVELOPMENT-MAP.md",
+    "docs/ARCHITECTURE.md",
+    "docs/RFC-GUIDE.md",
+    "docs/RFC-TEMPLATE.md",
+    "docs/ROADMAP.md",
+    "docs/USAGE.md",
+    "docs/SUPPORT.md",
+    "docs/TARGET-READY.md",
+    "docs/TARGET-LOAD.md",
 )
 
-MARKDOWN_ROOTS = (
-    REPO / "README.md",
-    REPO / "CONTRIBUTING.md",
-    REPO / "CODE_OF_CONDUCT.md",
-    REPO / "GOVERNANCE.md",
-    REPO / "MAINTAINERS.md",
-    REPO / "CONTRIBUTOR_LADDER.md",
-    REPO / "TRIAGE.md",
-    REPO / "SUPPORT.md",
-    REPO / "SECURITY.md",
-    REPO / "RELEASING.md",
-    REPO / "CHANGELOG.md",
-)
+CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
 
 def _check_required(errors: list[str]) -> None:
@@ -90,10 +79,34 @@ def _check_forbidden(errors: list[str]) -> None:
 
 
 def _markdown_files() -> list[Path]:
-    files = list(MARKDOWN_ROOTS)
-    files.extend(sorted((REPO / "docs").glob("*.md")))
-    files.extend(sorted((REPO / "examples").rglob("*.md")))
-    return [path for path in files if path.is_file()]
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "ls-files", "-z", "--", "*.md"],
+        check=True,
+        capture_output=True,
+    )
+    relative_paths = [
+        item for item in result.stdout.decode("utf-8").split("\0") if item
+    ]
+    return [
+        REPO / relative
+        for relative in relative_paths
+        if (REPO / relative).is_file()
+    ]
+
+
+def _check_public_markdown_policy(errors: list[str]) -> None:
+    for path in _markdown_files():
+        relative = path.relative_to(REPO)
+        if path.name.endswith(".zh-CN.md"):
+            errors.append(f"public Markdown must be English: {relative}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        match = CJK_PATTERN.search(text)
+        if match is not None:
+            line = text.count("\n", 0, match.start()) + 1
+            errors.append(
+                f"public Markdown contains Chinese text: {relative}:{line}"
+            )
 
 
 def _check_links(errors: list[str]) -> None:
@@ -136,12 +149,12 @@ def _check_governance_content(errors: list[str]) -> None:
         "GOVERNANCE.md",
         "SECURITY.md",
         "SUPPORT.md",
-        "CONSTRUCTION.zh-CN.md",
-        "ROADMAP.zh-CN.md",
+        "ROADMAP.md",
         "aevrel demo --dcp",
         "aevrel-target-load",
-        "FIRST-CONTRIBUTION.zh-CN.md",
-        "DEVELOPMENT-MAP.zh-CN.md",
+        "INDEX.md",
+        "FIRST-CONTRIBUTION.md",
+        "DEVELOPMENT-MAP.md",
     ):
         if required not in readme:
             errors.append(f"README.md is missing {required!r}")
@@ -163,6 +176,7 @@ def check() -> dict[str, Any]:
     errors: list[str] = []
     _check_required(errors)
     _check_forbidden(errors)
+    _check_public_markdown_policy(errors)
     _check_links(errors)
     _check_yaml(errors)
     _check_governance_content(errors)

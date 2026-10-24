@@ -72,7 +72,7 @@ python -m aevrel demo --dcp --work-dir /tmp/aevrel-first-run --json
 
 Seeded expectations: `verification.passed=true`, source and target readiness
 `READY`, and `dcp.target_load=ok`. For the full first-contribution path, read
-[First contribution](docs/FIRST-CONTRIBUTION.zh-CN.md).
+[First contribution](docs/FIRST-CONTRIBUTION.md).
 
 ## Product form
 
@@ -194,7 +194,7 @@ aevrel-support-bundle --namespace aevrel-control
 ```
 
 The bundle never collects Secret values by default. See
-[Support](docs/SUPPORT.zh-CN.md) for the operator checklist.
+[Support](docs/SUPPORT.md) for the operator checklist.
 
 ## Core resources
 
@@ -227,15 +227,15 @@ aevrelctl kueue explain <workload>
 ```
 
 The ClusterQueue must reference the configured PreemptionConfig. See
-[Kueue preemption guard](docs/KUEUE-PREEMPTION-GUARD.zh-CN.md).
+[Kueue preemption guard](docs/KUEUE-PREEMPTION-GUARD.md).
 
 ### Live Rank Split
 
 `aevrel-live-worker` implements the Go live path's
 `POST /v1/live/reconcile` contract with durable tick state and CPU-contract
 proof. GPU collective continuity and real cross-node validation are pending.
-See [LRS worker](docs/LRS-WORKER.zh-CN.md) and
-[Live Rank Split flow](docs/LIVE-RANK-SPLIT-USAGE.zh-CN.md).
+See [LRS worker](docs/LRS-WORKER.md) and
+[Live Rank Split flow](docs/LIVE-RANK-SPLIT-USAGE.md).
 
 ## Repository layout
 
@@ -252,19 +252,19 @@ docs/                 current product, usage, operator and integration docs
 
 ## Documentation
 
-- [Documentation index](docs/INDEX.zh-CN.md)
-- [Quick start](docs/QUICKSTART.zh-CN.md)
-- [First contribution](docs/FIRST-CONTRIBUTION.zh-CN.md)
-- [Development map](docs/DEVELOPMENT-MAP.zh-CN.md)
-- [Product form](docs/PRODUCT-FORM.zh-CN.md)
-- [Architecture](docs/ARCHITECTURE.zh-CN.md)
-- [RFC guide](docs/RFC-GUIDE.zh-CN.md)
-- [Construction direction](docs/CONSTRUCTION.zh-CN.md)
-- [Roadmap](docs/ROADMAP.zh-CN.md)
-- [Usage](docs/USAGE.zh-CN.md)
-- [Support](docs/SUPPORT.zh-CN.md)
-- [Helm installation](deploy/helm/aevrel/README.zh-CN.md)
-- [Checkpoint control-plane example](examples/checkpoint-control/README.zh-CN.md)
+- [Documentation index](docs/INDEX.md)
+- [Quick start](docs/QUICKSTART.md)
+- [First contribution](docs/FIRST-CONTRIBUTION.md)
+- [Development map](docs/DEVELOPMENT-MAP.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [RFC guide](docs/RFC-GUIDE.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Usage](docs/USAGE.md)
+- [Support](docs/SUPPORT.md)
+- [Target-ready validation](docs/TARGET-READY.md)
+- [Target DCP load](docs/TARGET-LOAD.md)
+- [Helm installation](deploy/helm/aevrel/README.md)
+- [Checkpoint control-plane example](examples/checkpoint-control/README.md)
 - [Release notes](docs/RELEASE-NOTES-0.3.0.md)
 - [Changelog](CHANGELOG.md)
 

@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
-    url: https://github.com/bolubo/aevrel/blob/main/docs/INDEX.zh-CN.md
+    url: https://github.com/bolubo/aevrel/blob/main/docs/INDEX.md
     about: Start with the product and usage documentation.
   - name: Security report
     url: https://github.com/bolubo/aevrel/security/advisories/new

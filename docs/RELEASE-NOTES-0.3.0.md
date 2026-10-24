@@ -46,7 +46,7 @@ new project name.
   still require environment-specific validation.
 - LRS is experimental; the current worker is a CPU-contract backend and does
   not prove GPU collective continuity.
-- `Kueue` is an adapter. aevrel does not replace Kueue scheduling.
+- `Kueue` is an adapter. Aevrel does not replace Kueue scheduling.
 - Arbitrary CUDA context, Python heap, or GPU process hot migration is not
   claimed.
 
@@ -75,8 +75,7 @@ aevrel demo --dcp
 aevrel tui
 ```
 
-Then read [Quick start](QUICKSTART.zh-CN.md) and
-[Usage](USAGE.zh-CN.md).
+Then read [Quick start](QUICKSTART.md) and [Usage](USAGE.md).
 
 ## Notes
 

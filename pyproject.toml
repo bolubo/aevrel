@@ -58,7 +58,7 @@ aevrel-live-worker = "aevrel.commands.live_worker:main"
 Homepage = "https://github.com/bolubo/aevrel"
 Repository = "https://github.com/bolubo/aevrel"
 Issues = "https://github.com/bolubo/aevrel/issues"
-Documentation = "https://github.com/bolubo/aevrel/blob/main/docs/INDEX.zh-CN.md"
+Documentation = "https://github.com/bolubo/aevrel/blob/main/docs/INDEX.md"
 Changelog = "https://github.com/bolubo/aevrel/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
