@@ -6,6 +6,8 @@
 ## 用户入口
 
 - [快速开始](QUICKSTART.zh-CN.md)
+- [首次贡献](FIRST-CONTRIBUTION.zh-CN.md)
+- [开发地图](DEVELOPMENT-MAP.zh-CN.md)
 - [完整使用说明](USAGE.zh-CN.md)
 - [Checkpoint 控制面示例](../examples/checkpoint-control/README.zh-CN.md)
 - [Target-ready](TARGET-READY.zh-CN.md)

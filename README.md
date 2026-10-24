@@ -59,6 +59,21 @@ but real Kubernetes, multi-node, and GPU validation remain environment-specific.
 - The source of truth for current claims is the docs and release notes, not
   issue comments or old design notes.
 
+## Start here
+
+From a clean checkout, run the existing DCP golden path:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e ".[dev,dcp]"
+python -m aevrel demo --dcp --work-dir /tmp/aevrel-first-run --json
+```
+
+Seeded expectations: `verification.passed=true`, source and target readiness
+`READY`, and `dcp.target_load=ok`. For the full first-contribution path, read
+[First contribution](docs/FIRST-CONTRIBUTION.zh-CN.md).
+
 ## Product form
 
 Aevrel is not a standalone training platform. It is a control-plane layer
@@ -239,6 +254,8 @@ docs/                 current product, usage, operator and integration docs
 
 - [Documentation index](docs/INDEX.zh-CN.md)
 - [Quick start](docs/QUICKSTART.zh-CN.md)
+- [First contribution](docs/FIRST-CONTRIBUTION.zh-CN.md)
+- [Development map](docs/DEVELOPMENT-MAP.zh-CN.md)
 - [Product form](docs/PRODUCT-FORM.zh-CN.md)
 - [Architecture](docs/ARCHITECTURE.zh-CN.md)
 - [RFC guide](docs/RFC-GUIDE.zh-CN.md)
