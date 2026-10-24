@@ -14,6 +14,14 @@ the [Code of Conduct](CODE_OF_CONDUCT.md).
 Start with the [good first issue label](https://github.com/bolubo/aevrel/labels/good%20first%20issue)
 for bounded tasks with explicit validation.
 
+For a concrete first path, read
+[First contribution](docs/FIRST-CONTRIBUTION.zh-CN.md) and the
+[development map](docs/DEVELOPMENT-MAP.zh-CN.md).
+
+Starter issues are unassigned until someone claims one in a comment. Do not
+assume an issue is already owned because it has a label or a maintainer
+comment. A maintainer will assign it after the claim is confirmed.
+
 Start with an issue for design changes, new providers, scheduler integrations,
 public contract changes, or anything that affects recovery or safety.
 Use the [RFC guide](docs/RFC-GUIDE.zh-CN.md) for design decisions rather than
