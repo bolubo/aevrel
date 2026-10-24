@@ -2,6 +2,9 @@
 
 这份手册假设你只会复制命令，不需要改代码。
 
+想直接走首贡献路径，先看 [首次贡献](FIRST-CONTRIBUTION.zh-CN.md)；需要定位
+模块时看 [开发地图](DEVELOPMENT-MAP.zh-CN.md)。
+
 ## 1. 先确认 Python
 
 需要 Python 3.11 或更高版本。

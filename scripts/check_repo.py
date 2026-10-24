@@ -46,6 +46,8 @@ REQUIRED_FILES = (
     ".github/dependabot.yml",
     "docs/INDEX.zh-CN.md",
     "docs/QUICKSTART.zh-CN.md",
+    "docs/FIRST-CONTRIBUTION.zh-CN.md",
+    "docs/DEVELOPMENT-MAP.zh-CN.md",
     "docs/PRODUCT-FORM.zh-CN.md",
     "docs/ARCHITECTURE.zh-CN.md",
     "docs/CONSTRUCTION.zh-CN.md",
@@ -138,6 +140,8 @@ def _check_governance_content(errors: list[str]) -> None:
         "ROADMAP.zh-CN.md",
         "aevrel demo --dcp",
         "aevrel-target-load",
+        "FIRST-CONTRIBUTION.zh-CN.md",
+        "DEVELOPMENT-MAP.zh-CN.md",
     ):
         if required not in readme:
             errors.append(f"README.md is missing {required!r}")
