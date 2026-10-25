@@ -28,7 +28,22 @@ const (
 
 	ReasonStateClosureIncomplete = "STATE_CLOSURE_INCOMPLETE"
 	ReasonResumeDigestMismatch   = "RESUME_COMPONENT_DIGEST_MISMATCH"
+
+	// Readiness evidence codes (Line 3). Every one of them withdraws a claim
+	// rather than adding one: they say "this fact is not proven", never
+	// "this checkpoint is bad".
+	ReasonResumeManifestInvalid       = "RESUME_MANIFEST_INVALID"
+	ReasonDrillStepsMissing           = "DRILL_STEPS_MISSING"
+	ReasonDrillRankCoverageIncomplete = "DRILL_RANK_COVERAGE_INCOMPLETE"
+	ReasonDrillProofStale             = "DRILL_PROOF_STALE"
+	ReasonTargetTopologyUnverified    = "TARGET_TOPOLOGY_UNVERIFIED"
 )
+
+// MinDrillSteps is the smallest number of training steps a restore drill must
+// have run before its outcome counts as loadability evidence. A drill that
+// loaded the bytes and stopped proves the bytes load, not that training
+// resumes.
+const MinDrillSteps = 1
 
 type Reason struct {
 	Code   string `json:"code"`
@@ -76,6 +91,18 @@ type DrillOutcome struct {
 	// ResumeManifestDigests lists the distinct resume-state manifest digests
 	// the drill ranks actually restored; empty means no closure evidence.
 	ResumeManifestDigests []string `json:"resume_manifest_digests,omitempty"`
+
+	// RanksReady and RanksTotal carry the drill's rank coverage. Zero means
+	// the drill reported no coverage at all, which is not the same as full
+	// coverage: an unreported number cannot vouch for anything.
+	RanksReady int `json:"ranks_ready,omitempty"`
+	RanksTotal int `json:"ranks_total,omitempty"`
+
+	// CheckpointVersion and CheckpointMetadataDigest name the checkpoint this
+	// proof was produced for. When either disagrees with the record, the proof
+	// describes some other checkpoint and loadability must be withdrawn.
+	CheckpointVersion        string `json:"checkpoint_version,omitempty"`
+	CheckpointMetadataDigest string `json:"checkpoint_metadata_digest,omitempty"`
 }
 
 type CheckpointReadiness struct {

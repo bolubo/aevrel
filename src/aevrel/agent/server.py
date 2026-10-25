@@ -65,7 +65,7 @@ def resume_state_summary(path: Path | None) -> dict[str, Any] | None:
         raise AgentError(f"could not read resume-state manifest {path}: {exc}") from exc
     report = classify_resume_state(payload)
     manifest = report.manifest
-    return {
+    summary: dict[str, Any] = {
         "closure": report.status,
         "manifestDigest": report.manifest_digest or "",
         "components": [
@@ -78,6 +78,16 @@ def resume_state_summary(path: Path | None) -> dict[str, Any] | None:
         ],
         "reasonCodes": [reason.code for reason in report.reasons],
     }
+    if manifest is not None:
+        # The identity the manifest claims for itself. Without it the
+        # controller would have to take a complete closure on trust, and a
+        # manifest describing another checkpoint could vouch for this one.
+        summary["checkpoint"] = {
+            "uid": manifest.checkpoint.uid,
+            "version": manifest.checkpoint.version,
+            "metadataDigest": manifest.checkpoint.metadata_digest,
+        }
+    return summary
 
 
 class AgentError(RuntimeError):

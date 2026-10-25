@@ -279,12 +279,14 @@ func TestCheckpointRecordSourceExposesFactsForEveryState(t *testing.T) {
 		})
 		record := sourceRecord(job, "step-100")
 		record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
-			Status:     aevrelv1.ReadinessReady,
-			Complete:   true,
-			Fresh:      true,
-			Loadable:   &loadable,
-			LastDrill:  "default/training-drill",
-			ObservedAt: observedAt,
+			Status:           aevrelv1.ReadinessReady,
+			Complete:         true,
+			Fresh:            true,
+			Loadable:         &loadable,
+			LastDrill:        "default/training-drill",
+			LastDrillVersion: "step-100",
+			LastDrillDigest:  "sha256:abc",
+			ObservedAt:       observedAt,
 		}
 		source := resolveFactsSource(t, job, workload, record)
 		assertFacts(t, source, FactSourceCheckpointRecord, "restore", true)

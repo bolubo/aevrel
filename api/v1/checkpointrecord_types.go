@@ -45,6 +45,15 @@ type CheckpointReadinessStatus struct {
 	LastDrill           string          `json:"lastDrill,omitempty"`
 	LastDrillVersion    string          `json:"lastDrillVersion,omitempty"`
 	LastDrillDigest     string          `json:"lastDrillDigest,omitempty"`
+	// LastDrillSteps is how many training steps the drill that produced
+	// LastDrill actually ran. Zero means the drill reported no step count,
+	// which is not the same as "it ran none".
+	LastDrillSteps int32 `json:"lastDrillSteps,omitempty"`
+	// LastDrillRanksReady and LastDrillRanksTotal record the drill's rank
+	// coverage, so "every rank was verified" is a stored fact instead of an
+	// assumption about how the drill job was configured.
+	LastDrillRanksReady int32 `json:"lastDrillRanksReady,omitempty"`
+	LastDrillRanksTotal int32 `json:"lastDrillRanksTotal,omitempty"`
 	// StateComplete reports the resume-state closure as observed by the
 	// agents. It is a pointer so "no agent reported closure evidence" stays
 	// distinguishable from "the closure is incomplete".
@@ -58,6 +67,14 @@ type CheckpointReadinessStatus struct {
 	ResumeManifestDigest string `json:"resumeManifestDigest,omitempty"`
 	// ResumeReasonCodes lists the closure reasons, sorted.
 	ResumeReasonCodes []string `json:"resumeReasonCodes,omitempty"`
+	// ResumeCheckpointUID, ResumeCheckpointVersion and
+	// ResumeCheckpointMetadataDigest are the identity the manifest claims for
+	// itself. Storing them lets the assessment reject a manifest that
+	// describes a different checkpoint, and keeps doing so on later
+	// reconciles instead of only during the pass that read the agent.
+	ResumeCheckpointUID            string `json:"resumeCheckpointUID,omitempty"`
+	ResumeCheckpointVersion        string `json:"resumeCheckpointVersion,omitempty"`
+	ResumeCheckpointMetadataDigest string `json:"resumeCheckpointMetadataDigest,omitempty"`
 }
 
 type CheckpointRecordSpec struct {

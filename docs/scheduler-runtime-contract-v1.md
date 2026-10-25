@@ -195,13 +195,20 @@ misled.
 | Rule | Violation |
 | --- | --- |
 | `fresh=true` requires a loadability verdict (`loadable` is not null) | `FreshWithoutLoadabilityVerdict` |
-| `restoreMode=restore` requires a drill proof (`lastDrill` is not empty) | `RestoreWithoutDrillProof` |
+| `restoreMode=restore` requires a bound drill proof (`lastDrill` and `lastDrillDigest` are both non-empty) | `RestoreWithoutDrillProof` |
 | `estimatedRTOSeconds` is not null only when `complete=true` | `RTOWithoutCompleteInventory` |
 
 A fresh checkpoint with no drill verdict is not schedulable evidence: freshness
 alone cannot tell a scheduler whether the bytes will load. Such a set is
 invalid, so no envelope is published, and the binary protection label remains
 the only signal. This is the intended consequence, not an oversight.
+
+A drill *name* is a reference, not evidence. `RestoreWithoutDrillProof` fires
+unless the proof is bound to the checkpoint content the facts describe, which is
+what `lastDrillDigest` carries: without it the claim cannot be invalidated when
+the checkpoint is rewritten, so an operator reading `restoreMode=restore` would
+be trusting a name. Envelopes produced by Aevrel itself always carry both, since
+a successful drill writes `lastDrillVersion` and `lastDrillDigest` together.
 
 ### (b) Self-description
 

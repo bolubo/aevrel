@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"reflect"
 	"time"
@@ -70,6 +69,9 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 		[]string(nil),
 		record.Status.Readiness.ResumeReasonCodes...,
 	)
+	resumeUID := record.Status.Readiness.ResumeCheckpointUID
+	resumeVersion := record.Status.Readiness.ResumeCheckpointVersion
+	resumeMetadataDigest := record.Status.Readiness.ResumeCheckpointMetadataDigest
 	modelRecord := control.CheckpointRecord{
 		Checkpoint:     record.Spec.Checkpoint,
 		Namespace:      record.Namespace,
@@ -89,35 +91,51 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 		record.Status.MetadataDigest,
 	)
 	readiness := control.AssessReadiness(control.ReadinessInput{
-		Record:               modelRecord,
-		Now:                  now,
-		TargetWorldSize:      controlTargetWorld(record.Status.Readiness.TargetWorldSize),
-		Drill:                drill,
-		State:                controlStateClosure(resumeClosure, resumeDigest, resumeCodes),
+		Record:          modelRecord,
+		Now:             now,
+		TargetWorldSize: controlTargetWorld(record.Status.Readiness.TargetWorldSize),
+		Drill:           drill,
+		State: controlStateClosure(resumeStateEvidence{
+			closure:        resumeClosure,
+			manifestDigest: resumeDigest,
+			codes:          resumeCodes,
+			checkpointUID:  resumeUID,
+			version:        resumeVersion,
+			metadataDigest: resumeMetadataDigest,
+		}),
 		RequireStateComplete: requireStateComplete(record),
 	})
 
 	before := record.Status.DeepCopy()
+	previousReadiness := record.Status.Readiness
 	record.Status.Complete = readiness.Complete
 	record.Status.Fresh = readiness.Fresh
 	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
-		Status:               string(readiness.Status),
-		Complete:             readiness.Complete,
-		Fresh:                readiness.Fresh,
-		Loadable:             readiness.Loadable,
-		Movable:              readiness.Movable,
-		Reasons:              apiReasons(readiness.Reasons),
-		ObservedAt:           readiness.ObservedAt,
-		TargetWorldSize:      apiTargetWorld(readiness.TargetWorldSize),
-		EstimatedRTOSeconds:  readiness.EstimatedRTOSeconds,
-		LastDrill:            readiness.LastDrill,
-		LastDrillVersion:     lastDrillVersion,
-		LastDrillDigest:      lastDrillDigest,
-		StateComplete:        readiness.StateComplete,
-		ReadinessLevel:       readiness.ReadinessLevel,
-		ResumeClosure:        resumeClosure,
-		ResumeManifestDigest: resumeDigest,
-		ResumeReasonCodes:    resumeCodes,
+		Status:          string(readiness.Status),
+		Complete:        readiness.Complete,
+		Fresh:           readiness.Fresh,
+		Loadable:        readiness.Loadable,
+		Movable:         readiness.Movable,
+		Reasons:         apiReasons(readiness.Reasons),
+		ObservedAt:      readiness.ObservedAt,
+		TargetWorldSize: apiTargetWorld(readiness.TargetWorldSize),
+		// The drill evidence describes the last drill, not this assessment,
+		// so it is carried across instead of recomputed.
+		LastDrillSteps:                 previousReadiness.LastDrillSteps,
+		LastDrillRanksReady:            previousReadiness.LastDrillRanksReady,
+		LastDrillRanksTotal:            previousReadiness.LastDrillRanksTotal,
+		EstimatedRTOSeconds:            readiness.EstimatedRTOSeconds,
+		LastDrill:                      readiness.LastDrill,
+		LastDrillVersion:               lastDrillVersion,
+		LastDrillDigest:                lastDrillDigest,
+		StateComplete:                  readiness.StateComplete,
+		ReadinessLevel:                 readiness.ReadinessLevel,
+		ResumeClosure:                  resumeClosure,
+		ResumeManifestDigest:           resumeDigest,
+		ResumeReasonCodes:              resumeCodes,
+		ResumeCheckpointUID:            resumeUID,
+		ResumeCheckpointVersion:        resumeVersion,
+		ResumeCheckpointMetadataDigest: resumeMetadataDigest,
 	}
 	status := metav1.ConditionFalse
 	reason := "NotReady"
@@ -212,6 +230,18 @@ func apiTargetWorld(value *int) *int32 {
 	return &converted
 }
 
+// resumeStateEvidence is the closure evidence stored on the record, gathered
+// into one value so the projection into the control plane cannot silently drop
+// a field as the evidence grows.
+type resumeStateEvidence struct {
+	closure        string
+	manifestDigest string
+	codes          []string
+	checkpointUID  string
+	version        string
+	metadataDigest string
+}
+
 // controlStateClosure turns the closure evidence stored on the record into
 // the control-plane summary.
 //
@@ -219,18 +249,19 @@ func apiTargetWorld(value *int) *int32 {
 // can never claim L4, which is what keeps "the agent did not look" distinct
 // from "the agent looked and the closure is incomplete".
 func controlStateClosure(
-	closure string,
-	manifestDigest string,
-	codes []string,
+	evidence resumeStateEvidence,
 ) *control.StateClosureSummary {
-	if closure == "" {
+	if evidence.closure == "" {
 		return nil
 	}
 	return &control.StateClosureSummary{
-		Status:         closure,
-		Closed:         closure == control.ClosureComplete,
-		Codes:          append([]string(nil), codes...),
-		ManifestDigest: manifestDigest,
+		Status:                   evidence.closure,
+		Closed:                   evidence.closure == control.ClosureComplete,
+		Codes:                    append([]string(nil), evidence.codes...),
+		ManifestDigest:           evidence.manifestDigest,
+		CheckpointUID:            evidence.checkpointUID,
+		CheckpointVersion:        evidence.version,
+		CheckpointMetadataDigest: evidence.metadataDigest,
 	}
 }
 
@@ -256,39 +287,30 @@ func controlDrill(
 	return &control.DrillOutcome{
 		Phase:                 phase,
 		Succeeded:             *readiness.Loadable,
+		StepsRan:              int(readiness.LastDrillSteps),
+		RanksReady:            int(readiness.LastDrillRanksReady),
+		RanksTotal:            int(readiness.LastDrillRanksTotal),
 		ProofRef:              readiness.LastDrill,
 		ResumeManifestDigests: digests,
+		// The proof was produced for the checkpoint the drill saw, not for
+		// whatever the record points at now. Carrying that identity lets the
+		// assessment withdraw the claim when the checkpoint has moved on.
+		CheckpointVersion:        readiness.LastDrillVersion,
+		CheckpointMetadataDigest: readiness.LastDrillDigest,
 	}
 }
 
+// controlDrillForRecord passes the drill's own identity through unchanged.
+//
+// It used to pre-fail the drill when the record had moved to another version
+// or digest. That collapsed two different situations into one generic
+// DRILL_FAILED: "the drill failed" and "the drill proved a checkpoint we no
+// longer have". The assessment now compares identities itself and reports
+// DRILL_PROOF_STALE, so a consumer can tell a broken drill from a stale proof.
 func controlDrillForRecord(
 	readiness aevrelv1.CheckpointReadinessStatus,
-	version string,
-	metadataDigest string,
+	_ string,
+	_ string,
 ) *control.DrillOutcome {
-	drill := controlDrill(readiness)
-	if drill == nil {
-		return nil
-	}
-	if readiness.LastDrillVersion != version ||
-		readiness.LastDrillDigest != metadataDigest {
-		digests := []string{}
-		if readiness.LastDrillDigest != "" {
-			digests = []string{readiness.LastDrillDigest}
-		}
-		return &control.DrillOutcome{
-			Phase:                 "Failed",
-			Succeeded:             false,
-			ProofRef:              readiness.LastDrill,
-			ResumeManifestDigests: digests,
-			Detail: fmt.Sprintf(
-				"restore drill evidence is for version %q digest %q, current version %q digest %q",
-				readiness.LastDrillVersion,
-				readiness.LastDrillDigest,
-				version,
-				metadataDigest,
-			),
-		}
-	}
-	return drill
+	return controlDrill(readiness)
 }

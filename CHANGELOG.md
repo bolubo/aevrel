@@ -4,6 +4,19 @@
 
 ### Added
 
+- Readiness evidence semantics: a fact is now bound to the evidence behind it
+  and invalidated when that evidence stops holding. A restore drill that ran no
+  training steps (`DRILL_STEPS_MISSING`) or that covered only part of the world
+  (`DRILL_RANK_COVERAGE_INCOMPLETE`) no longer counts as `loadable`, and a proof
+  produced for another version or metadata digest is reported as
+  `DRILL_PROOF_STALE` instead of being conflated with a failed drill. See
+  [docs/READINESS-SEMANTICS.md](docs/READINESS-SEMANTICS.md).
+- The manifest identity anchor (`RESUME_MANIFEST_INVALID`) is enforced on the Go
+  side as well: agents report the `checkpoint` their manifest describes, the
+  record persists it, and a complete closure for another checkpoint can no
+  longer vouch for this one.
+- `TARGET_TOPOLOGY_UNVERIFIED` marks `movable=true` as a coarse check when the
+  target world size differs from the source's rank count.
 - Scheduler/runtime contract v1: a versioned, orthogonal fact envelope for
   `complete`, `fresh`, `loadable`, `movable`, `restoreMode`,
   `estimatedRTOSeconds`, and the evidence behind them. See
@@ -22,6 +35,10 @@
 - The failure-code catalog now documents the rescue advisory codes and the
   envelope violation codes, and `repo-check` fails when an envelope label is
   published without being documented.
+- `RestoreWithoutDrillProof` now requires a *bound* proof: an envelope that
+  recommends `restore` with a drill name but no `lastDrillDigest` is withheld,
+  because a name cannot be invalidated when the checkpoint changes.
+- `aevrel readiness` labels `movable=true` as a coarse check in its text output.
 
 ## 0.3.0 - 2026-10-23
 

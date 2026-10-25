@@ -94,12 +94,14 @@ func TestProjectFactsRecomputableFromTheRecord(t *testing.T) {
 	// from the fact set the projector received.
 	record := factTestRecord()
 	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
-		Status:     aevrelv1.ReadinessReady,
-		Complete:   true,
-		Fresh:      true,
-		Loadable:   factBoolPtr(true),
-		ObservedAt: factTestObservedAt,
-		LastDrill:  "default/training-drill",
+		Status:           aevrelv1.ReadinessReady,
+		Complete:         true,
+		Fresh:            true,
+		Loadable:         factBoolPtr(true),
+		ObservedAt:       factTestObservedAt,
+		LastDrill:        "default/training-drill",
+		LastDrillVersion: "step-100",
+		LastDrillDigest:  "sha256:abc",
 	}
 	facts := CheckpointFactsForRecord(
 		record,
@@ -197,12 +199,14 @@ func TestReconcilerPublishesTheEnvelopeWithoutChangingTheDecision(t *testing.T) 
 	workload := testWorkload(job)
 	record := sourceRecord(job, "step-100")
 	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
-		Status:     aevrelv1.ReadinessReady,
-		Complete:   true,
-		Fresh:      true,
-		Loadable:   factBoolPtr(true),
-		LastDrill:  "default/training-drill",
-		ObservedAt: time.Now().UTC().Format(time.RFC3339),
+		Status:           aevrelv1.ReadinessReady,
+		Complete:         true,
+		Fresh:            true,
+		Loadable:         factBoolPtr(true),
+		LastDrill:        "default/training-drill",
+		LastDrillVersion: "step-100",
+		LastDrillDigest:  "sha256:abc",
+		ObservedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
 	kubeClient := sourceClient(t, job, workload, record)
 	reconciler := testReconciler(kubeClient, DefaultPolicy())

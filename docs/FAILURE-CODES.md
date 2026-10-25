@@ -36,7 +36,14 @@ These come from comparing what the storage has with what the record expects.
 | Code | Emitted when | Blocks |
 | --- | --- | --- |
 | `DRILL_MISSING` | no restore drill has verified this checkpoint | `loadable` stays `null` |
-| `DRILL_FAILED` | the drill ran and failed, or its evidence is for another version or digest | `loadable: false` |
+| `DRILL_FAILED` | the drill ran and failed | `loadable: false` |
+| `DRILL_STEPS_MISSING` | the drill reports success but ran fewer than `MIN_DRILL_STEPS` training steps | `loadable: false` — loading bytes is not resuming training |
+| `DRILL_RANK_COVERAGE_INCOMPLETE` | `ranks_ready < ranks_total`: the drill did not cover the whole world | `loadable: false` — a partial restore is not a restorable checkpoint |
+| `DRILL_PROOF_STALE` | the proof is bound to a version or metadata digest the record no longer has | `loadable: false` — the proof describes a checkpoint that is gone, which is not the same as a broken drill |
+
+The last three withdraw a claim the drill itself reported as successful. They
+exist because `succeeded=true` is the drill's assertion, not evidence: only the
+step count, the rank coverage and the checkpoint identity turn it into a fact.
 
 ## Target readiness
 
@@ -44,6 +51,7 @@ These come from comparing what the storage has with what the record expects.
 | --- | --- | --- |
 | `TARGET_UNSPECIFIED` | no target world size or mesh was given | `movable` stays `null` |
 | `TARGET_BLOCKED` | a required target-side condition failed, including the closure gate | `loadable: false` for this target |
+| `TARGET_TOPOLOGY_UNVERIFIED` | `movable` is true and the target world size differs from the source's rank count, with no topology check | nothing — it is a caveat on `movable`, which is a coarse filter and not a topology verdict |
 
 ## Resume-state closure
 

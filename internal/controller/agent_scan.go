@@ -40,6 +40,16 @@ type agentResumeState struct {
 	Closure        string                 `json:"closure"`
 	Components     []agentResumeComponent `json:"components"`
 	ReasonCodes    []string               `json:"reasonCodes"`
+	// Checkpoint is the identity the manifest claims for itself. It is what
+	// lets the controller reject a complete closure that describes some other
+	// checkpoint, instead of trusting the closure on its own.
+	Checkpoint *agentResumeCheckpoint `json:"checkpoint"`
+}
+
+type agentResumeCheckpoint struct {
+	UID            string `json:"uid"`
+	Version        string `json:"version"`
+	MetadataDigest string `json:"metadataDigest"`
 }
 
 type agentResumeComponent struct {
@@ -74,6 +84,10 @@ func (r *agentResumeState) validate() error {
 			return fmt.Errorf("duplicate resumeState component %q", component.Kind)
 		}
 		seen[component.Kind] = struct{}{}
+	}
+	if r.Checkpoint != nil && r.Checkpoint.MetadataDigest != "" &&
+		!resumeManifestDigestPattern.MatchString(r.Checkpoint.MetadataDigest) {
+		return fmt.Errorf("resumeState checkpoint metadataDigest must be sha256")
 	}
 	return nil
 }
@@ -562,6 +576,9 @@ func applyResumeState(
 		status.ResumeClosure = ""
 		status.ResumeManifestDigest = ""
 		status.ResumeReasonCodes = nil
+		status.ResumeCheckpointUID = ""
+		status.ResumeCheckpointVersion = ""
+		status.ResumeCheckpointMetadataDigest = ""
 		return
 	}
 	codes := make([]string, 0, len(resume.ReasonCodes))
@@ -574,6 +591,14 @@ func applyResumeState(
 	status.ResumeClosure = resume.Closure
 	status.ResumeManifestDigest = resume.ManifestDigest
 	status.ResumeReasonCodes = codes
+	status.ResumeCheckpointUID = ""
+	status.ResumeCheckpointVersion = ""
+	status.ResumeCheckpointMetadataDigest = ""
+	if resume.Checkpoint != nil {
+		status.ResumeCheckpointUID = resume.Checkpoint.UID
+		status.ResumeCheckpointVersion = resume.Checkpoint.Version
+		status.ResumeCheckpointMetadataDigest = resume.Checkpoint.MetadataDigest
+	}
 }
 
 func carryAgentReason(

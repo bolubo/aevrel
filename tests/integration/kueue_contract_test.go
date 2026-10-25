@@ -39,6 +39,8 @@ func scenarios() []scenario {
 	ready.Fresh = true
 	ready.Loadable = boolPtr(true)
 	ready.LastDrill = "default/training-drill"
+	ready.LastDrillVersion = "step-100"
+	ready.LastDrillDigest = "sha256:abc"
 	ready.ObservedAt = time.Now().UTC().Format(time.RFC3339)
 
 	unverified := &aevrelv1.CheckpointReadinessStatus{}

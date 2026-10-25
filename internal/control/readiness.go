@@ -22,6 +22,12 @@ type StateClosureSummary struct {
 	// Comparing it with the digest a drill restored anchors both claims to
 	// the same checkpoint state.
 	ManifestDigest string
+	// CheckpointUID, CheckpointVersion and CheckpointMetadataDigest are the
+	// identity the manifest claims for itself. A manifest that names another
+	// checkpoint cannot vouch for this one, no matter how complete it is.
+	CheckpointUID            string
+	CheckpointVersion        string
+	CheckpointMetadataDigest string
 }
 
 // ReadinessInput is everything the assessment needs. New inputs are added
@@ -36,6 +42,11 @@ type ReadinessInput struct {
 	// RequireStateComplete turns the assessment into an L4 claim: the
 	// result may not be READY unless the resume-state closure is complete.
 	RequireStateComplete bool
+	// TopologyVerified says a caller has checked mesh, placement and format
+	// compatibility for the requested target. Without it, movable=true only
+	// means "the source is complete and the target world size is sane", and
+	// the assessment says so instead of implying more.
+	TopologyVerified bool
 }
 
 // AssessReadiness is the single readiness entry point. It implements
@@ -86,6 +97,7 @@ func AssessReadiness(input ReadinessInput) CheckpointReadiness {
 	var loadable *bool
 	lastDrill := ""
 	lastDrillDigest := ""
+	evidenceBlocked := false
 	if input.Drill != nil && len(input.Drill.ResumeManifestDigests) == 1 {
 		lastDrillDigest = input.Drill.ResumeManifestDigests[0]
 	}
@@ -105,6 +117,15 @@ func AssessReadiness(input ReadinessInput) CheckpointReadiness {
 				Code:   ReasonDrillFailed,
 				Detail: detail,
 			})
+		} else if gap, ok := drillEvidenceGap(record, *input.Drill); ok {
+			// A drill that reports success still has to prove that it ran
+			// training steps, covered the whole world, and was produced for
+			// this checkpoint. Anything less withdraws the claim instead of
+			// rounding it up to loadable=true.
+			evidenceBlocked = true
+			withdrawn := false
+			loadable = &withdrawn
+			reasons = append(reasons, gap)
 		}
 	} else {
 		reasons = append(reasons, Reason{
@@ -129,7 +150,23 @@ func AssessReadiness(input ReadinessInput) CheckpointReadiness {
 		}
 	}
 
-	// Anchor: the manifest the drill restored must be the manifest the
+	// Anchor 1: the manifest must describe *this* checkpoint. A manifest for
+	// another job, version or metadata digest would let a complete closure
+	// vouch for state that is not on disk here.
+	manifestBlocked := false
+	if input.State != nil {
+		if detail := manifestIdentityGap(record, *input.State); detail != "" {
+			manifestBlocked = true
+			value := false
+			loadable = &value
+			reasons = append(reasons, Reason{
+				Code:   ReasonResumeManifestInvalid,
+				Detail: detail,
+			})
+		}
+	}
+
+	// Anchor 2: the manifest the drill restored must be the manifest the
 	// closure verdict describes.
 	anchorBlocked := false
 	if input.Drill != nil && input.State != nil && input.State.ManifestDigest != "" {
@@ -148,6 +185,27 @@ func AssessReadiness(input ReadinessInput) CheckpointReadiness {
 		}
 	}
 
+	// movable=true means the source is complete and the target world size is
+	// sane. It is not a topology verdict. The caveat is attached only when the
+	// target actually changes the world size, because that is precisely the
+	// case where the coarse check is doing the most work and a consumer is
+	// most likely to over-read it. Emitting it on every assessment would make
+	// the reason list permanently noisy and train consumers to ignore it.
+	if movable != nil && *movable && !input.TopologyVerified &&
+		input.TargetWorldSize != nil &&
+		len(record.Ranks) > 0 &&
+		*input.TargetWorldSize != len(record.Ranks) {
+		reasons = append(reasons, Reason{
+			Code: ReasonTargetTopologyUnverified,
+			Detail: fmt.Sprintf(
+				"target world size %d differs from the source's %d ranks; "+
+					"mesh, placement and format compatibility are unverified",
+				*input.TargetWorldSize,
+				len(record.Ranks),
+			),
+		})
+	}
+
 	status := ReadinessReady
 	switch {
 	case !record.Complete:
@@ -156,7 +214,7 @@ func AssessReadiness(input ReadinessInput) CheckpointReadiness {
 		status = ReadinessStale
 	case input.Drill != nil && !input.Drill.Succeeded:
 		status = ReadinessTargetBlocked
-	case anchorBlocked:
+	case evidenceBlocked || anchorBlocked || manifestBlocked:
 		status = ReadinessTargetBlocked
 	case loadable == nil:
 		status = ReadinessUnverified
@@ -213,6 +271,89 @@ func contentTimestamp(record CheckpointRecord) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
+}
+
+// drillEvidenceGap reports why a drill that calls itself successful still
+// cannot support loadable=true. The check is deliberately one-directional: it
+// can only withdraw a claim, never create one.
+func drillEvidenceGap(record CheckpointRecord, drill DrillOutcome) (Reason, bool) {
+	if drill.CheckpointMetadataDigest != "" &&
+		record.MetadataDigest != "" &&
+		drill.CheckpointMetadataDigest != record.MetadataDigest {
+		return Reason{
+			Code: ReasonDrillProofStale,
+			Detail: fmt.Sprintf(
+				"drill proof is bound to metadata digest %q, the record is %q",
+				drill.CheckpointMetadataDigest,
+				record.MetadataDigest,
+			),
+		}, true
+	}
+	if drill.CheckpointVersion != "" &&
+		record.Version != "" &&
+		drill.CheckpointVersion != record.Version {
+		return Reason{
+			Code: ReasonDrillProofStale,
+			Detail: fmt.Sprintf(
+				"drill proof is bound to version %q, the record is %q",
+				drill.CheckpointVersion,
+				record.Version,
+			),
+		}, true
+	}
+	if drill.StepsRan < MinDrillSteps {
+		return Reason{
+			Code: ReasonDrillStepsMissing,
+			Detail: fmt.Sprintf(
+				"restore drill ran %d training steps, at least %d are required",
+				drill.StepsRan,
+				MinDrillSteps,
+			),
+		}, true
+	}
+	if drill.RanksTotal > 0 && drill.RanksReady < drill.RanksTotal {
+		return Reason{
+			Code: ReasonDrillRankCoverageIncomplete,
+			Detail: fmt.Sprintf(
+				"restore drill covered %d of %d ranks",
+				drill.RanksReady,
+				drill.RanksTotal,
+			),
+		}, true
+	}
+	return Reason{}, false
+}
+
+// manifestIdentityGap describes how a manifest claims to be a different
+// checkpoint than the record, or returns "" when the identity agrees.
+func manifestIdentityGap(
+	record CheckpointRecord,
+	state StateClosureSummary,
+) string {
+	if state.CheckpointUID != "" &&
+		record.JobUID != "" &&
+		state.CheckpointUID != record.JobUID {
+		return fmt.Sprintf(
+			"manifest describes checkpoint %q, the record is %q",
+			state.CheckpointUID,
+			record.JobUID,
+		)
+	}
+	if state.CheckpointVersion != "" &&
+		record.Version != "" &&
+		state.CheckpointVersion != record.Version {
+		return fmt.Sprintf(
+			"manifest describes version %q, the record is %q",
+			state.CheckpointVersion,
+			record.Version,
+		)
+	}
+	if state.CheckpointMetadataDigest != "" &&
+		record.MetadataDigest != "" &&
+		state.CheckpointMetadataDigest != record.MetadataDigest {
+		return "manifest metadata digest does not match the checkpoint record"
+	}
+	return ""
 }
 
 func closureDetail(state *StateClosureSummary) string {

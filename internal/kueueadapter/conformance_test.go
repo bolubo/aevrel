@@ -15,6 +15,8 @@ func validRecordFacts() CheckpointFacts {
 		Loadable:            factBoolPtr(true),
 		ObservedAt:          factTestObservedAt,
 		LastDrill:           "default/training-drill",
+		LastDrillVersion:    "step-100",
+		LastDrillDigest:     "sha256:abc",
 		EstimatedRTOSeconds: int64Ptr(120),
 	}
 	return CheckpointFactsForRecord(
@@ -52,6 +54,16 @@ func TestValidateFactsInternalConsistency(t *testing.T) {
 			name: "restore without a drill proof",
 			mutate: func(facts *CheckpointFacts) {
 				facts.LastDrill = ""
+			},
+			want: ViolationRestoreWithoutProof,
+		},
+		{
+			// A drill name is a reference, not evidence: without the digest
+			// the proof is not bound to any checkpoint content, so it cannot
+			// be invalidated when the checkpoint changes.
+			name: "restore with an unbound drill reference",
+			mutate: func(facts *CheckpointFacts) {
+				facts.LastDrillDigest = ""
 			},
 			want: ViolationRestoreWithoutProof,
 		},

@@ -186,6 +186,9 @@
   },
   "requireStateComplete": true,
   "resumeState": {
+    "checkpointMetadataDigest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "checkpointUID": "job-conf-0001",
+    "checkpointVersion": "v1",
     "closed": true,
     "codes": [],
     "manifestDigest": "sha256:dad9e3b9acb209b486f13c37f8db5431dd01e70d583eea2ab759b65cce97c6f4",

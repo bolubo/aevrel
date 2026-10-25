@@ -186,6 +186,9 @@
   },
   "requireStateComplete": true,
   "resumeState": {
+    "checkpointMetadataDigest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "checkpointUID": "job-conf-0001",
+    "checkpointVersion": "v1",
     "closed": false,
     "codes": [
       "RESUME_COMPONENT_MISSING",

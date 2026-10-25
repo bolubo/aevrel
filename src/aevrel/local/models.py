@@ -47,6 +47,13 @@ class ReasonCode(str, Enum):
     STATE_CLOSURE_INCOMPLETE = "STATE_CLOSURE_INCOMPLETE"
     RESUME_COMPONENT_DIGEST_MISMATCH = "RESUME_COMPONENT_DIGEST_MISMATCH"
     RESUME_MANIFEST_INVALID = "RESUME_MANIFEST_INVALID"
+    # Readiness evidence codes (Line 3). Each one withdraws a claim rather
+    # than adding one: they say "this fact is not proven", never "this
+    # checkpoint is bad".
+    DRILL_STEPS_MISSING = "DRILL_STEPS_MISSING"
+    DRILL_RANK_COVERAGE_INCOMPLETE = "DRILL_RANK_COVERAGE_INCOMPLETE"
+    DRILL_PROOF_STALE = "DRILL_PROOF_STALE"
+    TARGET_TOPOLOGY_UNVERIFIED = "TARGET_TOPOLOGY_UNVERIFIED"
 
 
 class DrillPhase(str, Enum):
@@ -153,9 +160,19 @@ class DrillOutcome:
     # Distinct resume-state manifest digests the drill ranks actually
     # restored. Empty means the drill produced no closure evidence.
     resume_state_digests: tuple[str, ...] = ()
+    # Rank coverage. Zero means the drill reported no coverage at all, which
+    # is not the same as full coverage: an unreported number cannot vouch for
+    # anything.
+    ranks_ready: int = 0
+    ranks_total: int = 0
+    # Identity of the checkpoint this proof was produced for. When either
+    # field disagrees with the record, the proof describes some other
+    # checkpoint and loadability must be withdrawn.
+    checkpoint_version: str = ""
+    checkpoint_metadata_digest: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "phase": self.phase,
             "succeeded": self.succeeded,
             "steps_ran": self.steps_ran,
@@ -163,6 +180,16 @@ class DrillOutcome:
             "detail": self.detail,
             "resume_state_digests": list(self.resume_state_digests),
         }
+        if self.ranks_total:
+            payload["ranks_ready"] = self.ranks_ready
+            payload["ranks_total"] = self.ranks_total
+        if self.checkpoint_version:
+            payload["checkpoint_version"] = self.checkpoint_version
+        if self.checkpoint_metadata_digest:
+            payload["checkpoint_metadata_digest"] = (
+                self.checkpoint_metadata_digest
+            )
+        return payload
 
 
 @dataclass(frozen=True)

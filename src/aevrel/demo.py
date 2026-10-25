@@ -154,10 +154,27 @@ def _run_dcp_demo(root: Path, spec: dict[str, Any]) -> dict[str, Any]:
         provider = DCPStateProvider()
         source_record = provider.inventory(source_dcp)
         target_record = provider.inventory(target_dcp)
-        DcpTargetReady(source_dcp)("demo-source")
-        DcpTargetReady(target_dcp)("demo")
+        # The demo drill loads the restored state and takes real optimizer
+        # steps on it, so the readiness verdict it reports is the verdict the
+        # evidence supports. A load-only drill would be a different, weaker
+        # claim.
+        steps = 3
+        DcpTargetReady(source_dcp, steps=steps)("demo-source")
+        DcpTargetReady(target_dcp, steps=steps)("demo")
     except Exception as exc:
         raise DemoError(f"DCP demo failed: {exc}") from exc
+
+    def drill(record, proof_ref: str) -> DrillOutcome:
+        return DrillOutcome(
+            phase="Succeeded",
+            succeeded=True,
+            steps_ran=steps,
+            proof_ref=proof_ref,
+            ranks_ready=len(record.ranks),
+            ranks_total=len(record.ranks),
+            checkpoint_version=record.version,
+            checkpoint_metadata_digest=record.metadata_digest,
+        )
 
     return {
         "source": str(source_dcp),
@@ -165,20 +182,12 @@ def _run_dcp_demo(root: Path, spec: dict[str, Any]) -> dict[str, Any]:
         "source_readiness": assess_readiness(
             source_record,
             target_world_size=3,
-            drill=DrillOutcome(
-                phase="Succeeded",
-                succeeded=True,
-                proof_ref="demo-source-dcp-load",
-            ),
+            drill=drill(source_record, "demo-source-dcp-load"),
         ).to_dict(),
         "target_readiness": assess_readiness(
             target_record,
             target_world_size=3,
-            drill=DrillOutcome(
-                phase="Succeeded",
-                succeeded=True,
-                proof_ref="demo-target-dcp-load",
-            ),
+            drill=drill(target_record, "demo-target-dcp-load"),
         ).to_dict(),
         "target_load": "ok",
     }

@@ -65,6 +65,8 @@ func explainFactsClient(t *testing.T) client.Client {
 				Fresh:               true,
 				Loadable:            &loadable,
 				LastDrill:           "default/training-drill",
+				LastDrillVersion:    "step-100",
+				LastDrillDigest:     "sha256:abc",
 				ObservedAt:          time.Now().UTC().Format(time.RFC3339),
 				EstimatedRTOSeconds: factInt64Ptr(45),
 			},

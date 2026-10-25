@@ -109,10 +109,13 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 				Bytes: 16,
 			}},
 			Readiness: aevrelv1.CheckpointReadinessStatus{
-				Loadable:         &loadable,
-				LastDrill:        "default/drill",
-				LastDrillVersion: "step-100",
-				LastDrillDigest:  "sha256:test",
+				Loadable:            &loadable,
+				LastDrill:           "default/drill",
+				LastDrillVersion:    "step-100",
+				LastDrillDigest:     "sha256:test",
+				LastDrillSteps:      3,
+				LastDrillRanksReady: 1,
+				LastDrillRanksTotal: 1,
 			},
 		},
 	}
@@ -148,6 +151,86 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 	if got.Status.Readiness.LastDrillVersion != "step-100" ||
 		got.Status.Readiness.LastDrillDigest != "sha256:test" {
 		t.Fatalf("drill evidence = %+v", got.Status.Readiness)
+	}
+	// The step and rank evidence decides whether the drill counts at all, so
+	// it has to survive the round trip through the API.
+	if got.Status.Readiness.LastDrillSteps != 3 ||
+		got.Status.Readiness.LastDrillRanksReady != 1 ||
+		got.Status.Readiness.LastDrillRanksTotal != 1 {
+		t.Fatalf("drill coverage = %+v", got.Status.Readiness)
+	}
+}
+
+// A drill that only claims success is not evidence. Without recorded step and
+// rank coverage the assessment withdraws loadable instead of keeping it, and
+// the controller must persist that withdrawal.
+func TestCheckpointReadinessReconcilerWithdrawsUnprovenDrill(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := aevrelv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	loadable := true
+	record := &aevrelv1.CheckpointRecord{
+		ObjectMeta: metav1.ObjectMeta{Name: "job42", Namespace: "default"},
+		Spec: aevrelv1.CheckpointRecordSpec{
+			JobRef:          "job42",
+			Version:         "step-100",
+			Provider:        "dcp",
+			FormatVersion:   "1.0.0",
+			Checkpoint:      "/checkpoints/job42",
+			SourceWorldSize: 1,
+		},
+		Status: aevrelv1.CheckpointRecordStatus{
+			MetadataDigest: "sha256:test",
+			LatestMtime:    time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
+			Complete:       true,
+			Ranks: []aevrelv1.CheckpointRankStatus{{
+				Rank:  0,
+				Bytes: 16,
+			}},
+			Readiness: aevrelv1.CheckpointReadinessStatus{
+				Loadable:         &loadable,
+				LastDrill:        "default/drill",
+				LastDrillVersion: "step-100",
+				LastDrillDigest:  "sha256:test",
+			},
+		},
+	}
+	kubeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&aevrelv1.CheckpointRecord{}).
+		WithObjects(record).
+		Build()
+	reconciler := &CheckpointReadinessReconciler{Client: kubeClient, Scheme: scheme}
+	if _, err := reconciler.Reconcile(
+		context.Background(),
+		ctrl.Request{NamespacedName: types.NamespacedName{
+			Namespace: "default",
+			Name:      "job42",
+		}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	var got aevrelv1.CheckpointRecord
+	if err := kubeClient.Get(
+		context.Background(),
+		types.NamespacedName{Namespace: "default", Name: "job42"},
+		&got,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.Readiness.Status != aevrelv1.ReadinessTargetBlocked {
+		t.Fatalf("readiness = %+v", got.Status.Readiness)
+	}
+	if got.Status.Readiness.Loadable == nil || *got.Status.Readiness.Loadable {
+		t.Fatalf("loadable should have been withdrawn: %+v", got.Status.Readiness)
+	}
+	codes := make([]string, 0, len(got.Status.Readiness.Reasons))
+	for _, reason := range got.Status.Readiness.Reasons {
+		codes = append(codes, reason.Code)
+	}
+	if !contains(codes, control.ReasonDrillStepsMissing) {
+		t.Fatalf("reasons = %v", codes)
 	}
 }
 
@@ -511,6 +594,38 @@ func TestControlDrillUsesReferenceAndOutcome(t *testing.T) {
 	}
 }
 
+// A drill keeps the identity it proved. Reporting that identity is what lets
+// the assessment tell "the drill failed" from "the drill proved a checkpoint we
+// no longer have", so the translation must not pre-fail or blank either field.
+func TestControlDrillCarriesProvenIdentity(t *testing.T) {
+	ready := true
+	status := aevrelv1.CheckpointReadinessStatus{
+		Loadable:            &ready,
+		LastDrill:           "default/restore-drill",
+		LastDrillVersion:    "step-100",
+		LastDrillDigest:     "sha256:old",
+		LastDrillSteps:      3,
+		LastDrillRanksReady: 4,
+		LastDrillRanksTotal: 4,
+	}
+	drill := controlDrillForRecord(status, "step-100", "sha256:new")
+	if drill == nil {
+		t.Fatal("drill = nil")
+	}
+	if !drill.Succeeded {
+		t.Fatalf("translation should not pre-fail the drill: %+v", drill)
+	}
+	if drill.CheckpointVersion != "step-100" ||
+		drill.CheckpointMetadataDigest != "sha256:old" {
+		t.Fatalf("identity not carried: %+v", drill)
+	}
+	if drill.StepsRan != 3 || drill.RanksReady != 4 || drill.RanksTotal != 4 {
+		t.Fatalf("coverage not carried: %+v", drill)
+	}
+}
+
+// The staleness itself is a readiness verdict, so it is asserted end to end:
+// a proof bound to a different digest blocks the target and says why.
 func TestControlDrillRejectsStaleCheckpointEvidence(t *testing.T) {
 	ready := true
 	status := aevrelv1.CheckpointReadinessStatus{
@@ -518,19 +633,49 @@ func TestControlDrillRejectsStaleCheckpointEvidence(t *testing.T) {
 		LastDrill:        "default/restore-drill",
 		LastDrillVersion: "step-100",
 		LastDrillDigest:  "sha256:old",
+		LastDrillSteps:   3,
 	}
 	drill := controlDrillForRecord(status, "step-100", "sha256:new")
-	if drill == nil || drill.Succeeded {
-		t.Fatalf("drill = %+v", drill)
+	readiness := control.AssessReadiness(control.ReadinessInput{
+		Record: control.CheckpointRecord{
+			Version:        "step-100",
+			MetadataDigest: "sha256:new",
+			LatestMtime:    time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
+			Complete:       true,
+			Ranks:          []control.RankInventory{{Rank: 0, Bytes: 16}},
+		},
+		Now:   time.Now().UTC(),
+		Drill: drill,
+	})
+	if readiness.Status != control.ReadinessTargetBlocked {
+		t.Fatalf("status = %q, readiness = %+v", readiness.Status, readiness)
 	}
-	if drill.ProofRef != "default/restore-drill" ||
-		!strings.Contains(drill.Detail, "sha256:old") ||
-		!strings.Contains(drill.Detail, "sha256:new") {
-		t.Fatalf("drill = %+v", drill)
+	if readiness.Loadable == nil || *readiness.Loadable {
+		t.Fatalf("loadable should have been withdrawn: %+v", readiness)
 	}
-	status.LastDrillDigest = "sha256:new"
-	drill = controlDrillForRecord(status, "step-100", "sha256:new")
-	if drill == nil || !drill.Succeeded {
-		t.Fatalf("matching drill = %+v", drill)
+	codes := make([]string, 0, len(readiness.Reasons))
+	for _, reason := range readiness.Reasons {
+		codes = append(codes, reason.Code)
+	}
+	if !contains(codes, control.ReasonDrillProofStale) {
+		t.Fatalf("reasons = %v", codes)
+	}
+
+	// The same drill against the checkpoint it actually proved still counts.
+	readiness = control.AssessReadiness(control.ReadinessInput{
+		Record: control.CheckpointRecord{
+			Version:        "step-100",
+			MetadataDigest: "sha256:old",
+			LatestMtime:    time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
+			Complete:       true,
+			Ranks:          []control.RankInventory{{Rank: 0, Bytes: 16}},
+		},
+		Now:   time.Now().UTC(),
+		Drill: drill,
+	})
+	if readiness.Status != control.ReadinessReady ||
+		readiness.Loadable == nil ||
+		!*readiness.Loadable {
+		t.Fatalf("matching drill = %+v", readiness)
 	}
 }

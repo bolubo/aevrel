@@ -57,6 +57,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-loaded", action="store_true")
     parser.add_argument("--optimizer-loaded", action="store_true")
     parser.add_argument("--steps-ran", type=int, required=True)
+    parser.add_argument(
+        "--ranks-expected",
+        type=int,
+        default=None,
+        help=(
+            "World size this rank was launched for. Defaults to "
+            "AEVREL_TARGET_WORLD_SIZE; omit when neither is available."
+        ),
+    )
     parser.add_argument("--not-ok", action="store_true")
     parser.add_argument("--error", default="")
     parser.add_argument("--quiet", action="store_true")
@@ -84,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             ok=not args.not_ok,
             error=args.error,
             path=args.report_path,
+            ranks_expected=args.ranks_expected,
         )
         destination = resolve_report_path(args.report_path)
     except (TargetReportError, OSError, ValueError) as exc:

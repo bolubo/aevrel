@@ -33,6 +33,12 @@ if TYPE_CHECKING:
 
 DEFAULT_MAX_AGE_SECONDS = 24 * 60 * 60
 
+#: Smallest number of training steps a restore drill must have run before its
+#: outcome counts as loadability evidence. A drill that loaded the bytes and
+#: stopped proves the bytes load, not that training resumes. The Go control
+#: plane uses the same number (``control.MinDrillSteps``).
+MIN_DRILL_STEPS = 1
+
 
 def _parse_time(value: str | None) -> datetime | None:
     if not value:
@@ -66,6 +72,7 @@ def assess_readiness(
     drill: DrillOutcome | None = None,
     resume_state: "ResumeStateReport | None" = None,
     require_state_complete: bool = False,
+    topology_verified: bool = False,
 ) -> CheckpointReadiness:
     current = now or datetime.now(timezone.utc)
     reasons = list(record.reasons)
@@ -104,6 +111,7 @@ def assess_readiness(
 
     loadable = None
     last_drill = None
+    evidence_blocked = False
     if drill is not None:
         last_drill = drill.proof_ref or drill.phase
         loadable = drill.succeeded
@@ -114,6 +122,16 @@ def assess_readiness(
                     drill.detail or "restore drill failed",
                 )
             )
+        else:
+            gap = _drill_evidence_gap(record, drill)
+            if gap is not None:
+                # A drill that reports success still has to prove that it ran
+                # training steps, covered the whole world, and was produced
+                # for this checkpoint. Anything less withdraws the claim
+                # instead of rounding it up to loadable=True.
+                evidence_blocked = True
+                loadable = False
+                reasons.append(gap)
     else:
         reasons.append(
             Reason(
@@ -174,13 +192,34 @@ def assess_readiness(
                     )
                 )
 
+    # movable=True means the source is complete and the target world size is
+    # sane. It is not a topology verdict. The caveat is attached only when the
+    # target actually changes the world size, because that is precisely the
+    # case where the coarse check is doing the most work and a consumer is
+    # most likely to over-read it.
+    if (
+        movable is True
+        and not topology_verified
+        and target_world_size is not None
+        and record.ranks
+        and target_world_size != len(record.ranks)
+    ):
+        reasons.append(
+            Reason(
+                ReasonCode.TARGET_TOPOLOGY_UNVERIFIED.value,
+                f"target world size {target_world_size} differs from the "
+                f"source's {len(record.ranks)} ranks; mesh, placement and "
+                "format compatibility are unverified",
+            )
+        )
+
     if not record.complete:
         status = ReadinessStatus.INCOMPLETE
     elif not fresh:
         status = ReadinessStatus.STALE
     elif drill is not None and not drill.succeeded:
         status = ReadinessStatus.TARGET_BLOCKED
-    elif anchor_blocked or manifest_blocked:
+    elif evidence_blocked or anchor_blocked or manifest_blocked:
         status = ReadinessStatus.TARGET_BLOCKED
     elif loadable is None:
         status = ReadinessStatus.UNVERIFIED
@@ -222,6 +261,52 @@ def assess_readiness(
         state_complete=state_complete,
         readiness_level=readiness_level,
     )
+
+
+def _drill_evidence_gap(
+    record: CheckpointRecord,
+    drill: DrillOutcome,
+) -> Reason | None:
+    """Explain why a drill that calls itself successful proves nothing.
+
+    The check is deliberately one-directional: it can only withdraw a claim,
+    never create one. It mirrors ``control.drillEvidenceGap`` in Go so the two
+    implementations cannot drift apart.
+    """
+    if (
+        drill.checkpoint_metadata_digest
+        and record.metadata_digest
+        and drill.checkpoint_metadata_digest != record.metadata_digest
+    ):
+        return Reason(
+            ReasonCode.DRILL_PROOF_STALE.value,
+            f"drill proof is bound to metadata digest "
+            f"{drill.checkpoint_metadata_digest!r}, the record is "
+            f"{record.metadata_digest!r}",
+        )
+    if (
+        drill.checkpoint_version
+        and record.version
+        and drill.checkpoint_version != record.version
+    ):
+        return Reason(
+            ReasonCode.DRILL_PROOF_STALE.value,
+            f"drill proof is bound to version {drill.checkpoint_version!r}, "
+            f"the record is {record.version!r}",
+        )
+    if drill.steps_ran < MIN_DRILL_STEPS:
+        return Reason(
+            ReasonCode.DRILL_STEPS_MISSING.value,
+            f"restore drill ran {drill.steps_ran} training steps, at least "
+            f"{MIN_DRILL_STEPS} are required",
+        )
+    if drill.ranks_total > 0 and drill.ranks_ready < drill.ranks_total:
+        return Reason(
+            ReasonCode.DRILL_RANK_COVERAGE_INCOMPLETE.value,
+            f"restore drill covered {drill.ranks_ready} of "
+            f"{drill.ranks_total} ranks",
+        )
+    return None
 
 
 def _manifest_identity_mismatch(record, manifest) -> str | None:

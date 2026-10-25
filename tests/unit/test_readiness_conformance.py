@@ -14,6 +14,7 @@ fixture cannot drift from the manifest it pretends to summarise.
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -23,11 +24,14 @@ import pytest
 
 from aevrel.agent.server import resume_state_summary
 from aevrel.local import CheckpointRecord, DrillOutcome, RankInventory, Reason
+from aevrel.local.models import ReasonCode
 from aevrel.local.readiness import assess_readiness
 from aevrel.state import ResumeReason, ResumeStateReport
 from aevrel.state.resume_state import classify_resume_state
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "readiness" / "conformance"
+ROOT = Path(__file__).resolve().parents[2]
+GO_REASON_DECL = re.compile(r'Reason[A-Za-z]+\s*=\s*"([A-Z][A-Z0-9_]*)"')
 
 
 def fixture_paths() -> list[Path]:
@@ -75,6 +79,12 @@ def build_drill(payload: dict | None) -> DrillOutcome | None:
         proof_ref=payload.get("proof_ref", ""),
         detail=payload.get("detail", ""),
         resume_state_digests=tuple(payload.get("resume_manifest_digests", ())),
+        ranks_ready=payload.get("ranks_ready", 0),
+        ranks_total=payload.get("ranks_total", 0),
+        checkpoint_version=payload.get("checkpoint_version", ""),
+        checkpoint_metadata_digest=payload.get(
+            "checkpoint_metadata_digest", ""
+        ),
     )
 
 
@@ -107,6 +117,20 @@ def build_resume_state(
                 f"fixture's manifestDigest does not match the manifest's "
                 f"canonical digest: {description}"
             )
+        # The identity the fixture hands the Go side must be the identity the
+        # manifest actually declares, or the two implementations would be
+        # assessed against different facts.
+        checkpoint = manifest.get("checkpoint", {})
+        for key, value in (
+            ("checkpointUID", checkpoint.get("uid")),
+            ("checkpointVersion", checkpoint.get("version")),
+            ("checkpointMetadataDigest", checkpoint.get("metadataDigest")),
+        ):
+            if key in summary and summary[key]:
+                assert summary[key] == value, (
+                    f"fixture declares {key}={summary[key]!r} but the manifest "
+                    f"says {value!r}: {description}"
+                )
         return report
     return ResumeStateReport(
         status=summary["status"],
@@ -193,12 +217,20 @@ def test_fixture_summary_is_the_production_summary(path: Path) -> None:
         "codes": list(wire["reasonCodes"]),
         "manifestDigest": wire["manifestDigest"] or "",
     }
+    checkpoint = wire.get("checkpoint")
+    if checkpoint:
+        # The wire nests the identity; the controller-internal summary is
+        # flat, so the projection has to flatten it the same way the
+        # controller does.
+        projected["checkpointUID"] = checkpoint["uid"]
+        projected["checkpointVersion"] = checkpoint["version"]
+        projected["checkpointMetadataDigest"] = checkpoint["metadataDigest"]
     assert projected == payload["resumeState"], payload["description"]
 
 
 def test_fixtures_cover_the_required_matrix() -> None:
     names = {path.stem for path in fixture_paths()}
-    assert len(names) >= 14
+    assert len(names) >= 19
     for required in (
         "l3-ready",
         "l3-stale",
@@ -209,6 +241,12 @@ def test_fixtures_cover_the_required_matrix() -> None:
         "l4-anchor-mismatch",
         "observed-at-offset",
         "target-world-movable",
+        # Line 3 evidence: every way a published fact can lose its support.
+        "drill-steps-missing",
+        "drill-rank-coverage-incomplete",
+        "proof-stale",
+        "manifest-identity-mismatch",
+        "target-topology-unverified",
     ):
         assert required in names
     payload = load(FIXTURES / "l4-closure-incomplete.json")
@@ -219,6 +257,30 @@ def test_fixtures_cover_the_required_matrix() -> None:
     assert movable["targetWorldSize"] > 1
     assert movable["expected"]["movable"] is True
     assert movable["expected"]["status"] == "READY"
+
+
+def test_reason_code_sets_agree_across_languages() -> None:
+    """Both implementations must expose exactly the same reason codes.
+
+    A code present on one side only is a verdict a consumer can receive from
+    one implementation and never from the other, which would make the shared
+    fixtures the only thing keeping them aligned — and fixtures only cover the
+    cases someone thought to write.
+    """
+    go_codes = set(
+        GO_REASON_DECL.findall(
+            (ROOT / "internal" / "control" / "models.go").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+    python_codes = {code.value for code in ReasonCode}
+    assert python_codes - go_codes == set(), (
+        f"declared in Python but not in Go: {sorted(python_codes - go_codes)}"
+    )
+    assert go_codes - python_codes == set(), (
+        f"declared in Go but not in Python: {sorted(go_codes - python_codes)}"
+    )
 
 
 def test_offsets_normalize_to_the_same_instant() -> None:

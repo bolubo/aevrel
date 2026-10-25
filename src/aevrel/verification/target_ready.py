@@ -148,9 +148,12 @@ class DcpTargetReady:
         *,
         metadata_dir: str | Path | None = None,
         rank: int | None = None,
+        steps: int = 0,
     ) -> None:
         if rank is not None and rank < 0:
             raise ValueError("DCP rank must be non-negative")
+        if steps < 0:
+            raise ValueError("steps must be non-negative")
         self.checkpoint = Path(checkpoint).resolve()
         self.metadata_dir = (
             Path(metadata_dir).resolve()
@@ -158,11 +161,16 @@ class DcpTargetReady:
             else self.checkpoint
         )
         self.rank = rank
+        # Training steps to run on the restored state. Loading the bytes only
+        # proves that they load; a restore drill that claims training resumes
+        # has to take at least one real optimizer step, so the count is part of
+        # the proof rather than an assumption about the caller.
+        self.steps = steps
 
-    def __call__(self, version_id: str) -> None:
+    def __call__(self, version_id: str) -> int:
         if self.rank is not None:
             self._load_rank(version_id)
-            return
+            return 0
         try:
             from torch.distributed.checkpoint import load as dcp_load
             import torch
@@ -185,6 +193,44 @@ class DcpTargetReady:
             raise TargetReadyError(
                 f"target DCP load failed for {version_id}: {exc}"
             ) from exc
+        return self._run_steps(state_dict, version_id)
+
+    def _run_steps(self, state_dict: dict, version_id: str) -> int:
+        """Take ``self.steps`` real optimizer steps on the restored tensors.
+
+        The parameters are the ones just loaded, and the step count returned is
+        the number of steps that actually ran, so a caller cannot report more
+        progress than it made. Nothing is written back: the checkpoint on disk
+        is untouched.
+        """
+        if not self.steps:
+            return 0
+        try:
+            import torch
+
+            parameters = [
+                tensor
+                for tensor in state_dict.values()
+                if torch.is_tensor(tensor) and tensor.is_floating_point()
+            ]
+            if not parameters:
+                raise ValueError("target DCP has no floating-point tensors")
+            for tensor in parameters:
+                tensor.requires_grad_(True)
+            optimizer = torch.optim.SGD(parameters, lr=1e-6)
+            for _ in range(self.steps):
+                optimizer.zero_grad()
+                loss = sum(
+                    (parameter.to(torch.float32) ** 2).sum()
+                    for parameter in parameters
+                )
+                loss.backward()
+                optimizer.step()
+        except Exception as exc:
+            raise TargetReadyError(
+                f"target DCP training steps failed for {version_id}: {exc}"
+            ) from exc
+        return self.steps
 
     def _load_rank(self, version_id: str) -> None:
         try:

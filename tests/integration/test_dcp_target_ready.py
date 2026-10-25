@@ -32,6 +32,34 @@ def test_dcp_target_ready_loads_target_checkpoint(tmp_path: Path) -> None:
     DcpTargetReady(checkpoint)("step-100")
 
 
+def test_dcp_target_ready_reports_the_steps_it_ran(tmp_path: Path) -> None:
+    """A load-only proof reports zero steps; a real drill reports what it ran.
+
+    The count is what separates "the bytes load" from "training resumes", so it
+    is returned rather than assumed by the caller.
+    """
+    pytest.importorskip("torch")
+    spec, arrays, _ = generate_sharded_spec(
+        (8, 4),
+        (2, 2),
+        ("Shard(0)", "Shard(1)"),
+        (2,),
+        ("Shard(0)",),
+    )
+    materialize_source_files(spec, arrays, tmp_path / "work")
+    apply(plan(spec), spec)
+    checkpoint = tmp_path / "source.dcp"
+    export_dcp(spec, checkpoint)
+
+    assert DcpTargetReady(checkpoint)("step-100") == 0
+    assert DcpTargetReady(checkpoint, steps=3)("step-100") == 3
+
+
+def test_dcp_target_ready_rejects_negative_steps(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        DcpTargetReady(tmp_path / "unused.dcp", steps=-1)
+
+
 def test_target_probe_dcp_cli_mode(tmp_path: Path) -> None:
     pytest.importorskip("torch")
     spec, arrays, _ = generate_sharded_spec(

@@ -64,6 +64,21 @@ with itself is rejected. Component digests stay in the manifest — the report
 carries the manifest digest once. See [the resume-state
 contract](RESUME-STATE.md) for how a manifest is produced and classified.
 
+`ranksExpected` is optional and additive: a rank that knows the world size it
+was launched for (`AEVREL_TARGET_WORLD_SIZE`) can state it, and the aggregator
+rejects a set of reports that expected a different world than the checkpoint
+records. How many ranks actually reported is counted from the reports
+themselves — a single rank cannot observe its peers, so it never asserts it.
+Reports written before the field existed stay valid, and their absence is read
+as "not declared", never as full coverage.
+
+`stepsRan` is what separates loading from resuming. A report with
+`stepsRan: 0` is a load proof: it is accepted as a valid report and rejected as
+readiness evidence (`DRILL_STEPS_MISSING`), because the bytes loading does not
+prove that training continues. `DcpTargetReady(checkpoint, steps=N)` performs
+the load and then takes N real optimizer steps on the restored tensors, and
+returns the count it actually ran so a caller cannot overstate it.
+
 After installing the Aevrel Python package, the target training script can
 write a report:
 

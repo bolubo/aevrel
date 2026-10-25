@@ -428,13 +428,22 @@ func (r *RestoreDrillReconciler) reconcileDrillOutcome(
 		record.Status.Readiness.Loadable != nil &&
 		*record.Status.Readiness.Loadable == loadable &&
 		record.Status.Readiness.LastDrillVersion == drill.Spec.Version &&
-		record.Status.Readiness.LastDrillDigest == record.Status.MetadataDigest {
+		record.Status.Readiness.LastDrillDigest == record.Status.MetadataDigest &&
+		record.Status.Readiness.LastDrillSteps == drill.Status.StepsRan &&
+		record.Status.Readiness.LastDrillRanksReady == drill.Status.RanksReady &&
+		record.Status.Readiness.LastDrillRanksTotal == drill.Status.RanksTotal {
 		return ctrl.Result{}, nil
 	}
 	record.Status.Readiness.Loadable = &loadable
 	record.Status.Readiness.LastDrill = ref
 	record.Status.Readiness.LastDrillVersion = drill.Spec.Version
 	record.Status.Readiness.LastDrillDigest = record.Status.MetadataDigest
+	// The step count and the rank coverage are the evidence behind loadable.
+	// Storing them on the record is what lets a consumer tell "all four ranks
+	// really resumed" from "somebody said the drill succeeded".
+	record.Status.Readiness.LastDrillSteps = drill.Status.StepsRan
+	record.Status.Readiness.LastDrillRanksReady = drill.Status.RanksReady
+	record.Status.Readiness.LastDrillRanksTotal = drill.Status.RanksTotal
 	record.Status.Readiness.ObservedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := r.Status().Update(ctx, &record); err != nil {
 		return ctrl.Result{}, err

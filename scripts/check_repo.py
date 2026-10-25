@@ -61,6 +61,8 @@ REQUIRED_FILES = (
     "scripts/README.md",
     "experiments/README.md",
     "docs/LANGUAGE-BOUNDARY.md",
+    "docs/READINESS-SEMANTICS.md",
+    "docs/FAILURE-CODES.md",
     "docs/scheduler-runtime-contract-v1.md",
 )
 

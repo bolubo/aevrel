@@ -100,10 +100,18 @@ def run_readiness(args: Namespace) -> int:
             "loadable",
             "unknown" if readiness.loadable is None else readiness.loadable,
         )
-        _kv(
-            "movable",
-            "unknown" if readiness.movable is None else readiness.movable,
+        movable_label = (
+            "unknown" if readiness.movable is None else readiness.movable
         )
+        if readiness.movable:
+            # movable is a coarse filter, and the CLI says so where the value
+            # is printed: reading it as a migration guarantee is the mistake
+            # this label exists to prevent.
+            movable_label = (
+                f"{movable_label} (coarse: completeness and target world "
+                "size only)"
+            )
+        _kv("movable", movable_label)
         _kv("state_complete", _tri_state(readiness.state_complete))
         _kv("readiness_level", readiness.readiness_level)
         _kv("status", status_label(readiness.status.value))
@@ -225,6 +233,16 @@ def _load_drill_outcome(
                 f"{path}: report migrationUID {payload['migrationUID']!r} "
                 f"does not match checkpoint {record.job_uid!r}",
             )
+        declared = payload.get("ranksExpected")
+        if declared is not None and declared != len(record.ranks):
+            # The rank states the world size it was launched for. If that
+            # disagrees with the checkpoint's own inventory, the drill ran a
+            # different topology, so its coverage says nothing about this one.
+            raise LocalError(
+                "DRILL_REPORT_INVALID",
+                f"{path}: report declares {declared} expected ranks, "
+                f"checkpoint records {len(record.ranks)}",
+            )
         rank = int(payload["rank"])
         if rank in seen:
             raise LocalError(
@@ -276,6 +294,18 @@ def _load_drill_outcome(
             "unexpected drill reports for ranks "
             + ",".join(str(rank) for rank in extra)
         )
+    # Rank coverage is counted against the checkpoint's own inventory, so a
+    # rank that reported success but is not part of this checkpoint cannot
+    # inflate it.
+    ranks_ready = sum(
+        1
+        for payload in reports
+        if payload["rank"] in expected
+        and payload["ok"]
+        and payload["modelLoaded"]
+        and payload["optimizerLoaded"]
+    )
+    ranks_total = len(expected)
     if details:
         return DrillOutcome(
             phase="Failed",
@@ -284,6 +314,10 @@ def _load_drill_outcome(
             proof_ref=proof_ref,
             detail="; ".join(details),
             resume_state_digests=tuple(digests),
+            ranks_ready=ranks_ready,
+            ranks_total=ranks_total,
+            checkpoint_version=record.version,
+            checkpoint_metadata_digest=record.metadata_digest,
         )
     return DrillOutcome(
         phase="Succeeded",
@@ -291,4 +325,8 @@ def _load_drill_outcome(
         steps_ran=steps_ran,
         proof_ref=proof_ref,
         resume_state_digests=tuple(digests),
+        ranks_ready=ranks_ready,
+        ranks_total=ranks_total,
+        checkpoint_version=record.version,
+        checkpoint_metadata_digest=record.metadata_digest,
     )

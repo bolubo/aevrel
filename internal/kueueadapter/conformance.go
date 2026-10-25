@@ -54,7 +54,13 @@ func ValidateFacts(facts CheckpointFacts) ConformanceReport {
 		// verdict: freshness alone is not schedulable evidence.
 		violations = append(violations, ViolationFreshWithoutLoadability)
 	}
-	if facts.RestoreMode == string(control.RescueRestore) && facts.LastDrill == "" {
+	// A restore recommendation is a claim that the checkpoint can be loaded,
+	// so it needs the proof that makes it true. A drill reference alone is a
+	// name, not evidence: without the manifest digest the proof is not bound
+	// to any particular checkpoint and cannot be invalidated when the
+	// checkpoint changes.
+	if facts.RestoreMode == string(control.RescueRestore) &&
+		(facts.LastDrill == "" || facts.LastDrillDigest == "") {
 		violations = append(violations, ViolationRestoreWithoutProof)
 	}
 	if facts.EstimatedRTOSeconds != nil &&

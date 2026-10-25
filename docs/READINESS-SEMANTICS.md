@@ -108,10 +108,22 @@ to the agent response:
     "closure": "COMPLETE",
     "manifestDigest": "sha256:...",
     "components": [{ "kind": "model", "required": true, "present": true }],
-    "reasonCodes": []
+    "reasonCodes": [],
+    "checkpoint": {
+      "uid": "default/job42",
+      "version": "step-100",
+      "metadataDigest": "sha256:..."
+    }
   }
 }
 ```
+
+`checkpoint` is the identity the manifest claims for itself. It is what makes
+the manifest anchor checkable on the control-plane side: without it the Go
+authority could only trust a `COMPLETE` verdict, and a complete closure for some
+other checkpoint would silently vouch for this one. The field is additive — an
+agent that omits it keeps working, and the anchor then simply has nothing to
+compare, which is reported as "no anchor evidence" rather than "anchored".
 
 Rules:
 
@@ -136,15 +148,38 @@ Rules:
 - A record reaches L4 only when the closure is `COMPLETE` **and** a restore
   drill recorded the same `manifestDigest` in `lastDrillDigest`.
 
-## Evidence source table
+## Evidence source and invalidation
 
-| Field | Evidence | Notes |
+A published fact is only as good as the evidence under it and as the rule that
+withdraws it. This table names both, per field:
+
+| Field | Evidence required | What invalidates it |
 | --- | --- | --- |
-| `complete` | inventory of expected ranks and shards | physical completeness only; never implies loadability |
-| `fresh` | **content timestamp** of the checkpoint | see "Freshness" below |
-| `loadable` | a restore drill outcome | `null` when no drill ran, `false` when it failed; partial rank coverage never counts as success |
-| `movable` | source `complete` and target specification | v1 checks a positive target world size only |
-| `state_complete` | resume-state closure report | tri-state, see above |
+| `complete` | an inventory listing every expected rank and shard | a rank or shard absent from a later scan (`RANK_MISSING`, `SHARD_MISSING`, `SHARD_TRUNCATED`) |
+| `fresh` | a **content timestamp** within `max_age` | content older than `max_age` (`STALE`); no timestamp at all |
+| `loadable` | a drill that succeeded, ran at least `MIN_DRILL_STEPS` training steps, covered every expected rank, and was produced for **this** checkpoint's version and metadata digest | drill failed (`DRILL_FAILED`); step count below the minimum (`DRILL_STEPS_MISSING`); `ranks_ready < ranks_total` (`DRILL_RANK_COVERAGE_INCOMPLETE`); record moved to another version or digest (`DRILL_PROOF_STALE`); manifest bound to another checkpoint (`RESUME_MANIFEST_INVALID`); drill restored a different manifest than the closure describes (`RESUME_COMPONENT_DIGEST_MISMATCH`); gate requested and closure incomplete (`STATE_CLOSURE_INCOMPLETE`) |
+| `movable` | source `complete` and a positive target world size | source incomplete or target world size not positive (`TARGET_BLOCKED`) |
+| `state_complete` | a closure verdict for one manifest, anchored to the manifest a drill restored | manifest describes another checkpoint (`RESUME_MANIFEST_INVALID`); no evidence at all (`null`, never `false`) |
+
+Two consequences are deliberate:
+
+- **A success flag is not evidence.** `succeeded=true` is the drill's own
+  claim; the step count, the rank coverage and the checkpoint identity are
+  what turn it into a fact. A drill that loaded the bytes and stopped
+  (zero steps) or that covered half the world proves that those bytes load,
+  not that training resumes, so `loadable` is withdrawn rather than rounded up.
+- **Evidence can expire without the checkpoint changing.** Every drill fact is
+  bound to `(version, metadata digest)`. When the record moves to a newer
+  checkpoint, the old proof stops supporting the new one even though it was
+  valid when written: that is `DRILL_PROOF_STALE`, which is a different
+  statement from `DRILL_FAILED` and is reported as such.
+
+`movable` is a **coarse filter, not a topology verdict**. `movable=true` means
+the source is complete and the target world size is positive; it says nothing
+about mesh, placement or format compatibility. When the target world size
+differs from the source's rank count and no topology check was performed, the
+assessment keeps `movable=true` but attaches `TARGET_TOPOLOGY_UNVERIFIED`, so a
+consumer cannot read the coarse check as a migration guarantee.
 
 Unknown is never reported as `false` and never as safe: `loadable` and
 `movable` stay `null` until evidence exists.
@@ -176,9 +211,14 @@ The first matching rule wins:
 1. inventory incomplete → `INCOMPLETE`
 2. not fresh → `STALE`
 3. drill ran and failed → `TARGET_BLOCKED`
-4. no drill evidence → `UNVERIFIED`
-5. `movable` explicitly `false` → `TARGET_BLOCKED`
-6. otherwise → `READY`
+4. the drill succeeded but its evidence does not support the claim
+   (`DRILL_STEPS_MISSING`, `DRILL_RANK_COVERAGE_INCOMPLETE`,
+   `DRILL_PROOF_STALE`), or an anchor is broken (`RESUME_MANIFEST_INVALID`,
+   `RESUME_COMPONENT_DIGEST_MISMATCH`) → `TARGET_BLOCKED`, and `loadable`
+   is withdrawn to `false`
+5. no drill evidence → `UNVERIFIED`
+6. `movable` explicitly `false` → `TARGET_BLOCKED`
+7. otherwise → `READY`
 
 Then the L4 gate applies: if it was requested and the closure is not
 complete while the status is still `READY`, the status becomes

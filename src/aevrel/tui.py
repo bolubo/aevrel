@@ -9,7 +9,7 @@ import time
 import textwrap
 import warnings
 from contextlib import redirect_stderr
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -71,9 +71,29 @@ def _view(
     target_world: int | None = None,
     *,
     drill: DrillOutcome | None = None,
+    bind_drill: bool = False,
 ) -> View:
+    """Assess one path.
+
+    ``bind_drill`` says the caller's proof was produced for *this* path — the
+    demo loads and steps the checkpoint it just created — so the proof's
+    identity and rank coverage are taken from the inventory instead of being
+    restated by hand. Real operations must leave it off: a proof whose identity
+    comes from the record it is supposed to prove can never be stale.
+    """
     resolved = Path(path).expanduser().resolve()
     record = DCPStateProvider().inventory(resolved)
+    if bind_drill and drill is not None:
+        ranks = len(record.ranks)
+        drill = replace(
+            drill,
+            ranks_ready=drill.ranks_ready or ranks,
+            ranks_total=drill.ranks_total or ranks,
+            checkpoint_version=drill.checkpoint_version or record.version,
+            checkpoint_metadata_digest=(
+                drill.checkpoint_metadata_digest or record.metadata_digest
+            ),
+        )
     readiness = assess_readiness(
         record,
         target_world_size=target_world,
@@ -275,13 +295,19 @@ class TuiApp:
                 drill = DrillOutcome(
                     phase="Succeeded",
                     succeeded=True,
+                    steps_ran=3,
                     proof_ref="tui-demo-dcp-load",
                 )
                 for key in ("source", "target"):
                     path = dcp.get(key)
                     if path:
                         views.append(
-                            _view(path, target_world=3, drill=drill)
+                            _view(
+                                path,
+                                target_world=3,
+                                drill=drill,
+                                bind_drill=True,
+                            )
                         )
             result["views"] = views
             progress(95, "demo complete")

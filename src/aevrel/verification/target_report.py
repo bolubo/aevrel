@@ -136,6 +136,12 @@ class TargetReadyReport:
     resume_state: ResumeStateEvidence | None = None
     ok: bool = True
     error: str = ""
+    # The world size this rank was launched for. A rank knows its own launch
+    # topology (AEVREL_TARGET_WORLD_SIZE) but cannot observe its peers, so the
+    # expected count is the only coverage fact a single report can honestly
+    # state; how many actually reported is counted by the aggregator.
+    # None means the producer did not declare it.
+    ranks_expected: int | None = None
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -173,6 +179,13 @@ class TargetReadyReport:
             raise TargetReportError("stepsRan must be an integer")
         if self.steps_ran < 0:
             raise TargetReportError("stepsRan must be non-negative")
+        if self.ranks_expected is not None:
+            if not isinstance(self.ranks_expected, int) or isinstance(
+                self.ranks_expected, bool
+            ):
+                raise TargetReportError("ranksExpected must be an integer")
+            if self.ranks_expected < 1:
+                raise TargetReportError("ranksExpected must be positive")
         for name, value in (
             ("modelLoaded", self.model_loaded),
             ("optimizerLoaded", self.optimizer_loaded),
@@ -215,6 +228,8 @@ class TargetReadyReport:
         }
         if self.resume_state is not None:
             payload["resumeState"] = self.resume_state.to_dict()
+        if self.ranks_expected is not None:
+            payload["ranksExpected"] = self.ranks_expected
         return payload
 
     def write(self, path: str | Path | None = None) -> Path:
@@ -262,6 +277,27 @@ def environment_rank() -> int:
     return rank
 
 
+def environment_world_size() -> int | None:
+    """Return AEVREL_TARGET_WORLD_SIZE, or None when it is not set.
+
+    A malformed value is an error rather than a silent None: a rank that
+    cannot state the topology it was launched for cannot contribute a
+    coverage claim.
+    """
+    value = os.environ.get("AEVREL_TARGET_WORLD_SIZE", "").strip()
+    if not value:
+        return None
+    try:
+        world_size = int(value)
+    except ValueError as exc:
+        raise TargetReportError(
+            f"AEVREL_TARGET_WORLD_SIZE is not an integer: {value!r}"
+        ) from exc
+    if world_size < 1:
+        raise TargetReportError("AEVREL_TARGET_WORLD_SIZE must be positive")
+    return world_size
+
+
 def write_target_ready_report(
     *,
     model_loaded: bool,
@@ -275,12 +311,15 @@ def write_target_ready_report(
     ok: bool = True,
     error: str = "",
     path: str | Path | None = None,
+    ranks_expected: int | None = None,
 ) -> dict[str, Any]:
     migration_uid = migration_uid or os.environ.get(
         "AEVREL_MIGRATION_UID",
         "",
     )
     version = version or os.environ.get("AEVREL_VERSION", "")
+    if ranks_expected is None:
+        ranks_expected = environment_world_size()
     report = TargetReadyReport(
         migration_uid=migration_uid,
         version=version,
@@ -293,6 +332,7 @@ def write_target_ready_report(
         resume_state=resume_state,
         ok=bool(ok),
         error=error,
+        ranks_expected=ranks_expected,
     )
     report.write(path)
     return report.to_dict()
@@ -322,8 +362,12 @@ def load_target_ready_report(path: str | Path) -> dict[str, Any]:
         required = base_fields | {"resumeState"}
     else:
         raise TargetReportError(f"unsupported schemaVersion: {version!r}")
+    # ranksExpected is additive and optional: reports written before it
+    # existed stay valid, and a reader that needs coverage treats its absence
+    # as "not declared" rather than as full coverage.
+    allowed = required | {"ranksExpected"}
     missing = sorted(required - set(payload))
-    extra = sorted(set(payload) - required)
+    extra = sorted(set(payload) - allowed)
     if missing:
         raise TargetReportError(
             f"target-ready report is missing fields: {', '.join(missing)}"
@@ -348,6 +392,7 @@ def load_target_ready_report(path: str | Path) -> dict[str, Any]:
         ),
         ok=payload["ok"],
         error=payload["error"],
+        ranks_expected=payload.get("ranksExpected"),
         schema_version=version,
     )
     return report.to_dict()

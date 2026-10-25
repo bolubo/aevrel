@@ -63,8 +63,8 @@ func loadConformanceCases(t *testing.T) []conformanceCase {
 		}
 		cases = append(cases, item)
 	}
-	if len(cases) < 14 {
-		t.Fatalf("expected at least 14 conformance fixtures, got %d", len(cases))
+	if len(cases) < 19 {
+		t.Fatalf("expected at least 19 conformance fixtures, got %d", len(cases))
 	}
 	return cases
 }

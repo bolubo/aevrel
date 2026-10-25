@@ -57,6 +57,11 @@ Make readiness evidence trustworthy:
 - invalidate proof when the checkpoint changes;
 - keep source checkpoints read-only.
 
+The semantics and the invalidation rules are published in
+[READINESS-SEMANTICS.md](READINESS-SEMANTICS.md): every field names the evidence
+it needs and what withdraws it, both implementations are held to the same
+reason codes, and the shared fixtures fail on either side when the two drift.
+
 ## Near-term milestones
 
 1. Complete one real runtime integration and one real checkpoint fixture.

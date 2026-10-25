@@ -237,6 +237,23 @@ spec:
                     type: string
                   lastDrillDigest:
                     type: string
+                  lastDrillRanksReady:
+                    description: |-
+                      LastDrillRanksReady and LastDrillRanksTotal record the drill's rank
+                      coverage, so "every rank was verified" is a stored fact instead of an
+                      assumption about how the drill job was configured.
+                    format: int32
+                    type: integer
+                  lastDrillRanksTotal:
+                    format: int32
+                    type: integer
+                  lastDrillSteps:
+                    description: |-
+                      LastDrillSteps is how many training steps the drill that produced
+                      LastDrill actually ran. Zero means the drill reported no step count,
+                      which is not the same as "it ran none".
+                    format: int32
+                    type: integer
                   lastDrillVersion:
                     type: string
                   loadable:
@@ -263,6 +280,18 @@ spec:
                       - detail
                       type: object
                     type: array
+                  resumeCheckpointMetadataDigest:
+                    type: string
+                  resumeCheckpointUID:
+                    description: |-
+                      ResumeCheckpointUID, ResumeCheckpointVersion and
+                      ResumeCheckpointMetadataDigest are the identity the manifest claims for
+                      itself. Storing them lets the assessment reject a manifest that
+                      describes a different checkpoint, and keeps doing so on later
+                      reconciles instead of only during the pass that read the agent.
+                    type: string
+                  resumeCheckpointVersion:
+                    type: string
                   resumeClosure:
                     description: ResumeClosure is the closure verdict the agents reported.
                     type: string
