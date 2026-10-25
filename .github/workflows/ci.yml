@@ -26,6 +26,10 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
       - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      # The data plane has no Python fallback: the chunker binary and the
+      # in-process kernels are both required, so the tests fail rather than
+      # skip when these artefacts are missing.
+      - run: cargo build --release --manifest-path native/aevrel-fast/Cargo.toml
       - run: python -m compileall -q src tests scripts
       - run: python scripts/check_repo.py
       - run: python -m pytest -q
@@ -33,6 +37,22 @@ jobs:
       - run: python scripts/acceptance.py --work-dir /tmp/aevrel-acceptance
       - run: python scripts/product_acceptance.py
       - run: python scripts/first_run_acceptance.py
+
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: native/aevrel-fast
+    steps:
+      - uses: actions/checkout@v7
+      # `rustup` and a stable toolchain ship on the runner image; using them
+      # directly keeps the workflow free of third-party actions.
+      - run: rustup component add rustfmt clippy
+      - run: cargo fmt --check
+      - run: cargo clippy --release --all-targets -- -D warnings
+      - run: cargo test --release
+      - run: cargo build --release
 
   go:
     runs-on: ubuntu-latest

@@ -21,7 +21,6 @@ from .cas_executor import apply_rank_to_staging
 from .executor import apply
 from .manifest import validate_spec
 from .planning.mesh import parse_mesh
-from .native import available as native_available
 from .native import build_manifest_native
 from .policy import AdaptiveChunkingPolicy
 from .targets import target_file_path
@@ -228,16 +227,12 @@ class DirectIncrementalApplyFileProvider:
         *,
         target: VersionTarget,
         source_token: str | None = None,
-        use_native: bool = True,
-        native_binary: str | Path | None = None,
         adaptive: AdaptiveChunkingPolicy | None = None,
         use_cas_staging: bool = True,
     ) -> None:
         self.factory = factory
         self.source_token = source_token
         self.target = target
-        self.use_native = use_native
-        self.native_binary = native_binary
         self.adaptive = adaptive
         self.use_cas_staging = use_cas_staging
         self._selected_chunking: ChunkingPolicy | None = None
@@ -432,37 +427,20 @@ class DirectIncrementalApplyFileProvider:
         return manifest
 
     def _build_manifest(self, **kwargs) -> VersionManifest:
-        files = kwargs["files"]
-        chunk_store = kwargs["chunk_store"]
-        chunking = kwargs["chunking"]
-        if (
-            self.use_native
-            and chunking.algorithm in {"file", "cdc"}
-            and (self.native_binary is not None or native_available())
-        ):
-            try:
-                return build_manifest_native(
-                    version_id=kwargs["version_id"],
-                    parent_id=kwargs["parent_id"],
-                    metadata_hash=kwargs["metadata_hash"],
-                    created_at=kwargs["created_at"],
-                    files=files,
-                    chunk_store=chunk_store,
-                    binary=self.native_binary,
-                    chunking=chunking,
-                )
-            except Exception:
-                # The native path is an optimization; keep the canonical
-                # Python builder as the fallback.
-                pass
-        return build_manifest_from_paths(
+        """Ingest the target layout through the native chunker.
+
+        Rust (aevrel-fast) is the single chunking implementation. There is no
+        Python fallback: an unavailable binary or a failed ingest is a hard
+        error so a failure can never masquerade as a successful manifest.
+        """
+        return build_manifest_native(
             version_id=kwargs["version_id"],
             parent_id=kwargs["parent_id"],
             metadata_hash=kwargs["metadata_hash"],
             created_at=kwargs["created_at"],
-            files=files,
-            chunk_store=chunk_store,
-            chunking=chunking,
+            files=kwargs["files"],
+            chunk_store=kwargs["chunk_store"],
+            chunking=kwargs["chunking"],
             hardlink=True,
         )
 

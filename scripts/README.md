@@ -10,6 +10,7 @@ notice.
 |---|---|---|
 | `check_repo.py` | CI, PR template, docs | repository and public-docs hygiene (required files, links, English-only Markdown) |
 | `check_release.py` | CI, PR template, docs | release metadata consistency (versions, images, README commands) |
+| `capture_kernel_golden.py` | `native/aevrel-fast/tests/golden.rs` | regenerate the golden kernel fixtures the Rust tests compare against |
 | `acceptance.py` | CI | core acceptance path |
 | `product_acceptance.py` | CI, README, CONTRIBUTING | end-to-end product acceptance |
 | `first_run_acceptance.py` | CI, first-contribution guide | the first-run path a new contributor executes |

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import itertools
 import math
+import random
 
 import numpy as np
 import pytest
@@ -180,6 +182,68 @@ def test_byte_ranges_2d() -> None:
         (0, 40),
     )
     assert byte_ranges((8,), (2,), (3,), 8) == ((16, 24),)
+
+
+def _reference_byte_ranges(
+    shape: tuple[int, ...],
+    offsets: tuple[int, ...],
+    sizes: tuple[int, ...],
+    item_size: int,
+) -> tuple[tuple[int, int], ...]:
+    """The pre-migration implementation, kept as an independent oracle.
+
+    `byte_ranges` now delegates to the native kernel, so this is the only place
+    the original stride walk survives. It exists to prove the delegation is
+    value-identical; nothing in `src/` imports it.
+    """
+    ranges: list[tuple[int, int]] = []
+    if any(size == 0 for size in sizes):
+        return ()
+    strides = [1] * len(shape)
+    for index in range(len(shape) - 2, -1, -1):
+        strides[index] = strides[index + 1] * shape[index + 1]
+    if len(shape) == 1:
+        return ((offsets[0] * item_size, sizes[0] * item_size),)
+    outer = [
+        range(offsets[index], offsets[index] + sizes[index])
+        for index in range(len(shape) - 1)
+    ]
+    for outer_index in itertools.product(*outer):
+        start = sum(
+            outer_index[index] * strides[index] for index in range(len(shape) - 1)
+        ) + offsets[-1]
+        start_byte = start * item_size
+        length_byte = sizes[-1] * item_size
+        if ranges and ranges[-1][0] + ranges[-1][1] == start_byte:
+            ranges[-1] = (ranges[-1][0], ranges[-1][1] + length_byte)
+        else:
+            ranges.append((start_byte, length_byte))
+    return tuple(ranges)
+
+
+def test_byte_ranges_matches_the_reference_implementation() -> None:
+    """Randomised equivalence over every rank and item size in range."""
+    generator = random.Random(20261025)
+    for _ in range(400):
+        rank = generator.randint(1, 4)
+        shape = tuple(generator.randint(1, 5) for _ in range(rank))
+        offsets = tuple(generator.randint(0, dim - 1) for dim in shape)
+        sizes = tuple(
+            generator.randint(0, shape[axis] - offsets[axis]) for axis in range(rank)
+        )
+        item_size = generator.choice((1, 2, 4, 8))
+        assert byte_ranges(shape, offsets, sizes, item_size) == _reference_byte_ranges(
+            shape, offsets, sizes, item_size
+        ), (shape, offsets, sizes, item_size)
+
+
+def test_byte_ranges_rejects_out_of_bounds() -> None:
+    with pytest.raises(LayoutError):
+        byte_ranges((4, 5), (3, 0), (2, 5), 4)
+    with pytest.raises(LayoutError, match="item_size must be positive"):
+        byte_ranges((4,), (0,), (1,), 0)
+    with pytest.raises(LayoutError, match="must match"):
+        byte_ranges((4, 5), (0,), (1, 1), 4)
 
 
 def test_invalid_layouts() -> None:

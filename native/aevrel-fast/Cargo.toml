@@ -3,7 +3,23 @@ name = "aevrel-fast"
 version = "0.3.0"
 edition = "2021"
 
+# The crate builds two artifacts from one source tree:
+#   * the `aevrel-fast` binary (CDC + CAS ingest, driven by the Python data plane)
+#   * the `aevrel_fast` extension module (in-process hot-path kernels)
+[lib]
+name = "aevrel_fast"
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+half = "2"
+# abi3 keeps one build loadable by every supported CPython. The 3.9 floor is
+# deliberate: modules built for 3.8 or older may only be initialised once per
+# interpreter process, which turns any reload — or a test that clears the
+# loader cache — into an ImportError.
+pyo3 = { version = "0.23", features = ["abi3-py39", "extension-module"] }
+
+[dev-dependencies]
+base64 = "0.22"

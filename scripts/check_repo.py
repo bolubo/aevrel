@@ -59,6 +59,7 @@ REQUIRED_FILES = (
     "docs/TARGET-LOAD.md",
     "scripts/README.md",
     "experiments/README.md",
+    "docs/LANGUAGE-BOUNDARY.md",
 )
 
 CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
@@ -66,6 +67,22 @@ CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 # Text files must not carry the executable bit. Copying from a Windows or
 # network filesystem sets it, and a stray 100755 makes the tree misleading.
 EXECUTABLE_TEXT_SUFFIXES = (".md", ".py", ".json", ".yml", ".yaml", ".toml")
+
+FFI_DIRECTORIES = ("native/ffi/",)
+C_CPP_EXTENSIONS = (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp")
+
+# The crate produces two artefacts from one build. Both are required: the
+# binary drives CDC and CAS, the extension module drives the Python kernels.
+NATIVE_RELEASE = Path("native/aevrel-fast/target/release")
+NATIVE_ARTEFACTS = (
+    "aevrel-fast",
+    "libaevrel_fast.so",
+    "libaevrel_fast.dylib",
+    "aevrel_fast.dll",
+)
+NATIVE_BUILD_HINT = (
+    "cargo build --release --manifest-path native/aevrel-fast/Cargo.toml"
+)
 
 
 def _check_required(errors: list[str]) -> None:
@@ -113,6 +130,59 @@ def _check_public_markdown_policy(errors: list[str]) -> None:
             errors.append(
                 f"public Markdown contains Chinese text: {relative}:{line}"
             )
+
+
+def _check_language_boundary(errors: list[str]) -> None:
+    """C/C++ sources may only live inside a designated FFI shim directory.
+
+    Aevrel's own native hot path is Rust. C/C++ appears only as a thin FFI
+    boundary when an external C/C++ library must be called, never as the
+    implementation language for project kernels.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "ls-files", "-z"],
+        check=True,
+        capture_output=True,
+    )
+    tracked = [
+        item for item in result.stdout.decode("utf-8").split("\0") if item
+    ]
+    for relative in tracked:
+        if relative.endswith(C_CPP_EXTENSIONS) and not relative.startswith(
+            FFI_DIRECTORIES
+        ):
+            errors.append(
+                "C/C++ source outside the FFI boundary "
+                f"({', '.join(FFI_DIRECTORIES)}): {relative}"
+            )
+
+
+def _check_native_binary(errors: list[str]) -> None:
+    """The native hot path must be built; Aevrel has no Python fallback.
+
+    Every kernel is expected to run natively, and a missing build is a hard
+    failure rather than a silent downgrade. Catching it here keeps that
+    failure at gate time, where the message can name the build command,
+    instead of at the first data-plane call.
+    """
+    release = REPO / NATIVE_RELEASE
+    built = [name for name in NATIVE_ARTEFACTS if (release / name).is_file()]
+    if not built:
+        errors.append(
+            f"native artefacts are not built in {NATIVE_RELEASE} "
+            f"(run: {NATIVE_BUILD_HINT})"
+        )
+        return
+    if not any(name.startswith("aevrel-fast") for name in built):
+        errors.append(
+            f"native binary is missing from {NATIVE_RELEASE} "
+            f"(run: {NATIVE_BUILD_HINT})"
+        )
+    if not any(not name.startswith("aevrel-fast") for name in built):
+        errors.append(
+            f"native extension module is missing from {NATIVE_RELEASE} "
+            f"(run: {NATIVE_BUILD_HINT})"
+        )
 
 
 def _check_links(errors: list[str]) -> None:
@@ -203,6 +273,8 @@ def check() -> dict[str, Any]:
     _check_forbidden(errors)
     _check_public_markdown_policy(errors)
     _check_file_modes(errors)
+    _check_language_boundary(errors)
+    _check_native_binary(errors)
     _check_links(errors)
     _check_yaml(errors)
     _check_governance_content(errors)

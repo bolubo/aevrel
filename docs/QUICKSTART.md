@@ -6,7 +6,11 @@ terminal session is never ambiguous about what was proven.
 
 ## 1. Install
 
-Python 3.11 or newer is required.
+Python 3.11 or newer and a Rust toolchain (`rustup`) are required. The
+data-plane kernels are native and there is no Python fallback, so `aevrel`
+refuses to run until the crate is built. Build it once after installing the
+package; `cargo build --release` regenerates both the `aevrel-fast` binary and
+the Python extension module.
 
 Linux/macOS:
 
@@ -15,6 +19,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -e ".[dev,dcp]"
+cargo build --release --manifest-path native/aevrel-fast/Cargo.toml
 ```
 
 Windows PowerShell:
@@ -24,6 +29,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
 python -m pip install -e ".[dev,dcp]"
+cargo build --release --manifest-path native\aevrel-fast\Cargo.toml
 ```
 
 ## 2. Run the DCP demo

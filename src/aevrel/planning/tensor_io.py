@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import os
-from itertools import product
 from math import prod
-from typing import Iterable
+from typing import Callable, Iterable, TypeVar
 
-import numpy as np
-
+from .. import fastkernels
 from ..identity import resolve_source, source_id_for_shard, source_maps
 from .layout import DTYPE_BYTES
 from ..storage.file import StorageError
@@ -32,6 +30,21 @@ def _default_run_batch_bytes() -> int:
 
 DEFAULT_RUN_BATCH_BYTES = _default_run_batch_bytes()
 
+T = TypeVar("T")
+
+
+def _native(kernel: Callable[..., T], *args: object) -> T:
+    """Call a native kernel, mapping its `ValueError` onto `TensorIOError`.
+
+    The native kernels reproduce the exact messages the retired Python
+    implementations raised, so callers see the same text and only the exception
+    class changes to the domain-specific one they already catch.
+    """
+    try:
+        return kernel(*args)
+    except ValueError as exc:
+        raise TensorIOError(str(exc)) from None
+
 
 def region_bytes(region_size: tuple[int, ...], item_size: int) -> int:
     return prod(region_size) * item_size
@@ -43,47 +56,18 @@ def byte_runs(
     region_size: tuple[int, ...],
     item_size: int,
 ) -> list[tuple[int, int]]:
-    if not (
-        len(local_shape) == len(local_offset) == len(region_size)
-    ):
-        raise TensorIOError("tensor region rank mismatch")
-    if any(length <= 0 for length in region_size):
-        return []
-    for offset, length, dimension in zip(local_offset, region_size, local_shape):
-        if offset < 0 or length < 0 or offset + length > dimension:
-            raise TensorIOError("tensor region is outside local shape")
-
-    strides = [1] * len(local_shape)
-    for index in range(len(local_shape) - 2, -1, -1):
-        strides[index] = strides[index + 1] * local_shape[index + 1]
-
-    run_size = region_size[-1] * item_size
-    outer_sizes = region_size[:-1]
-    runs: list[tuple[int, int]] = []
-    for outer in product(*(range(length) for length in outer_sizes)):
-        element_offset = local_offset[-1]
-        for dim, value in enumerate(outer):
-            element_offset += (local_offset[dim] + value) * strides[dim]
-        runs.append((element_offset * item_size, run_size))
-    return runs
+    """Contiguous byte runs covering one region of a row-major local tensor."""
+    return _native(
+        fastkernels.byte_runs, local_shape, local_offset, region_size, item_size
+    )
 
 
 def coalesce_runs(
     runs: Iterable[tuple[int, int]],
     max_bytes: int = DEFAULT_RUN_BATCH_BYTES,
 ) -> list[tuple[int, int]]:
-    result: list[tuple[int, int]] = []
-    for offset, length in runs:
-        if result:
-            previous_offset, previous_length = result[-1]
-            if (
-                previous_offset + previous_length == offset
-                and previous_length + length <= max_bytes
-            ):
-                result[-1] = (previous_offset, previous_length + length)
-                continue
-        result.append((offset, length))
-    return result
+    """Merge physically adjacent runs without exceeding `max_bytes`."""
+    return _native(fastkernels.coalesce_runs, runs, max_bytes)
 
 
 def paired_run_batches(
@@ -91,98 +75,22 @@ def paired_run_batches(
     source_run_lists: Iterable[Iterable[tuple[int, int]]],
     max_bytes: int = DEFAULT_RUN_BATCH_BYTES,
 ) -> list[tuple[tuple[int, int], list[tuple[int, int]]]]:
-    target_list = _split_runs(target_runs, max_bytes)
-    source_lists = [
-        _split_runs(runs, max_bytes) for runs in source_run_lists
-    ]
-    if any(len(runs) != len(target_list) for runs in source_lists):
-        raise TensorIOError("target and source run counts differ")
-
-    batches: list[tuple[tuple[int, int], list[tuple[int, int]]]] = []
-    target_start = 0
-    while target_start < len(target_list):
-        target_end = target_start + 1
-        target_offset, target_length = target_list[target_start]
-        source_offsets = [
-            runs[target_start][0] for runs in source_lists
-        ]
-        source_lengths = [
-            runs[target_start][1] for runs in source_lists
-        ]
-        while target_end < len(target_list):
-            next_target_offset, next_target_length = target_list[target_end]
-            if target_offset + target_length != next_target_offset:
-                break
-            if any(
-                runs[target_end][0] != source_offsets[index] + source_lengths[index]
-                for index, runs in enumerate(source_lists)
-            ):
-                break
-            if target_length + next_target_length > max_bytes:
-                break
-            target_length += next_target_length
-            for index, runs in enumerate(source_lists):
-                source_lengths[index] += runs[target_end][1]
-            target_end += 1
-        batches.append(
-            (
-                (target_offset, target_length),
-                list(zip(source_offsets, source_lengths)),
-            )
-        )
-        target_start = target_end
-    return batches
+    """Pair target runs with source runs, merging both sides in lock step."""
+    return _native(
+        fastkernels.paired_run_batches, target_runs, source_run_lists, max_bytes
+    )
 
 
 def _split_runs(
     runs: Iterable[tuple[int, int]],
     max_bytes: int,
 ) -> list[tuple[int, int]]:
-    if max_bytes <= 0:
-        raise TensorIOError("run batch size must be positive")
-    result: list[tuple[int, int]] = []
-    for offset, length in runs:
-        if length <= 0:
-            continue
-        remaining = length
-        cursor = offset
-        while remaining > 0:
-            chunk = min(remaining, max_bytes)
-            result.append((cursor, chunk))
-            cursor += chunk
-            remaining -= chunk
-    return result
+    return _native(fastkernels.split_runs, runs, max_bytes)
 
 
 def reduce_bytes(data: Iterable[bytes], op: str, dtype: str) -> bytes:
-    values = list(data)
-    if not values:
-        raise TensorIOError(f"{op} requires at least one input")
-    if op == "copy":
-        if len(values) != 1:
-            raise TensorIOError("copy requires exactly one input")
-        return values[0]
-    if dtype == "bfloat16":
-        raise TensorIOError("bfloat16 reduction is not supported yet")
-    try:
-        numpy_dtype = np.dtype(dtype)
-    except TypeError as exc:
-        raise TensorIOError(f"unsupported dtype: {dtype}") from exc
-    arrays = [np.frombuffer(value, dtype=numpy_dtype) for value in values]
-    if len({array.size for array in arrays}) != 1:
-        raise TensorIOError("reduction inputs have different sizes")
-    stacked = np.stack(arrays)
-    if op == "sum":
-        reduced = np.add.reduce(stacked, axis=0, dtype=numpy_dtype)
-    elif op == "avg":
-        reduced = np.mean(stacked, axis=0).astype(numpy_dtype)
-    elif op == "max":
-        reduced = np.max(stacked, axis=0)
-    elif op == "min":
-        reduced = np.min(stacked, axis=0)
-    else:
-        raise TensorIOError(f"unsupported reduction op: {op}")
-    return np.asarray(reduced, dtype=numpy_dtype).tobytes()
+    """Reduce a stack of equally sized buffers element-wise."""
+    return _native(fastkernels.reduce_bytes, data, op, dtype)
 
 
 def verify_source_checksums(

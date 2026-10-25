@@ -30,11 +30,6 @@ except ImportError:  # pragma: no cover - POSIX path
 
 MARKER_NAME = ".aevrel-complete"
 DEFAULT_CHUNK_BYTES = 4 * 1024 * 1024
-_GEAR = tuple(
-    int.from_bytes(hashlib.sha256(bytes([value])).digest()[:8], "big")
-    for value in range(256)
-)
-_MASK64 = (1 << 64) - 1
 
 
 @dataclass(frozen=True)
@@ -80,119 +75,6 @@ class ChunkingPolicy:
     def file(cls) -> ChunkingPolicy:
         return cls(algorithm="file")
 
-    def offsets(self, data: bytes) -> tuple[int, ...]:
-        if self.algorithm == "file":
-            return (0, len(data))
-        if self.algorithm == "fixed":
-            if not data:
-                return (0,)
-            return tuple(range(0, len(data), self.chunk_bytes)) + (len(data),)
-        return _content_defined_offsets(
-            data,
-            min_bytes=self.min_bytes,
-            avg_bytes=self.avg_bytes,
-            max_bytes=self.max_bytes,
-        )
-
-    def iter_chunks(self, stream) -> Iterable[bytes]:
-        if self.algorithm == "file":
-            data = stream.read()
-            if data:
-                yield data
-            return
-        if self.algorithm == "fixed":
-            while True:
-                block = stream.read(self.chunk_bytes)
-                if not block:
-                    return
-                yield block
-            return
-        yield from _iter_content_defined_chunks(
-            stream,
-            min_bytes=self.min_bytes,
-            avg_bytes=self.avg_bytes,
-            max_bytes=self.max_bytes,
-        )
-
-
-def _content_defined_offsets(
-    data: bytes,
-    *,
-    min_bytes: int,
-    avg_bytes: int,
-    max_bytes: int,
-) -> tuple[int, ...]:
-    if not data:
-        return (0,)
-    if len(data) <= min_bytes:
-        return (0, len(data))
-    mask_bits = max(1, avg_bytes.bit_length() - 1)
-    mask = (1 << mask_bits) - 1
-    offsets = [0]
-    start = 0
-    while start < len(data):
-        end = min(start + max_bytes, len(data))
-        cut = end
-        rolling = 0
-        for position in range(start, end):
-            rolling = ((rolling << 1) + _GEAR[data[position]]) & _MASK64
-            length = position - start + 1
-            if length >= min_bytes and (rolling & mask) == 0:
-                cut = position + 1
-                break
-        if cut <= start:
-            cut = end
-        offsets.append(cut)
-        start = cut
-    return tuple(offsets)
-
-
-def _iter_content_defined_chunks(
-    stream,
-    *,
-    min_bytes: int,
-    avg_bytes: int,
-    max_bytes: int,
-) -> Iterable[bytes]:
-    mask_bits = max(1, avg_bytes.bit_length() - 1)
-    mask = (1 << mask_bits) - 1
-    buffer = bytearray()
-    eof = False
-    while True:
-        while not eof and len(buffer) < max_bytes:
-            block = stream.read(max_bytes)
-            if not block:
-                eof = True
-                break
-            buffer.extend(block)
-        if not buffer:
-            return
-        limit = min(len(buffer), max_bytes)
-        cut = None
-        rolling = 0
-        for position in range(limit):
-            rolling = ((rolling << 1) + _GEAR[buffer[position]]) & _MASK64
-            length = position + 1
-            if length >= min_bytes and (rolling & mask) == 0:
-                cut = length
-                break
-        if cut is None:
-            if eof:
-                cut = len(buffer)
-            elif len(buffer) >= max_bytes:
-                cut = max_bytes
-            else:
-                block = stream.read(max_bytes)
-                if not block:
-                    eof = True
-                else:
-                    buffer.extend(block)
-                continue
-        chunk = bytes(buffer[:cut])
-        del buffer[:cut]
-        if chunk:
-            yield chunk
-
 
 class CDPError(RuntimeError):
     """Raised when a checkpoint version or manifest is invalid."""
@@ -200,14 +82,6 @@ class CDPError(RuntimeError):
 
 def _sha256(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(4 * 1024 * 1024), b""):
-            digest.update(block)
-    return "sha256:" + digest.hexdigest()
 
 
 def _canonical_json(payload: Any) -> bytes:
@@ -586,56 +460,6 @@ class ChunkStore:
     def has(self, digest: str) -> bool:
         return self.path(digest).is_file()
 
-    def put_bytes(self, data: bytes) -> str:
-        digest = _sha256(data)
-        path = self.path(digest)
-        if path.is_file():
-            if path.stat().st_size != len(data):
-                raise CDPError(f"existing chunk has wrong size: {digest}")
-            return digest
-        _atomic_write(path, data)
-        return digest
-
-    def put_file(
-        self,
-        source: str | Path,
-        *,
-        hardlink: bool = False,
-    ) -> tuple[str, int]:
-        source_path = Path(source)
-        size = source_path.stat().st_size
-        digest = _sha256_file(source_path)
-        path = self.path(digest)
-        if path.is_file():
-            if path.stat().st_size != size:
-                raise CDPError(f"existing chunk has wrong size: {digest}")
-            return digest, size
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if hardlink:
-            try:
-                os.link(source_path, path)
-                _fsync_directory(path.parent)
-                return digest, size
-            except OSError:
-                pass
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=path.name + ".",
-            suffix=".tmp",
-            dir=path.parent,
-        )
-        os.close(descriptor)
-        temporary = Path(temporary_name)
-        try:
-            shutil.copyfile(source_path, temporary)
-            with temporary.open("rb") as stream:
-                os.fsync(stream.fileno())
-            os.replace(temporary, path)
-            _fsync_directory(path.parent)
-        except OSError as exc:
-            _unlink_quietly(temporary)
-            raise CDPError(f"could not store chunk {digest}: {exc}") from exc
-        return digest, size
-
     def read(self, digest: str) -> bytes:
         path = self.path(digest)
         try:
@@ -649,7 +473,14 @@ class ChunkStore:
             size = path.stat().st_size
         except OSError as exc:
             raise CDPError(f"could not stat chunk {digest}: {exc}") from exc
-        if _sha256_file(path) != digest:
+        hasher = hashlib.sha256()
+        try:
+            with path.open("rb") as stream:
+                for block in iter(lambda: stream.read(4 * 1024 * 1024), b""):
+                    hasher.update(block)
+        except OSError as exc:
+            raise CDPError(f"could not read chunk {digest}: {exc}") from exc
+        if "sha256:" + hasher.hexdigest() != digest:
             raise CDPError(f"chunk digest mismatch: {digest}")
         return size
 
@@ -1280,66 +1111,28 @@ def build_manifest_from_files(
 
     The caller is responsible for materializing the target layout first. Chunk
     identities therefore do not depend on source file names or source offsets.
+    In-memory inputs are staged to a temporary directory and ingested through
+    the native chunker; there is no Python chunking implementation.
     """
     policy = chunking or ChunkingPolicy.fixed()
-    chunks: list[ChunkRef] = []
-    for file_name in sorted(files):
-        _validate_relative_file(file_name)
-        data = files[file_name]
-        if not data:
-            digest = chunk_store.put_bytes(b"")
-            chunks.append(
-                ChunkRef(
-                    digest=digest,
-                    size=0,
-                    file=file_name,
-                    offset=0,
-                    length=0,
-                )
-            )
-            continue
-        offsets = policy.offsets(data)
-        for start, end in zip(offsets, offsets[1:]):
-            block = data[start:end]
-            if not block:
-                continue
-            digest = chunk_store.put_bytes(block)
-            chunks.append(
-                ChunkRef(
-                    digest=digest,
-                    size=len(block),
-                    file=file_name,
-                    offset=start,
-                    length=len(block),
-                )
-            )
-    ordered = tuple(
-        sorted(
-            chunks,
-            key=lambda chunk: (
-                chunk.file,
-                chunk.offset,
-                chunk.length,
-                chunk.digest,
-            ),
+    with tempfile.TemporaryDirectory(prefix="aevrel-cdp-") as staging:
+        root = Path(staging)
+        staged: dict[str, Path] = {}
+        for file_name in sorted(files):
+            _validate_relative_file(file_name)
+            path = root / file_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(files[file_name])
+            staged[file_name] = path
+        return build_manifest_from_paths(
+            version_id=version_id,
+            parent_id=parent_id,
+            metadata_hash=metadata_hash,
+            created_at=created_at,
+            files=staged,
+            chunk_store=chunk_store,
+            chunking=policy,
         )
-    )
-    root = manifest_root(
-        version_id=version_id,
-        parent_id=parent_id,
-        metadata_hash=metadata_hash,
-        created_at=created_at,
-        chunks=ordered,
-    )
-    return VersionManifest(
-        version="1",
-        version_id=version_id,
-        parent_id=parent_id,
-        metadata_hash=metadata_hash,
-        created_at=created_at,
-        root=root,
-        chunks=ordered,
-    )
 
 
 def build_manifest_from_paths(
@@ -1355,61 +1148,45 @@ def build_manifest_from_paths(
     reuse_chunks: Mapping[str, tuple[ChunkRef, ...]] | None = None,
     chunking_for_file: Callable[[str, Path], ChunkingPolicy] | None = None,
 ) -> VersionManifest:
-    """Build a manifest without loading target-layout files into memory."""
+    """Build a manifest without loading target-layout files into memory.
+
+    All chunking, hashing and content-addressed storage is performed by the
+    native aevrel-fast binary; this function only orchestrates policy grouping,
+    chunk reuse and manifest assembly. There is no Python fallback.
+    """
+    from .native import build_manifest_native
+
     policy = chunking or ChunkingPolicy.fixed()
-    chunks: list[ChunkRef] = []
+    reuse = dict(reuse_chunks or {})
+    groups: dict[ChunkingPolicy, dict[str, Path]] = {}
     for file_name in sorted(files):
         _validate_relative_file(file_name)
         path = Path(files[file_name])
         if not path.is_file():
             raise CDPError(f"target-layout file not found: {path}")
-        if reuse_chunks is not None and file_name in reuse_chunks:
-            chunks.extend(reuse_chunks[file_name])
+        if file_name in reuse:
             continue
         file_policy = (
             chunking_for_file(file_name, path)
             if chunking_for_file is not None
             else policy
         )
-        if file_policy.algorithm == "file":
-            digest, size = chunk_store.put_file(path, hardlink=hardlink)
-            chunks.append(
-                ChunkRef(
-                    digest=digest,
-                    size=size,
-                    file=file_name,
-                    offset=0,
-                    length=size,
-                )
-            )
-            continue
-        file_chunk_count = 0
-        file_offset = 0
-        with path.open("rb") as stream:
-            for block in file_policy.iter_chunks(stream):
-                digest = chunk_store.put_bytes(block)
-                chunks.append(
-                    ChunkRef(
-                        digest=digest,
-                        size=len(block),
-                        file=file_name,
-                        offset=file_offset,
-                        length=len(block),
-                    )
-                )
-                file_chunk_count += 1
-                file_offset += len(block)
-        if file_chunk_count == 0:
-            digest = chunk_store.put_bytes(b"")
-            chunks.append(
-                ChunkRef(
-                    digest=digest,
-                    size=0,
-                    file=file_name,
-                    offset=0,
-                    length=0,
-                )
-            )
+        groups.setdefault(file_policy, {})[file_name] = path
+    chunks: list[ChunkRef] = []
+    for group_policy, group_files in groups.items():
+        ingested = build_manifest_native(
+            version_id=version_id,
+            parent_id=parent_id,
+            metadata_hash=metadata_hash,
+            created_at=created_at,
+            files=group_files,
+            chunk_store=chunk_store,
+            chunking=group_policy,
+            hardlink=hardlink,
+        )
+        chunks.extend(ingested.chunks)
+    for file_name in sorted(reuse):
+        chunks.extend(reuse[file_name])
     ordered = tuple(
         sorted(
             chunks,

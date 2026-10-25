@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import io
 import os
 import random
 import threading
@@ -121,17 +120,27 @@ def test_manifest_dedups_identical_content_across_files(tmp_path) -> None:
     assert delta_manifest(None, manifest).total_bytes == 4
 
 
-def test_content_defined_chunking_keeps_chunk_bounds() -> None:
+def test_content_defined_chunking_keeps_chunk_bounds(tmp_path) -> None:
     data = random.Random(7).randbytes(16 * 1024)
-    policy = ChunkingPolicy.content_defined(
-        min_bytes=128,
-        avg_bytes=512,
-        max_bytes=2048,
+    source = tmp_path / "a.bin"
+    source.write_bytes(data)
+    store = ChunkStore(tmp_path / "target")
+    manifest = build_manifest_from_paths(
+        version_id="step-100",
+        parent_id=None,
+        metadata_hash="sha256:" + "a" * 64,
+        created_at="2026-10-22T00:00:00Z",
+        files={"a.bin": source},
+        chunk_store=store,
+        chunking=ChunkingPolicy.content_defined(
+            min_bytes=128,
+            avg_bytes=512,
+            max_bytes=2048,
+        ),
     )
-    offsets = policy.offsets(data)
-    assert offsets[0] == 0
-    assert offsets[-1] == len(data)
-    sizes = [end - start for start, end in zip(offsets, offsets[1:])]
+    sizes = [chunk.length for chunk in manifest.chunks]
+    assert sizes[0] >= 0
+    assert sum(sizes) == len(data)
     assert all(128 <= size <= 2048 for size in sizes[:-1])
     assert sizes[-1] <= 2048
 
@@ -201,16 +210,28 @@ def test_canonical_chunks_are_independent_of_target_file_names(tmp_path) -> None
     assert delta.reused_bytes == delta.total_bytes
 
 
-def test_streaming_cdc_chunks_roundtrip() -> None:
+def test_streaming_cdc_chunks_roundtrip(tmp_path) -> None:
     data = random.Random(31).randbytes(64 * 1024)
-    policy = ChunkingPolicy.content_defined(
-        min_bytes=128,
-        avg_bytes=512,
-        max_bytes=2048,
+    source = tmp_path / "a.bin"
+    source.write_bytes(data)
+    store = ChunkStore(tmp_path / "target")
+    manifest = build_manifest_from_paths(
+        version_id="step-100",
+        parent_id=None,
+        metadata_hash="sha256:" + "a" * 64,
+        created_at="2026-10-22T00:00:00Z",
+        files={"a.bin": source},
+        chunk_store=store,
+        chunking=ChunkingPolicy.content_defined(
+            min_bytes=128,
+            avg_bytes=512,
+            max_bytes=2048,
+        ),
     )
-    chunks = list(policy.iter_chunks(io.BytesIO(data)))
-    assert b"".join(chunks) == data
-    assert all(len(chunk) <= 2048 for chunk in chunks)
+    assert all(chunk.length <= 2048 for chunk in manifest.chunks)
+    output = tmp_path / "out"
+    materialize_manifest(manifest, store, output)
+    assert (output / "a.bin").read_bytes() == data
 
 
 def test_streaming_manifest_matches_fixed_manifest(tmp_path) -> None:
@@ -283,12 +304,22 @@ def test_file_chunking_streams_whole_file_to_cas(tmp_path) -> None:
     assert (output / "rank0" / "w.distcp").read_bytes() == data
 
 
-def test_put_file_can_hardlink_immutable_source(tmp_path) -> None:
+def test_native_file_ingest_can_hardlink_immutable_source(tmp_path) -> None:
     source = tmp_path / "source.bin"
     source.write_bytes(b"same-inode")
     store = ChunkStore(tmp_path / "target")
-    digest, size = store.put_file(source, hardlink=True)
-    assert size == len(b"same-inode")
+    manifest = build_manifest_from_paths(
+        version_id="step-100",
+        parent_id=None,
+        metadata_hash="sha256:" + "a" * 64,
+        created_at="2026-10-22T00:00:00Z",
+        files={"rank0/source.bin": source},
+        chunk_store=store,
+        chunking=ChunkingPolicy.file(),
+        hardlink=True,
+    )
+    assert len(manifest.chunks) == 1
+    digest = manifest.chunks[0].digest
     assert store.read(digest) == b"same-inode"
     if os.name != "nt":
         assert store.path(digest).stat().st_ino == source.stat().st_ino
