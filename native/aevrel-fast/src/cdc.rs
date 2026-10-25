@@ -78,7 +78,9 @@ struct Chunking {
 
 impl Chunking {
     fn mask(&self) -> u64 {
-        let mask_bits = (usize::BITS - (self.avg_bytes as u64).leading_zeros() - 1).max(1);
+        // `bit_width` is `BITS - leading_zeros`; keeping the comparison in u64
+        // avoids mixing the width of `usize` with the width of `avg_bytes`.
+        let mask_bits = ((self.avg_bytes as u64).bit_width() - 1).max(1);
         if mask_bits >= 64 {
             u64::MAX
         } else {
