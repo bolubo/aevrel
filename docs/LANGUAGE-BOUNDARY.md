@@ -17,7 +17,17 @@ multiple languages. The intended split was always:
   inspection, evidence collection, agent inventory, CLI orchestration.
 - **Rust** — native data-plane hot path and benchmark helpers.
 
-In practice the boundary drifted during AI-assisted development. Concretely:
+In practice two distinct things happened during AI-assisted development, and only
+one of them is a defect:
+
+- **Structural (not a defect):** Python naturally accreted the data-plane glue
+  that must live next to the ML runtime — DCP inspection, the worker agent, LRS
+  simulation. This is the intended shape of the project; its size is set by the
+  product, not by accident.
+- **Actual drift (the defect this ADR fixes):** the compute-bound hot kernels
+  that were meant to be Rust stayed in Python, and CDC was implemented twice.
+
+Concretely, the drift to correct is:
 
 1. **Rust is almost absent from the hot path it was meant to own.** The Rust
    crate `native/aevrel-fast` contains a single source file implementing content
@@ -85,6 +95,54 @@ Three points decide it:
 C and C++ are justified only at the boundary to third-party code, never as the
 implementation language for Aevrel's own kernels.
 
+### Go vs Python — control authority vs data-plane glue
+
+The Rust-vs-C/C++ decision is made on safety. The Go-vs-Python decision is made
+on **where the work physically has to live**, not on a preference. Aevrel sits
+between three ecosystems that do not share a language:
+
+- the training runtime (PyTorch / DCP, numpy) — Python only;
+- the AI scheduler (Kueue) and the Kubernetes API — Go only;
+- the cluster control plane that records authoritative state — Go.
+
+Anything that must read a PyTorch Distributed Checkpoint, walk its tensor
+metadata, or run a numpy layout simulation **cannot be Go** without re-implementing
+torch/DCP/numpy in Go — the same "wrong investment" this ADR rejects for C/C++.
+Conversely, anything that reconciles Kubernetes objects, defines CRDs, or runs the
+Kueue integration **should not be Python**, because controller-runtime and the
+Go Kubernetes ecosystem are the natural, type-checked home for authoritative
+cluster state.
+
+What each language concretely owns today (code lines, non-test):
+
+| Language | Package | Lines | Why this language |
+|---|---|---|---|
+| Python | `dcp` — PyTorch Distributed Checkpoint read-only inspection | 1575 | torch/DCP is Python; parsing must live with the runtime |
+| Python | `lrs` — layout algebra, simulators, tp_pp, model_vps | 6430 | numpy-bound; `sim`/`tp_pp` are the validation oracles that must stay independent of the kernels they check |
+| Python | `agent` — worker-node agent that collects evidence next to the ML runtime | 1700 | runs on worker nodes, talks to torch; cannot be a separate-language binary cheaply |
+| Python | `verification`, `planning`, `storage`, `state` | ~5200 | orchestration + I/O + schema/classification glue over Rust kernels and storage backends |
+| Python | `commands` + root CLI (`aevrel`) | ~10000 | local data-plane CLI; dense with schema/UX churn in early stage |
+| Go | `internal/controller` — reconcile loop | 10341 | controller-runtime; authoritative object reconciliation |
+| Go | `cmd/ctl` (`aevrelctl`) + `api/v1` (CRDs) | 5674 | cluster control-plane CLI + typed API objects |
+| Go | `internal/kueueadapter` + `internal/execution` | 4195 | Kueue integration, cluster execution orchestration |
+| Go | `internal/control` + `internal/targetready` — readiness *policy* | 1955 | the readiness gate logic that records and decides, fed by Python evidence |
+
+The split is therefore: **Go records and gates; Python inspects, simulates, and
+orchestrates.** This is not a default — it is forced by the location of the
+ecosystems. Pushing verification orchestration into Go would mean re-implementing
+DCP readers and numpy layouts in Go, which is exactly the redundant native
+investment this ADR argues against.
+
+#### Safety note: Python parses untrusted input
+
+The ADR's safety argument motivates Rust for the hot path. It must also be stated
+plainly that Python parses checkpoint metadata that is **not fully trusted**. The
+blast radius is bounded by design: Python performs *read-only* inspection and
+schema classification; the bytes that actually matter for integrity (SHA-256,
+CDC, Merkle) are computed in Rust, which is memory-safe. Python never implements
+the cryptographic kernels, so an untrusted metadata parse cannot corrupt the
+integrity path. This is an accepted, bounded risk — not an open one.
+
 ## Boundaries
 
 ### Go — control-plane authority
@@ -147,6 +205,31 @@ library — for example NCCL, PyTorch (CUDA), or a GPU codec.
   no decisions about readiness, migration, or evidence.
 - New `.c`, `.cpp`, `.cc`, `.h`, or `.hpp` files outside an explicitly
   designated `ffi` directory (for example `native/ffi/`).
+
+## Seam cost and why we accept it
+
+Splitting authority (Go) from inspection (Python) is correct, but it is not free.
+The seam has three recurring taxes that must be maintained deliberately:
+
+1. **Dual failure-code catalog.** 27 reason codes are defined in Python
+   (`RESUME_REASON_CODES` / `ReasonCode`) and again as Go constants, and asserted
+   bidirectionally in `tests/unit/test_failure_code_catalog.py` against
+   `docs/FAILURE-CODES.md`. Any new code must be added in three places. This is
+   accepted because the failure originates in the Python data plane and must be
+   recorded by the Go controller.
+2. **Agent protocol.** The Go controller reaches Python agents over a versioned
+   HTTP protocol (`src/aevrel/agent/server.py`); it has already reached v2 to
+   carry resume-state closure evidence. Version skew between the two sides is a
+   real failure mode, monitored by conformance tests.
+3. **Two CLIs with overlapping verbs.** `aevrel` (Python, local data plane) and
+   `aevrelctl` (Go, cluster control plane) both expose `migrate`, `readiness`,
+   and `plan`. The domains are disjoint, but the command surface does not reveal
+   the layering. This is documented, not resolved; help text should make clear
+   which side an operator is driving.
+
+These are the price of keeping the data-plane glue in the language the ecosystem
+forces. They are cheaper than the alternative: re-implementing torch/DCP/numpy in
+Go, or moving authoritative cluster state into an untyped language.
 
 ## Ownership table
 
