@@ -69,6 +69,25 @@ the definition.
 | --- | --- | --- |
 | `STATE_CLOSURE_INCOMPLETE` | `require_state_complete` is set and the closure is not `COMPLETE` | READY for that target; the level stays `L3` |
 
+## Rescue advisory
+
+Emitted by `control.DecideRescue` and published as `restoreMode` /
+`restoreReasonCode` in the scheduler envelope. A code here explains the
+recommendation, not an outcome: Aevrel never restarts or migrates a workload
+itself. See
+[scheduler-runtime-contract-v1.md](scheduler-runtime-contract-v1.md).
+
+| Code | Emitted when | Blocks |
+| --- | --- | --- |
+| `RESTORE_READY` | a fresh checkpoint passed a restore drill and no target was requested | nothing; this is the only positive `restore` verdict |
+| `MIGRATE_READY` | the checkpoint passed a drill and is movable to the requested target | nothing; this is the only positive `migrate` verdict |
+| `RESTART_FALLBACK` | the readiness was unusable and the caller opted into a restart fallback | `restore`; the action becomes `restart` |
+| `CHECKPOINT_NOT_FOUND` | no `CheckpointRecord` is associated with the workload | every restore claim |
+| `CHECKPOINT_INCOMPLETE` | the checkpoint inventory is not complete | every restore claim |
+| `CHECKPOINT_STALE` | the content is older than the freshness window | every restore claim |
+| `PROOF_MISSING` | `loadable` is set without a restore-drill reference | `restore` (the evidence is unbound) |
+| `TARGET_UNKNOWN` | a target was requested and mobility to it is unknown | `migrate` |
+
 ## Control-plane observation
 
 Emitted by the controller while merging what agents reported.
@@ -98,3 +117,44 @@ assessed, so no verdict is claimed.
 `ProofPublishFailed`, `Pending`). A condition is the *shape* of the answer;
 the reason codes above are the explanation. See
 [TARGET-READY.md](TARGET-READY.md) for how they combine.
+
+## Scheduler envelope
+
+Emitted by the Kueue adapter when it projects a fact set onto
+`aevrel.dev/*` labels. A code here means the envelope was withheld; it never
+means the workload is safe. The binary protection decision is unaffected.
+See [scheduler-runtime-contract-v1.md](scheduler-runtime-contract-v1.md) for the
+conformance gate itself.
+
+These identifiers are CamelCase because they describe an envelope-level
+projection rather than a readiness verdict. They are enforced by the
+`internal/kueueadapter` tests and by
+`tests/acceptance/verify_line2_acceptance.py`.
+
+| Code | Emitted when | Blocks |
+| --- | --- | --- |
+| `FreshWithoutLoadabilityVerdict` | `fresh` is true while `loadable` is null | the whole envelope (`fresh` alone is not schedulable evidence) |
+| `RestoreWithoutDrillProof` | `restoreMode=restore` with no `lastDrill` reference | the whole envelope |
+| `RTOWithoutCompleteInventory` | `estimatedRTOSeconds` is set while `complete` is false | the whole envelope |
+| `RTOMustBePositiveOrNull` | `estimatedRTOSeconds` is zero or negative | the whole envelope (0 is not a known RTO) |
+| `SchemaVersionMismatch` | the fact set claims a version other than `aevrel.dev/v1` | the whole envelope |
+| `MissingSource` | the fact set has no `source` | the whole envelope |
+| `UnknownFactSource` | `source` is not one of the four defined values | the whole envelope |
+| `MissingObservedAt` | record facts carry no `observedAt` | the whole envelope |
+| `FallbackClaimsVerifiedFacts` | an annotation fallback carries verified values | the whole envelope |
+| `FallbackClaimsRestoreMode` | an annotation fallback claims anything but `hold` | the whole envelope |
+| `UnknownSourceClaimsFacts` | the unknown source carries any value | the whole envelope |
+| `AmbiguousRecordSelection` | more than one record matches and none is latest | the whole envelope |
+
+## Scheduler envelope provenance
+
+Emitted alongside a fact set in `envelopeReasons`. These describe the envelope,
+never the checkpoint, and they only ever downgrade.
+
+| Code | Emitted when | Blocks |
+| --- | --- | --- |
+| `NoCheckpointRecord` | the workload opted in and published nothing | every fact value |
+| `AmbiguousCheckpointRecords` | several records match and none is unambiguously latest | every fact value |
+| `AnnotationFallback` | annotations exist but no record does | every fact value |
+| `AnnotationInvalid` | the annotations exist but could not be parsed | every fact value |
+| `StaleObservation` | `observedAt` is older than the configured maximum age | the `fresh` verdict |

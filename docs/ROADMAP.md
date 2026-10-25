@@ -36,6 +36,17 @@ Publish checkpoint facts in a scheduler-neutral form:
 Kueue is the first adapter. Aevrel does not replace Kueue, Volcano, Kubeflow, or
 the scheduler's own admission policy.
 
+Contract v1 is published: see
+[scheduler-runtime-contract-v1.md](scheduler-runtime-contract-v1.md) for the
+envelope model, the field and label semantics, the conformance gate, and the
+fail-closed matrix. `aevrelctl kueue explain` reports the facts, and the Kueue
+adapter can publish them as opt-in labels (`--envelope-labels`). The Volcano and
+Kubeflow translators are reserved interfaces and report themselves as
+unsupported.
+
+Still open: consuming these facts in a real Kueue preemption configuration, and
+any consumer-side weighting, which stays consumer policy.
+
 ### Readiness and verification
 
 Make readiness evidence trustworthy:

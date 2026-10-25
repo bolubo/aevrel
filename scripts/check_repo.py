@@ -61,6 +61,7 @@ REQUIRED_FILES = (
     "scripts/README.md",
     "experiments/README.md",
     "docs/LANGUAGE-BOUNDARY.md",
+    "docs/scheduler-runtime-contract-v1.md",
 )
 
 CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
@@ -83,6 +84,18 @@ NATIVE_ARTEFACTS = (
 )
 NATIVE_BUILD_HINT = (
     "cargo build --release --manifest-path native/aevrel-fast/Cargo.toml"
+)
+
+# The scheduler contract is the registry for every envelope label. A label that
+# reaches a cluster without a documented meaning is the same bug as an
+# undocumented failure code, so the guard is symmetric: the doc must exist, be
+# reachable from the index, and describe every label the code can publish.
+CONTRACT_DOC = "docs/scheduler-runtime-contract-v1.md"
+ENVELOPE_SOURCE = "internal/kueueadapter/contract.go"
+CONTRACT_INDEX = "docs/INDEX.md"
+ENVELOPE_LABEL = re.compile(
+    r'^\s*(LabelEnvelope[A-Za-z0-9_]+)\s*=\s*"([^"]+)"',
+    re.MULTILINE,
 )
 
 
@@ -293,6 +306,32 @@ def _check_governance_content(errors: list[str]) -> None:
         errors.append("blank issues must be disabled")
 
 
+def _check_contract_registry(errors: list[str]) -> None:
+    """Every published envelope label must be documented in the contract.
+
+    The contract is the only place that says what a label means. Adding a label
+    to the adapter without writing it down would let a consumer read a value
+    nobody has defined, so the check runs in both directions that matter: the
+    document exists and is linked, and no label escapes it.
+    """
+    doc_path = REPO / CONTRACT_DOC
+    if not doc_path.is_file():
+        return  # _check_required already reported the missing file
+    doc = doc_path.read_text(encoding="utf-8")
+    index = REPO / CONTRACT_INDEX
+    if index.is_file() and doc_path.name not in index.read_text(encoding="utf-8"):
+        errors.append(f"{CONTRACT_DOC} is not linked from {CONTRACT_INDEX}")
+    source = REPO / ENVELOPE_SOURCE
+    if not source.is_file():
+        return
+    for _name, key in ENVELOPE_LABEL.findall(source.read_text(encoding="utf-8")):
+        if key not in doc:
+            errors.append(
+                f"envelope label is published but not documented in "
+                f"{CONTRACT_DOC}: {key}"
+            )
+
+
 def check() -> dict[str, Any]:
     errors: list[str] = []
     _check_required(errors)
@@ -304,6 +343,7 @@ def check() -> dict[str, Any]:
     _check_links(errors)
     _check_yaml(errors)
     _check_governance_content(errors)
+    _check_contract_registry(errors)
     return {
         "status": "ok" if not errors else "failed",
         "errors": errors,

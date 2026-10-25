@@ -62,6 +62,46 @@ The decision order is:
 3. progress at or above the threshold -> protected;
 4. otherwise -> eligible.
 
+The published `aevrel.dev/preemption-reason` is one of:
+
+- `InvalidStateProtected` / `InvalidStateEligible` - the published fields could
+  not be parsed;
+- `UnknownStateProtected` / `UnknownStateEligible` - nothing was published;
+- `CheckpointIncomplete` - a complete checkpoint is required and missing;
+- `ProgressThreshold` - progress is at or above the threshold;
+- `Eligible` - none of the above applies.
+
+## Optional fact labels
+
+The protection labels above are always published. The scheduler/runtime
+contract facts are opt-in:
+
+```bash
+kueue-adapter --envelope-labels
+```
+
+They are transport, not decision input: the `protected` / `eligible` outcome is
+identical with the flag on or off, and the policy never reads them. A fact set
+that fails conformance publishes no labels at all, and any previously published
+envelope is withdrawn in the same patch.
+
+```text
+aevrel.dev/schema-version=v1
+aevrel.dev/complete=1|0|unknown
+aevrel.dev/fresh=1|0|unknown
+aevrel.dev/loadable=1|0|unknown
+aevrel.dev/movable=1|0|unknown
+aevrel.dev/observed-at=20060102T150405Z
+aevrel.dev/fact-source=checkpoint-record|checkpoint-record-ambiguous|annotation-fallback|unknown
+aevrel.dev/reason-codes=...
+aevrel.dev/restore-mode=restore|restart|migrate|hold
+aevrel.dev/estimated-rto-seconds=<integer>|unknown
+aevrel.dev/envelope-conformance=valid
+```
+
+See [scheduler-runtime-contract-v1.md](scheduler-runtime-contract-v1.md) for the
+field semantics, the label encoding rules, and the fail-closed matrix.
+
 ## Install
 
 ```bash

@@ -32,6 +32,7 @@ jobs:
       - run: cargo build --release --manifest-path native/aevrel-fast/Cargo.toml
       - run: python -m compileall -q src tests scripts
       - run: python scripts/check_repo.py
+      - run: python tests/acceptance/verify_line2_acceptance.py
       - run: python -m pytest -q
       - run: python scripts/check_release.py --json
       - run: python scripts/acceptance.py --work-dir /tmp/aevrel-acceptance

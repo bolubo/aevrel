@@ -67,7 +67,13 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 	if !source.Enabled {
-		return ctrl.Result{}, r.projector().Clear(ctx, workload)
+		if err := r.projector().Clear(ctx, workload); err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := clearFacts(ctx, r.projector(), workload); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
 	}
 
 	observation := source.Observation
@@ -86,6 +92,9 @@ func (r *Reconciler) Reconcile(
 		decision,
 	)
 	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := projectFacts(ctx, r.projector(), workload, source); err != nil {
 		return ctrl.Result{}, err
 	}
 	requeue := r.RefreshInterval
@@ -175,4 +184,33 @@ func (r *Reconciler) workloadGVK() schema.GroupVersionKind {
 		return DefaultWorkloadGVK
 	}
 	return r.WorkloadGVK
+}
+
+// projectFacts publishes the scheduler envelope when both the projector and the
+// source support it. A projector without FactProjector is not an error: the
+// envelope is optional transport and never gates the protection decision.
+func projectFacts(
+	ctx context.Context,
+	projector DecisionProjector,
+	workload *unstructured.Unstructured,
+	source ObservationContext,
+) error {
+	factsProjector, ok := projector.(FactProjector)
+	if !ok || !source.HasFacts {
+		return nil
+	}
+	_, err := factsProjector.ProjectFacts(ctx, workload, source.Facts)
+	return err
+}
+
+func clearFacts(
+	ctx context.Context,
+	projector DecisionProjector,
+	workload *unstructured.Unstructured,
+) error {
+	factsProjector, ok := projector.(FactProjector)
+	if !ok {
+		return nil
+	}
+	return factsProjector.ClearFacts(ctx, workload)
 }

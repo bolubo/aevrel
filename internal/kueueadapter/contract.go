@@ -29,6 +29,52 @@ const (
 	LabelDecisionSource      = "aevrel.dev/preemption-decision-source"
 )
 
+// Envelope fact labels. These carry the scheduler/runtime contract to consumers
+// that do not want to read CheckpointRecord objects. They are a projection of
+// authoritative readiness, never a second source of truth, and nothing in the
+// binary protection policy reads them.
+//
+// Label values must be label-safe: SchemaLabelValue is used instead of
+// SchemaVersion because "/" is not a legal label value character, and the
+// observation time is published in the compact layout defined by
+// EnvelopeTimeLayout because RFC3339 contains ":".
+const (
+	LabelEnvelopeSchemaVersion = "aevrel.dev/schema-version"
+	LabelEnvelopeComplete      = "aevrel.dev/complete"
+	LabelEnvelopeFresh         = "aevrel.dev/fresh"
+	LabelEnvelopeLoadable      = "aevrel.dev/loadable"
+	LabelEnvelopeMovable       = "aevrel.dev/movable"
+	LabelEnvelopeObservedAt    = "aevrel.dev/observed-at"
+	LabelEnvelopeSource        = "aevrel.dev/fact-source"
+	LabelEnvelopeReasonCodes   = "aevrel.dev/reason-codes"
+	LabelEnvelopeRestoreMode   = "aevrel.dev/restore-mode"
+	LabelEnvelopeEstimatedRTO  = "aevrel.dev/estimated-rto-seconds"
+	LabelEnvelopeConformance   = "aevrel.dev/envelope-conformance"
+
+	// EnvelopeTimeLayout is the label-safe UTC form of an observation time.
+	EnvelopeTimeLayout = "20060102T150405Z"
+
+	// FactValueUnknown is emitted instead of any default that could be read as
+	// a safe value. A missing RTO is "unknown", never "0".
+	FactValueUnknown = "unknown"
+)
+
+// EnvelopeLabels is every label the envelope may write. ClearFacts uses the
+// same list, so a withdrawn envelope cannot leave a stale fact behind.
+var EnvelopeLabels = []string{
+	LabelEnvelopeSchemaVersion,
+	LabelEnvelopeComplete,
+	LabelEnvelopeFresh,
+	LabelEnvelopeLoadable,
+	LabelEnvelopeMovable,
+	LabelEnvelopeObservedAt,
+	LabelEnvelopeSource,
+	LabelEnvelopeReasonCodes,
+	LabelEnvelopeRestoreMode,
+	LabelEnvelopeEstimatedRTO,
+	LabelEnvelopeConformance,
+}
+
 func IsProtectionEnabled(object metav1.Object) bool {
 	for _, source := range []map[string]string{
 		object.GetAnnotations(),

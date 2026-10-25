@@ -24,6 +24,12 @@ type ObservationContext struct {
 	Source         string
 	Observation    Observation
 	HasObservation bool
+
+	// Facts is the read-only scheduler envelope projected from the same
+	// authoritative record as Observation. It is populated for reporting and
+	// transport only: the binary policy never reads it.
+	Facts    CheckpointFacts
+	HasFacts bool
 }
 
 // ObservationSource is the adapter's input boundary. Today checkpoint state
@@ -87,43 +93,90 @@ func (s JobObservationSource) Resolve(
 	}, nil
 }
 
+// checkpointState is the shared resolution result: what the workload points at,
+// which record is authoritative, and whether that choice was ambiguous. The
+// decision path and the reporting path both read it, so `kueue explain` can
+// never describe a different selection than the one the adapter acted on.
+type checkpointState struct {
+	Enabled      bool
+	Object       metav1.Object
+	Source       string
+	Published    Observation
+	PublishedErr error
+	Records      []aevrelv1.CheckpointRecord
+	Selected     *aevrelv1.CheckpointRecord
+	Ambiguous    bool
+}
+
+func (s CheckpointRecordSource) resolveCheckpointState(
+	ctx context.Context,
+	workload *unstructured.Unstructured,
+) (checkpointState, error) {
+	base, err := (JobObservationSource{Reader: s.Reader}).Resolve(ctx, workload)
+	if err != nil {
+		return checkpointState{}, err
+	}
+	if !base.Enabled {
+		return checkpointState{}, nil
+	}
+	state := checkpointState{
+		Enabled: true,
+		Object:  base.Object,
+		Source:  base.Source,
+	}
+	state.Published, state.PublishedErr = ParseObservation(
+		base.Object.GetAnnotations(),
+		base.Object.GetLabels(),
+	)
+	records, err := s.recordsForSource(ctx, workload, base.Object)
+	if err != nil {
+		return checkpointState{}, err
+	}
+	state.Records = records
+	switch {
+	case len(records) > 1:
+		selected, ok := latestCheckpointRecord(records)
+		if !ok {
+			state.Ambiguous = true
+		} else {
+			state.Selected = selected
+		}
+	case len(records) == 1:
+		state.Selected = &records[0]
+	}
+	return state, nil
+}
+
 func (s CheckpointRecordSource) Resolve(
 	ctx context.Context,
 	workload *unstructured.Unstructured,
 ) (ObservationContext, error) {
-	source, err := (JobObservationSource{Reader: s.Reader}).Resolve(
-		ctx,
-		workload,
-	)
-	if err != nil || !source.Enabled {
-		return source, err
-	}
-	annotations, _ := ParseObservation(
-		source.Object.GetAnnotations(),
-		source.Object.GetLabels(),
-	)
-	records, err := s.recordsForSource(ctx, workload, source.Object)
+	state, err := s.resolveCheckpointState(ctx, workload)
 	if err != nil {
 		return ObservationContext{}, err
 	}
-	var selected *aevrelv1.CheckpointRecord
-	if len(records) > 1 {
-		selected, _ = latestCheckpointRecord(records)
+	if !state.Enabled {
+		return ObservationContext{}, nil
+	}
+
+	source := ObservationContext{
+		Enabled:  true,
+		Object:   state.Object,
+		Source:   state.Source,
+		Facts:    factsForState(state),
+		HasFacts: true,
 	}
 	switch {
-	case len(records) > 1 && selected == nil:
+	case state.Ambiguous:
 		source.Source = "checkpoint-record-ambiguous"
 		source.Observation = Observation{Invalid: true}
 		source.HasObservation = true
 		return source, nil
-	case len(records) == 0:
+	case state.Selected == nil:
 		return source, nil
 	default:
-		if selected == nil {
-			selected = &records[0]
-		}
-		record := *selected
-		observation := annotations
+		record := *state.Selected
+		observation := state.Published
 		observation.Known = true
 		observation.CheckpointComplete = checkpointRecordReady(&record)
 		observation.CheckpointVersion = record.Spec.Version
@@ -143,6 +196,29 @@ func (s CheckpointRecordSource) Resolve(
 		source.Observation = observation
 		source.HasObservation = true
 		return source, nil
+	}
+}
+
+// factsForState selects the envelope that matches the resolved state. It never
+// upgrades: a state with no authoritative record yields a fact set that carries
+// its source and a fail-closed action, and nothing else.
+func factsForState(state checkpointState) CheckpointFacts {
+	switch {
+	case state.Ambiguous:
+		return CheckpointFactsForAmbiguity(len(state.Records), FactsOptions{})
+	case state.Selected != nil:
+		return CheckpointFactsForRecord(
+			state.Selected,
+			len(state.Records),
+			state.Selected.Name,
+			FactsOptions{},
+		)
+	case state.PublishedErr != nil || state.Published.Invalid:
+		return CheckpointFactsForAnnotations(true, FactsOptions{})
+	case state.Published.Known:
+		return CheckpointFactsForAnnotations(false, FactsOptions{})
+	default:
+		return CheckpointFactsForNoSignal(FactsOptions{})
 	}
 }
 

@@ -34,6 +34,10 @@ def emitted_codes() -> set[str]:
         r'Reason[A-Za-z]+\s*=\s*"([A-Z][A-Z0-9_]*)"',
     )
     codes |= _go_constants(
+        "internal/control/rescue.go",
+        r'Reason[A-Za-z]+\s*=\s*"([A-Z][A-Z0-9_]*)"',
+    )
+    codes |= _go_constants(
         "internal/controller/agent_scan.go",
         r'addReason\(\s*"([A-Z][A-Z0-9_]*)"',
     )

@@ -264,3 +264,160 @@ func sourceRecord(
 		},
 	}
 }
+
+// TestCheckpointRecordSourceExposesFactsForEveryState pins the envelope to the
+// five states the adapter can be in: a verified record, an unverified one, a
+// stale one, no record at all, and an ambiguity it refuses to resolve.
+func TestCheckpointRecordSourceExposesFactsForEveryState(t *testing.T) {
+	observedAt := time.Now().UTC().Format(time.RFC3339)
+	loadable := true
+
+	t.Run("verified record", func(t *testing.T) {
+		job, workload := sourceWorkload(map[string]string{
+			AnnotationProtection: "enabled",
+		})
+		record := sourceRecord(job, "step-100")
+		record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
+			Status:     aevrelv1.ReadinessReady,
+			Complete:   true,
+			Fresh:      true,
+			Loadable:   &loadable,
+			LastDrill:  "default/training-drill",
+			ObservedAt: observedAt,
+		}
+		source := resolveFactsSource(t, job, workload, record)
+		assertFacts(t, source, FactSourceCheckpointRecord, "restore", true)
+	})
+
+	t.Run("unverified record", func(t *testing.T) {
+		job, workload := sourceWorkload(map[string]string{
+			AnnotationProtection: "enabled",
+		})
+		record := sourceRecord(job, "step-99")
+		record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
+			Status:     aevrelv1.ReadinessUnverified,
+			Complete:   true,
+			Fresh:      true,
+			ObservedAt: observedAt,
+		}
+		source := resolveFactsSource(t, job, workload, record)
+		// Fresh without a loadability verdict cannot be published: a consumer
+		// could only misread it. The binary protection decision still applies.
+		assertFacts(t, source, FactSourceCheckpointRecord, "hold", false)
+		if !containsString(
+			source.Facts.Conformance.Violations,
+			ViolationFreshWithoutLoadability,
+		) {
+			t.Fatalf("violations = %v", source.Facts.Conformance.Violations)
+		}
+	})
+
+	t.Run("stale record", func(t *testing.T) {
+		job, workload := sourceWorkload(map[string]string{
+			AnnotationProtection: "enabled",
+		})
+		record := sourceRecord(job, "step-98")
+		record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
+			Status:     aevrelv1.ReadinessStale,
+			Complete:   true,
+			Fresh:      false,
+			Loadable:   &loadable,
+			LastDrill:  "default/training-drill",
+			ObservedAt: observedAt,
+		}
+		source := resolveFactsSource(t, job, workload, record)
+		assertFacts(t, source, FactSourceCheckpointRecord, "hold", true)
+		if source.Facts.Fresh == nil || *source.Facts.Fresh {
+			t.Fatalf("fresh = %v", source.Facts.Fresh)
+		}
+	})
+
+	t.Run("no record", func(t *testing.T) {
+		job, workload := sourceWorkload(map[string]string{
+			AnnotationProtection:         "enabled",
+			AnnotationProgressPercent:    "20",
+			AnnotationCheckpointComplete: "1",
+		})
+		source := resolveFactsSource(t, job, workload)
+		assertFacts(t, source, FactSourceAnnotationFallback, "hold", true)
+		if source.Facts.Complete != nil {
+			t.Fatalf(
+				"annotation values must not become facts, got %v",
+				*source.Facts.Complete,
+			)
+		}
+	})
+
+	t.Run("ambiguous records", func(t *testing.T) {
+		job, workload := sourceWorkload(map[string]string{
+			AnnotationProtection: "enabled",
+		})
+		first := sourceRecord(job, "step-100")
+		second := sourceRecord(job, "step-101")
+		second.Name = "training-checkpoint-2"
+		source := resolveFactsSource(t, job, workload, first, second)
+		assertFacts(t, source, FactSourceCheckpointRecordAmbiguous, "hold", false)
+	})
+}
+
+func resolveFactsSource(
+	t *testing.T,
+	objects ...runtime.Object,
+) ObservationContext {
+	t.Helper()
+	kubeClient := sourceClient(t, objects...)
+	workload := workloadOf(t, objects)
+	source, err := (CheckpointRecordSource{Reader: kubeClient}).Resolve(
+		context.Background(),
+		workload,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return source
+}
+
+func workloadOf(t *testing.T, objects []runtime.Object) *unstructured.Unstructured {
+	t.Helper()
+	for _, object := range objects {
+		if workload, ok := object.(*unstructured.Unstructured); ok {
+			return workload
+		}
+	}
+	t.Fatal("no Workload among the fixture objects")
+	return nil
+}
+
+func assertFacts(
+	t *testing.T,
+	source ObservationContext,
+	wantSource string,
+	wantMode string,
+	wantValid bool,
+) {
+	t.Helper()
+	if !source.Enabled {
+		t.Fatal("the fixture must opt in to protection")
+	}
+	if !source.HasFacts {
+		t.Fatal("every enabled state must carry a fact set")
+	}
+	if source.Facts.Source != wantSource {
+		t.Fatalf("fact source = %q, want %q", source.Facts.Source, wantSource)
+	}
+	if source.Facts.RestoreMode != wantMode {
+		t.Fatalf(
+			"restoreMode = %q, want %q",
+			source.Facts.RestoreMode,
+			wantMode,
+		)
+	}
+	if source.Facts.Conformance.Valid != wantValid {
+		t.Fatalf(
+			"conformance.valid = %t, want %t (violations: %v)",
+			source.Facts.Conformance.Valid,
+			wantValid,
+			source.Facts.Conformance.Violations,
+		)
+	}
+}

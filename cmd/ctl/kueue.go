@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -99,6 +100,9 @@ func executeKueueStatus(
 	return nil
 }
 
+// executeKueueExplain reports why a decision was reached, not just what it was.
+// The facts block comes from the same source the adapter acts on, so the
+// explanation cannot drift from the decision.
 func executeKueueExplain(
 	ctx context.Context,
 	kubeClient client.Client,
@@ -115,9 +119,25 @@ func executeKueueExplain(
 	}, workload); err != nil {
 		return err
 	}
+
+	source, factsErr := (kueueadapter.CheckpointRecordSource{
+		Reader: kubeClient,
+	}).Resolve(ctx, workload)
+	factsAvailable := factsErr == nil && source.HasFacts
+
 	if jsonOut {
-		return writeJSON(out, workload)
+		output := kueueExplainOutput{
+			SchemaVersion:     kueueadapter.SchemaVersion,
+			Workload:          workload,
+			ProtectionEnabled: source.Enabled,
+			FactsError:        errToString(factsErr),
+		}
+		if factsAvailable {
+			output.CheckpointFacts = &source.Facts
+		}
+		return writeJSON(out, output)
 	}
+
 	fmt.Fprintf(out, "Name:         %s\n", name)
 	fmt.Fprintf(out, "Namespace:    %s\n", namespace)
 	fmt.Fprintf(
@@ -174,7 +194,123 @@ func executeKueueExplain(
 			"Next: adapter has not published a decision yet; check adapter logs and the Workload owner Job",
 		)
 	}
+	writeFactsText(out, source, factsErr)
 	return nil
+}
+
+// writeFactsText prints the read-only fact set. A failure to read it is
+// reported as a fact of its own: the command still explains the decision
+// labels, and never panics on a missing cluster object.
+func writeFactsText(
+	out io.Writer,
+	source kueueadapter.ObservationContext,
+	factsErr error,
+) {
+	fmt.Fprintln(out, "Checkpoint facts:")
+	if factsErr != nil {
+		fmt.Fprintf(out, "  (unavailable: %s)\n", factsErr)
+		return
+	}
+	if !source.Enabled {
+		fmt.Fprintln(
+			out,
+			"  (preemption protection is not enabled on this workload or its owner Job)",
+		)
+		return
+	}
+	if !source.HasFacts {
+		fmt.Fprintln(out, "  (no checkpoint facts are available)")
+		return
+	}
+	facts := source.Facts
+	fmt.Fprintf(out, "  Schema:        %s\n", facts.SchemaVersion)
+	fmt.Fprintf(out, "  Source:        %s\n", facts.Source)
+	fmt.Fprintf(out, "  Status:        %s\n", emptyDash(facts.Status))
+	fmt.Fprintf(out, "  Complete:      %s\n", factBoolText(facts.Complete))
+	fmt.Fprintf(out, "  Fresh:         %s\n", factBoolText(facts.Fresh))
+	fmt.Fprintf(out, "  Loadable:      %s\n", factBoolText(facts.Loadable))
+	fmt.Fprintf(out, "  Movable:       %s\n", factBoolText(facts.Movable))
+	fmt.Fprintf(out, "  ObservedAt:    %s\n", emptyDash(facts.ObservedAt))
+	fmt.Fprintf(out, "  RestoreMode:   %s\n", emptyDash(facts.RestoreMode))
+	if facts.RestoreReasonCode != "" {
+		fmt.Fprintf(out, "  RestoreReason: %s\n", facts.RestoreReasonCode)
+	}
+	fmt.Fprintf(
+		out,
+		"  RTO:           %s\n",
+		factRTOSecondsText(facts.EstimatedRTOSeconds),
+	)
+	fmt.Fprintf(
+		out,
+		"  ReasonCodes:   %s\n",
+		emptyDash(strings.Join(facts.ReasonCodes, ", ")),
+	)
+	if len(facts.EnvelopeReasons) > 0 {
+		fmt.Fprintf(
+			out,
+			"  EnvelopeReasons: %s\n",
+			strings.Join(facts.EnvelopeReasons, ", "),
+		)
+	}
+	if facts.Ambiguous {
+		fmt.Fprintf(
+			out,
+			"  Selected:      none (%d candidate records, ambiguous)\n",
+			facts.Candidates,
+		)
+	} else {
+		fmt.Fprintf(
+			out,
+			"  Selected:      %s (%d candidate records)\n",
+			emptyDash(facts.SelectedRecord),
+			facts.Candidates,
+		)
+	}
+	fmt.Fprintf(out, "  Conformance:   %s\n", conformanceText(facts.Conformance))
+	for _, violation := range facts.Conformance.Violations {
+		fmt.Fprintf(out, "  - violation:   %s\n", violation)
+	}
+}
+
+func conformanceText(report kueueadapter.ConformanceReport) string {
+	if report.Valid {
+		return "valid"
+	}
+	return fmt.Sprintf("invalid (%d violations)", len(report.Violations))
+}
+
+func factBoolText(value *bool) string {
+	if value == nil {
+		return kueueadapter.FactValueUnknown
+	}
+	if *value {
+		return "true"
+	}
+	return "false"
+}
+
+func factRTOSecondsText(value *int64) string {
+	if value == nil {
+		return kueueadapter.FactValueUnknown
+	}
+	return strconv.FormatInt(*value, 10)
+}
+
+func errToString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// kueueExplainOutput is the stable JSON contract of `kueue explain`. Consumers
+// read schemaVersion before anything else.
+type kueueExplainOutput struct {
+	SchemaVersion     string                        `json:"schemaVersion"`
+	Workload          *unstructured.Unstructured    `json:"workload"`
+	ProtectionEnabled bool                          `json:"protectionEnabled"`
+	CheckpointFacts   *kueueadapter.CheckpointFacts `json:"checkpointFacts,omitempty"`
+	FactsError        string                        `json:"factsError,omitempty"`
 }
 
 type kueueCondition struct {

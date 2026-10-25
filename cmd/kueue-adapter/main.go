@@ -33,6 +33,7 @@ func main() {
 	var preemptionConfigName string
 	var observationSource string
 	var enableLeaderElection bool
+	var envelopeLabels bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "metrics endpoint address")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "health probe address")
 	flag.StringVar(&namespace, "namespace", "", "optional namespace to watch; empty watches all namespaces")
@@ -45,6 +46,7 @@ func main() {
 	flag.StringVar(&preemptionConfigName, "preemption-config-name", "checkpoint-guard", "PreemptionConfig referenced by strict ClusterQueues")
 	flag.StringVar(&observationSource, "observation-source", "auto", "checkpoint state source: auto, annotations, or checkpoint-record")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "enable leader election")
+	flag.BoolVar(&envelopeLabels, "envelope-labels", false, "publish the scheduler/runtime fact envelope as advisory Workload labels (never a decision input)")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(false)))
@@ -123,8 +125,9 @@ func main() {
 		RefreshInterval: syncInterval,
 		Source:          observationSourceFor(mgr.GetClient(), observationSource),
 		Projector: kueueadapter.WorkloadLabelProjector{
-			Client:   mgr.GetClient(),
-			Recorder: mgr.GetEventRecorderFor("aevrel-kueue-adapter"),
+			Client:         mgr.GetClient(),
+			Recorder:       mgr.GetEventRecorderFor("aevrel-kueue-adapter"),
+			EnvelopeLabels: envelopeLabels,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create Kueue adapter")

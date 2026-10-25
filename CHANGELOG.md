@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Scheduler/runtime contract v1: a versioned, orthogonal fact envelope for
+  `complete`, `fresh`, `loadable`, `movable`, `restoreMode`,
+  `estimatedRTOSeconds`, and the evidence behind them. See
+  [docs/scheduler-runtime-contract-v1.md](docs/scheduler-runtime-contract-v1.md).
+- `aevrelctl kueue explain` now reports the authoritative checkpoint facts, in
+  text and as a stable `--json` contract (`schemaVersion: aevrel.dev/v1`).
+- `kueue-adapter --envelope-labels` publishes the envelope as advisory
+  `aevrel.dev/*` labels. It is off by default and the protection decision is
+  identical either way.
+- A conformance gate that withholds the envelope when its facts contradict each
+  other, when a fact set cannot describe itself, or when a source claims values
+  it does not have.
+
+### Changed
+
+- The failure-code catalog now documents the rescue advisory codes and the
+  envelope violation codes, and `repo-check` fails when an envelope label is
+  published without being documented.
+
 ## 0.3.0 - 2026-10-23
 
 Aevrel identity release. The project, Go module, Python package and CLI,
