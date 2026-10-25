@@ -3,6 +3,9 @@
 Use this page to find the first file and the smallest relevant validation for a
 change. For the architecture overview, see [Architecture](ARCHITECTURE.md).
 
+`make dev` sets up the toolchain and `make check` runs the same gates CI runs.
+Every command below assumes that environment.
+
 | Area | First entry points | Main tests | Validation |
 |---|---|---|---|
 | Python CLI and demo | `src/aevrel/cli.py`, `src/aevrel/demo.py` | `tests/unit/test_cli.py`, `tests/unit/test_cli_subprocess.py` | `python -m pytest -q tests/unit/test_cli.py tests/unit/test_cli_subprocess.py` |
@@ -16,6 +19,7 @@ change. For the architecture overview, see [Architecture](ARCHITECTURE.md).
 | State closure and LRS | `src/aevrel/state/`, `src/aevrel/lrs/` | `tests/unit/test_state_closure.py`, `tests/unit/test_lrs_*.py` | `python -m pytest -q tests/unit/test_state_closure.py tests/unit/test_lrs_state_closure.py` |
 | Native hot path | `native/aevrel-fast/` | `native/aevrel-fast/src/*_test.rs`, `tests/unit/test_native.py` | `cargo test --manifest-path native/aevrel-fast/Cargo.toml` |
 | Documentation and onboarding | `README.md`, `docs/` | `scripts/check_repo.py` | `python scripts/check_repo.py` |
+| Repository tooling and experiments | `scripts/`, `experiments/` | `scripts/check_repo.py`, the `experiments/` guard test | `make check` |
 
 ## Language boundaries
 
@@ -38,7 +42,13 @@ Rules:
 - A missing Rust binary is a hard failure, never a silent fall back to Python.
   Every migrated kernel ships with a golden-equivalence test.
 - `scripts/` holds repository tooling only; shipped logic belongs in
-  `src/aevrel/` or `native/`.
+  `src/aevrel/` or `native/`. Each script is registered with the consumer that
+  references it in the `scripts/` registry README.
+- `experiments/` is disposable: benchmarks, probes, GPU and multi-node runs,
+  and demos that no workflow, test, or script references. Promote a file to
+  `scripts/`, or fold its logic into `src/` or `native/` with tests, before
+  anything depends on it; a test fails if something under `experiments/` is
+  referenced from CI, tests, or `scripts/`.
 - Legacy exceptions exist (for example a duplicated chunking implementation)
   and are being removed. Do not add new exceptions.
 
