@@ -31,7 +31,7 @@ def run_readiness(args: Namespace) -> int:
         if getattr(args, "json", False):
             print(json.dumps({"status": "failed", "error": exc.to_dict()}))
         else:
-            print(f"readiness: {exc.code}: {exc}", file=sys.stderr)
+            print(f"aevrel readiness: {exc.code}: {exc}", file=sys.stderr)
         return 2
 
     drill = None
@@ -42,7 +42,7 @@ def run_readiness(args: Namespace) -> int:
             if getattr(args, "json", False):
                 print(json.dumps({"status": "failed", "error": exc.to_dict()}))
             else:
-                print(f"readiness: {exc.code}: {exc}", file=sys.stderr)
+                print(f"aevrel readiness: {exc.code}: {exc}", file=sys.stderr)
             return 2
 
     readiness = assess_readiness(

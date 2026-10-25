@@ -456,6 +456,21 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _emit_failure(command: str, exc: Exception, json_mode: bool) -> int:
+    if json_mode:
+        payload = {
+            "status": "failed",
+            "error": {
+                "code": getattr(exc, "code", type(exc).__name__),
+                "message": str(exc),
+            },
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"aevrel {command}: {exc}", file=sys.stderr)
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     arguments = list(sys.argv[1:] if argv is None else argv)
@@ -799,8 +814,7 @@ def main(argv: list[str] | None = None) -> int:
             OSError,
             ValueError,
         ) as exc:
-            print(f"aevrel migrate: {exc}", file=sys.stderr)
-            return 2
+            return _emit_failure("migrate", exc, args.json)
     if args.command == "demo":
         try:
             result = run_demo(args.work_dir, include_dcp=args.dcp)
@@ -810,8 +824,7 @@ def main(argv: list[str] | None = None) -> int:
                 _print_demo_summary(result)
             return 0
         except (DemoError, OSError, ValueError) as exc:
-            print(f"aevrel demo: {exc}", file=sys.stderr)
-            return 2
+            return _emit_failure("demo", exc, args.json)
     if args.command == "tui":
         try:
             from .tui import run_tui
@@ -888,11 +901,10 @@ def main(argv: list[str] | None = None) -> int:
                 ],
             }
             validate_capabilities(payload)
-            print(json.dumps(payload, indent=2))
+            print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         except ValueError as exc:
-            print(f"aevrel capabilities: {exc}", file=sys.stderr)
-            return 2
+            return _emit_failure("capabilities", exc, args.json)
     if args.command == "readiness":
         return run_readiness(args)
     if args.command == "restore-drill":
@@ -955,12 +967,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.spec and (
             args.checkpoint or args.output or args.work_dir
         ):
-            print(
-                "aevrel doctor: --spec cannot be combined with "
-                "--checkpoint/--output/--work-dir",
-                file=sys.stderr,
+            return _emit_failure(
+                "doctor",
+                ValueError(
+                    "--spec cannot be combined with "
+                    "--checkpoint/--output/--work-dir"
+                ),
+                args.json,
             )
-            return 2
         if args.spec:
             result = doctor(args.spec)
         elif args.checkpoint:
@@ -971,11 +985,11 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
             )
         elif args.output or args.work_dir:
-            print(
-                "aevrel doctor: --output/--work-dir require --checkpoint",
-                file=sys.stderr,
+            return _emit_failure(
+                "doctor",
+                ValueError("--output/--work-dir require --checkpoint"),
+                args.json,
             )
-            return 2
         else:
             result = environment_doctor()
         if args.json:
@@ -1016,64 +1030,67 @@ def _migration_summary(checkpoint: str, result: dict) -> dict:
     }
 
 
+def _print_kv(label: str, value: str, width: int = 14) -> None:
+    print(f"  {label:<{width}} {value}")
+
+
 def _print_migration_summary(summary: dict) -> None:
     topology = summary["topology"]
     verification = summary["verification"]
     execution = summary["execution"]
     print("Migration complete")
-    print(f"  checkpoint:   {summary['checkpoint']}")
-    print(f"  output:       {summary['output']}")
-    print(
-        "  topology:     "
+    _print_kv("checkpoint", summary["checkpoint"])
+    _print_kv("output", summary["output"])
+    _print_kv(
+        "topology",
         f"{topology['source_world_size']} -> "
-        f"{topology['target_world_size']} ranks"
+        f"{topology['target_world_size']} ranks",
     )
-    print(
-        f"  plan:         {summary['plan']['nodes']} chunks, "
-        f"{_format_bytes(summary['plan']['bytes'])}"
+    _print_kv(
+        "plan",
+        f"{summary['plan']['nodes']} chunks, "
+        f"{_format_bytes(summary['plan']['bytes'])}",
     )
-    print(
-        f"  moved:        {_format_bytes(execution['bytes_moved'])} in "
-        f"{_format_seconds(execution['duration_seconds'])}"
+    _print_kv(
+        "moved",
+        f"{_format_bytes(execution['bytes_moved'])} in "
+        f"{_format_seconds(execution['duration_seconds'])}",
     )
-    print(
-        "  verification: "
+    _print_kv(
+        "verification",
         f"{verification.get('method', 'unknown')} "
-        f"{'passed' if verification.get('passed') else 'FAILED'}"
+        f"{'passed' if verification.get('passed') else 'FAILED'}",
     )
-    print(f"  work dir:     {summary['work_dir']}")
+    _print_kv("work dir", summary["work_dir"])
 
 
 def _print_demo_summary(result: dict) -> None:
     verification = result["verification"]
     target = Path(result["work_dir"]) / "target"
     print("Demo complete")
-    print(f"  work dir:     {result['work_dir']}")
-    print(f"  target:       {target}")
-    print(
-        "  verification: "
+    _print_kv("work dir", result["work_dir"])
+    _print_kv("target", target)
+    _print_kv(
+        "verification",
         f"{verification.get('method', 'unknown')} "
-        f"{'passed' if verification.get('passed') else 'FAILED'}"
+        f"{'passed' if verification.get('passed') else 'FAILED'}",
     )
     dcp = result.get("dcp")
     if dcp:
-        print(f"  dcp source:   {dcp['source']}")
-        print(f"  dcp target:   {dcp['target']}")
-        print(
-            "  dcp load:     source "
-            f"{dcp['source_readiness']['status']}, target "
-            f"{dcp['target_readiness']['status']}"
+        _print_kv("dcp source", dcp["source"])
+        _print_kv("dcp target", dcp["target"])
+        _print_kv(
+            "dcp load",
+            f"source {dcp['source_readiness']['status']}, target "
+            f"{dcp['target_readiness']['status']}",
         )
-        print(f"  target load:  {dcp['target_load']}")
-        print(
-            "  next:         aevrel-target-load --checkpoint "
-            f"{dcp['target']} --rank 0 --json"
+        _print_kv("target load", dcp["target_load"])
+        _print_kv(
+            "next",
+            f"aevrel-target-load --checkpoint {dcp['target']} --rank 0 --json",
         )
     else:
-        print(
-            "  next:         aevrel demo --dcp --work-dir "
-            "./aevrel-demo-dcp"
-        )
+        _print_kv("next", "aevrel demo --dcp --work-dir ./aevrel-demo-dcp")
 
 
 def _print_doctor_summary(
@@ -1087,9 +1104,9 @@ def _print_doctor_summary(
         print("Not ready.")
     for check in result["checks"]:
         marker = "ok" if check["ok"] else "FAIL"
-        print(f"[{marker:<4}] {check['name']}: {check['detail']}")
+        print(f"  [{'ok' if check['ok'] else 'FAIL':<4}] {check['name']:<22} {check['detail']}")
         if check.get("hint"):
-            print(f"       {check['hint']}")
+            print(f"       {'':<22} {check['hint']}")
     if result["status"] == "ok" and not checkpoint:
         print("Next: aevrel demo")
 

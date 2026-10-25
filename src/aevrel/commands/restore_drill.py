@@ -39,7 +39,7 @@ def run_restore_drill_command(args) -> int:
             )
         else:
             print(
-                f"restore-drill: {exc.code}: {exc}",
+                f"aevrel restore-drill: {exc.code}: {exc}",
                 file=sys.stderr,
             )
         return 2

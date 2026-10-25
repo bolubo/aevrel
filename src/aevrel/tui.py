@@ -42,6 +42,7 @@ class TuiState:
     drill_rank: str = "0"
     views: list[View] = field(default_factory=list)
     selected: int = 0
+    scroll_offset: int = 0
     logs: list[str] = field(default_factory=list)
     task: str = ""
     progress: int = 0
@@ -470,27 +471,30 @@ class TuiApp:
         elif key in (self.curses.KEY_UP,):
             if self.state.views:
                 self.state.selected = max(0, self.state.selected - 1)
+                if self.state.selected < self.state.scroll_offset:
+                    self.state.scroll_offset = self.state.selected
         elif key in (self.curses.KEY_DOWN,):
             if self.state.views:
+                limit = getattr(self, "_list_limit", 7)
                 self.state.selected = min(
                     len(self.state.views) - 1,
                     self.state.selected + 1,
                 )
+                if self.state.selected >= self.state.scroll_offset + limit:
+                    self.state.scroll_offset = self.state.selected - limit + 1
+                if self.state.scroll_offset < 0:
+                    self.state.scroll_offset = 0
         return False
 
     def _draw(self, screen: Any) -> None:
         try:
             screen.erase()
             height, width = screen.getmaxyx()
+            if height < 24 or width < 80:
+                self._draw_too_small(screen, height, width)
+                return
             if height < 30 or width < 100:
-                self._safe(
-                    screen,
-                    0,
-                    0,
-                    f"terminal too small: {width}x{height}; need >= 100x30",
-                    self._attr(3, bold=True),
-                )
-                screen.refresh()
+                self._draw_compact(screen, height, width)
                 return
             self._draw_header(screen, width)
             footer = 4
@@ -508,6 +512,65 @@ class TuiApp:
             screen.refresh()
         except self.curses.error:
             pass
+
+    def _draw_too_small(self, screen, height, width) -> None:
+        sig = (height, width)
+        if getattr(self, "_last_small", None) == sig:
+            return
+        self._last_small = sig
+        try:
+            screen.erase()
+            self._safe(
+                screen,
+                0,
+                0,
+                f"terminal too small: {width}x{height}; need >= 80x24",
+                self._attr(3, bold=True),
+            )
+            screen.refresh()
+        except Exception:
+            pass
+
+    def _draw_compact(self, screen, height, width) -> None:
+        self._draw_header(screen, width)
+        row = 2
+        s = self.state
+        for label, value in (
+            ("MODE", s.mode),
+            ("TRANSFER", s.transfer),
+            ("SOURCE", s.source or "(empty)"),
+            ("TARGET", s.target_world),
+            ("OUTPUT", s.output or "(auto)"),
+            ("WORK", s.work or "(auto)"),
+        ):
+            if row >= height - 2:
+                break
+            self._safe(screen, row, 0, f"{label:<10} {value}", self._attr(0))
+            row += 1
+        row += 1
+        if row < height - 2:
+            self._safe(screen, row, 0, "CHECKPOINTS", self._attr(1, bold=True))
+            row += 1
+        limit = min(7, height - row - 4)
+        offset = max(
+            0,
+            min(s.scroll_offset, max(0, len(s.views) - limit)),
+        )
+        for win_index, view in enumerate(s.views[offset : offset + limit]):
+            if row >= height - 2:
+                break
+            abs_index = offset + win_index
+            marker = ">" if abs_index == s.selected else " "
+            status = view.readiness.get("status", "UNKNOWN")
+            self._safe(
+                screen,
+                row,
+                0,
+                f"{marker} {Path(view.path).name[:max(12, width - 22)]}  [{status}]",
+                self._status_attr(status),
+            )
+            row += 1
+        self._draw_footer(screen, height - 4, width)
 
     def _draw_header(self, screen: Any, width: int) -> None:
         title = (
@@ -621,19 +684,32 @@ class TuiApp:
             row += 2
         else:
             limit = min(7, h - 12)
-            for index, view in enumerate(self.state.views[:limit]):
-                marker = ">" if index == self.state.selected else " "
+            self._list_limit = limit
+            offset = max(
+                0,
+                min(
+                    self.state.scroll_offset,
+                    max(0, len(self.state.views) - limit),
+                ),
+            )
+            self.state.scroll_offset = offset
+            for win_index, view in enumerate(
+                self.state.views[offset : offset + limit]
+            ):
+                abs_index = offset + win_index
+                marker = ">" if abs_index == self.state.selected else " "
                 status = view.readiness.get("status", "UNKNOWN")
                 line = (
                     f"{marker} {Path(view.path).name[:max(12, w - 22)]}"
                     f"  [{status}]"
                 )
                 attr = self._status_attr(status)
-                if index == self.state.selected:
+                if abs_index == self.state.selected:
                     attr |= self.curses.A_REVERSE
                 self._safe(screen, row, x + 2, line, attr)
                 row += 1
             row += 1
+            row = self._draw_readiness_legend(screen, row, x + 2, y, h)
         self._safe(screen, row, x + 2, "DETAIL", self._attr(1, bold=True))
         row += 1
         view = self._selected()
@@ -694,31 +770,33 @@ class TuiApp:
             Path.home() / ".kube" / "config"
         )
         kube = bool(shutil.which("kubectl") and Path(kubeconfig).exists())
+        # provenance: verified = real check (kubectl + kubeconfig present);
+        # mode-flag = real scheduler/runtime mode flag; na = not verified locally
         groups = [
             (
                 "UPSTREAM",
                 [
-                    ("Kubernetes", "OK" if kube else "--"),
-                    ("Training Job", "--"),
-                    ("Checkpoint store", "OK"),
-                    ("Source agent", "OPT"),
+                    ("Kubernetes", "OK" if kube else "--", "verified"),
+                    ("Training Job", "--", "na"),
+                    ("Checkpoint store", "--", "na"),
+                    ("Source agent", "OPT", "mode-flag"),
                 ],
             ),
             (
                 "DOWNSTREAM",
                 [
-                    ("Kueue", "OK" if kube else "--"),
-                    ("Restore drill", "OK"),
-                    ("Migration", "OK"),
-                    ("Target load", "OK"),
+                    ("Kueue", "OK" if kube else "--", "verified"),
+                    ("Restore drill", "--", "na"),
+                    ("Migration", "--", "na"),
+                    ("Target load", "--", "na"),
                 ],
             ),
             (
                 "INTEGRATIONS",
                 [
-                    ("Live rank split", "EXP"),
-                    ("Proof / audit", "OK"),
-                    ("Rescue decision", "K8S"),
+                    ("Live rank split", "EXP", "mode-flag"),
+                    ("Proof / audit", "--", "na"),
+                    ("Rescue decision", "K8S", "mode-flag"),
                 ],
             ),
         ]
@@ -727,22 +805,24 @@ class TuiApp:
                 return
             self._safe(screen, row, x + 2, title, self._attr(1, bold=True))
             row += 1
-            for label, status in items:
+            for label, status, provenance in items:
                 if row >= y + h - 2:
                     return
+                if provenance == "verified" and status == "OK":
+                    color = 2
+                elif provenance == "mode-flag":
+                    color = 1
+                else:
+                    color = 0
                 self._safe(
                     screen,
                     row,
                     x + 2,
                     f"[{status:<3}] {label}",
-                    self._attr(2 if status == "OK" else 0),
+                    self._attr(color),
                 )
                 row += 1
             row += 1
-        if row < y + h - 2:
-            self._safe(screen, row, x + 2, "STATUS: OK / -- / EXP", self._attr(0))
-            row += 1
-            self._safe(screen, row, x + 2, "Q quit", self._attr(0))
 
     def _field(
         self,
@@ -793,6 +873,23 @@ class TuiApp:
         if status in {"INCOMPLETE", "TARGET_BLOCKED"}:
             return self._attr(4)
         return self._attr(0)
+
+    def _draw_readiness_legend(self, screen, row, x, y, h) -> int:
+        legend = [
+            ("READY", self._status_attr("READY")),
+            ("UNVERIFIED/STALE", self._status_attr("STALE")),
+            ("INCOMPLETE/BLOCKED", self._status_attr("INCOMPLETE")),
+            ("UNKNOWN", self._status_attr("UNKNOWN")),
+        ]
+        if row < y + h - 2:
+            self._safe(screen, row, x, "LEGEND:", self._attr(1, bold=True))
+            row += 1
+        for text, attr in legend:
+            if row >= y + h - 2:
+                break
+            self._safe(screen, row, x, f"  {text}", attr)
+            row += 1
+        return row + 1
 
     @staticmethod
     def _bool(value: Any) -> str:

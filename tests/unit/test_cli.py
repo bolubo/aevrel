@@ -87,7 +87,7 @@ def test_default_demo_cli(tmp_path, capsys) -> None:
     assert result == 0
     output = capsys.readouterr().out
     assert "Demo complete" in output
-    assert "verification: bitwise passed" in output
+    assert "verification" in output and "bitwise passed" in output
     assert (tmp_path / "demo" / "target" / "w" / "rank0.bin").is_file()
 
 
