@@ -37,6 +37,7 @@ def run_readiness(args: Namespace) -> int:
             print(json.dumps({"status": "failed", "error": exc.to_dict()}))
         else:
             print(f"aevrel readiness: {exc.code}: {exc}", file=sys.stderr)
+            print(f"RESULT: FAILED ({exc.code})", file=sys.stderr)
         return 2
 
     drill = None
@@ -48,6 +49,7 @@ def run_readiness(args: Namespace) -> int:
                 print(json.dumps({"status": "failed", "error": exc.to_dict()}))
             else:
                 print(f"aevrel readiness: {exc.code}: {exc}", file=sys.stderr)
+                print(f"RESULT: FAILED ({exc.code})", file=sys.stderr)
             return 2
 
     readiness = assess_readiness(

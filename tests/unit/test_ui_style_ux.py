@@ -179,6 +179,16 @@ def test_migrate_failure_never_shows_ok(tmp_path, capsys):
     assert "RESULT: OK" not in captured.out
 
 
+def test_readiness_failure_shows_result_failed(capsys):
+    rc = main(["readiness", "--checkpoint", "/does-not-exist-xyz"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "aevrel readiness:" in captured.err
+    # every command ends with an explicit RESULT line (U4), never a bare error
+    assert "RESULT: FAILED" in captured.err
+    assert "RESULT: OK" not in captured.out
+
+
 # -------------------------------------------------------------- U5 palette
 def test_status_roles_map_to_palette():
     assert status_role("READY") == "ok"
