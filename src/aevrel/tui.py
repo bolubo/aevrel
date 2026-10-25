@@ -84,11 +84,11 @@ def _view(
     resolved = Path(path).expanduser().resolve()
     record = DCPStateProvider().inventory(resolved)
     if bind_drill and drill is not None:
-        ranks = len(record.ranks)
+        ranks = tuple(rank.rank for rank in record.ranks)
         drill = replace(
             drill,
-            ranks_ready=drill.ranks_ready or ranks,
-            ranks_total=drill.ranks_total or ranks,
+            ranks_reported=drill.ranks_reported or ranks,
+            ranks_expected=drill.ranks_expected or len(ranks),
             checkpoint_version=drill.checkpoint_version or record.version,
             checkpoint_metadata_digest=(
                 drill.checkpoint_metadata_digest or record.metadata_digest

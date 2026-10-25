@@ -237,16 +237,20 @@ spec:
                     type: string
                   lastDrillDigest:
                     type: string
-                  lastDrillRanksReady:
+                  lastDrillRanksExpected:
+                    format: int32
+                    type: integer
+                  lastDrillRanksReported:
                     description: |-
-                      LastDrillRanksReady and LastDrillRanksTotal record the drill's rank
-                      coverage, so "every rank was verified" is a stored fact instead of an
-                      assumption about how the drill job was configured.
-                    format: int32
-                    type: integer
-                  lastDrillRanksTotal:
-                    format: int32
-                    type: integer
+                      LastDrillRanksReported and LastDrillRanksExpected record the drill's
+                      rank coverage, so "every rank was verified" is a stored fact instead of
+                      an assumption about how the drill job was configured. The identities,
+                      not just a count, let a later assessment name the ranks that are
+                      missing.
+                    items:
+                      format: int32
+                      type: integer
+                    type: array
                   lastDrillSteps:
                     description: |-
                       LastDrillSteps is how many training steps the drill that produced

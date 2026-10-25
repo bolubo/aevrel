@@ -6,8 +6,11 @@
     "detail": "",
     "phase": "Succeeded",
     "proof_ref": "proof-conf-0001",
-    "ranks_ready": 2,
-    "ranks_total": 2,
+    "ranks_expected": 2,
+    "ranks_reported": [
+      0,
+      1
+    ],
     "resume_manifest_digests": [
       "sha256:cce36e5122d2072efab045ceb97ded3fe1865a3a2e96c3edea13ce2e6ae76fc8"
     ],

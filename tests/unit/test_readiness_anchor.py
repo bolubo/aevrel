@@ -69,6 +69,8 @@ def _drill(*digests: str) -> DrillOutcome:
         steps_ran=10,
         proof_ref="proof://drill/1",
         resume_state_digests=digests,
+        ranks_reported=(0,),
+        ranks_expected=1,
     )
 
 

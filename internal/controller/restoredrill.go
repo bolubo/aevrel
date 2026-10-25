@@ -424,14 +424,19 @@ func (r *RestoreDrillReconciler) reconcileDrillOutcome(
 		return ctrl.Result{}, err
 	}
 	ref := restoreDrillRef(drill)
+	reportedRanks, ranksConsistent := drillRanksReported(drill.Status)
 	if record.Status.Readiness.LastDrill == ref &&
 		record.Status.Readiness.Loadable != nil &&
 		*record.Status.Readiness.Loadable == loadable &&
 		record.Status.Readiness.LastDrillVersion == drill.Spec.Version &&
 		record.Status.Readiness.LastDrillDigest == record.Status.MetadataDigest &&
 		record.Status.Readiness.LastDrillSteps == drill.Status.StepsRan &&
-		record.Status.Readiness.LastDrillRanksReady == drill.Status.RanksReady &&
-		record.Status.Readiness.LastDrillRanksTotal == drill.Status.RanksTotal {
+		record.Status.Readiness.LastDrillRanksExpected == drill.Status.RanksTotal &&
+		reflect.DeepEqual(
+			record.Status.Readiness.LastDrillRanksReported,
+			reportedRanks,
+		) &&
+		ranksConsistent {
 		return ctrl.Result{}, nil
 	}
 	record.Status.Readiness.Loadable = &loadable
@@ -442,13 +447,56 @@ func (r *RestoreDrillReconciler) reconcileDrillOutcome(
 	// Storing them on the record is what lets a consumer tell "all four ranks
 	// really resumed" from "somebody said the drill succeeded".
 	record.Status.Readiness.LastDrillSteps = drill.Status.StepsRan
-	record.Status.Readiness.LastDrillRanksReady = drill.Status.RanksReady
-	record.Status.Readiness.LastDrillRanksTotal = drill.Status.RanksTotal
+	record.Status.Readiness.LastDrillRanksExpected = drill.Status.RanksTotal
+	record.Status.Readiness.LastDrillRanksReported = reportedRanks
 	record.Status.Readiness.ObservedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := r.Status().Update(ctx, &record); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+// drillRanksReported turns the drill's own coverage report into the set of
+// ranks it proved.
+//
+// The drill records the ranks it could not cover, so the proof is the
+// complement of that list within the world it was launched for. The second
+// return value reports whether the drill's numbers agree with each other: a
+// drill that claims four ready ranks, reports one missing rank out of four, or
+// claims more ready ranks than there are ranks at all, has not described its
+// own coverage coherently. In that case the reported set is withheld, and the
+// assessment reports DRILL_RANK_COVERAGE_UNREPORTED instead of picking the
+// flattering reading.
+func drillRanksReported(
+	status aevrelv1.RestoreDrillStatus,
+) ([]int32, bool) {
+	total := int(status.RanksTotal)
+	ready := int(status.RanksReady)
+	missing := status.MissingRanks
+	if total == 0 && ready == 0 && len(missing) == 0 {
+		// No coverage was reported at all. That is an absence of evidence,
+		// not full coverage.
+		return nil, true
+	}
+	if total <= 0 || ready < 0 || ready > total ||
+		ready+len(missing) != total {
+		return nil, false
+	}
+	absent := make(map[int32]struct{}, len(missing))
+	for _, rank := range missing {
+		if rank < 0 || int(rank) >= total {
+			return nil, false
+		}
+		absent[rank] = struct{}{}
+	}
+	reported := make([]int32, 0, total-len(absent))
+	for rank := 0; rank < total; rank++ {
+		if _, ok := absent[int32(rank)]; ok {
+			continue
+		}
+		reported = append(reported, int32(rank))
+	}
+	return reported, true
 }
 
 func restoreDrillRecordOutcome(

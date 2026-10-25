@@ -220,6 +220,9 @@ def _readiness(report, *, drill_digests: tuple[str, ...]):
         steps_ran=STEPS_AFTER,
         proof_ref="proof-golden-0001",
         resume_state_digests=drill_digests,
+        # The drill runs on the target world, so that is the world it proves.
+        ranks_reported=tuple(range(TARGET_WORLD)),
+        ranks_expected=TARGET_WORLD,
     )
     return assess_readiness(
         record,

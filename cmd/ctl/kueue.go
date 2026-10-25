@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/bolubo/aevrel/internal/control"
 	"github.com/bolubo/aevrel/internal/kueueadapter"
 )
 
@@ -230,6 +231,7 @@ func writeFactsText(
 	fmt.Fprintf(out, "  Fresh:         %s\n", factBoolText(facts.Fresh))
 	fmt.Fprintf(out, "  Loadable:      %s\n", factBoolText(facts.Loadable))
 	fmt.Fprintf(out, "  Movable:       %s\n", factBoolText(facts.Movable))
+	writeMovableCaveat(out, facts)
 	fmt.Fprintf(out, "  ObservedAt:    %s\n", emptyDash(facts.ObservedAt))
 	fmt.Fprintf(out, "  RestoreMode:   %s\n", emptyDash(facts.RestoreMode))
 	if facts.RestoreReasonCode != "" {
@@ -287,6 +289,35 @@ func factBoolText(value *bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+func slicesContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+// writeMovableCaveat prints the qualifier that keeps `movable: true` from
+// reading as a migration guarantee. movable is a two-field check (source
+// complete, target world size positive); it says nothing about mesh,
+// placement or format compatibility, and the field alone never will.
+func writeMovableCaveat(out io.Writer, facts kueueadapter.CheckpointFacts) {
+	if facts.Movable == nil || !*facts.Movable {
+		return
+	}
+	fmt.Fprintln(
+		out,
+		"  (movable is a coarse filter, not a topology verdict: mesh, placement and format compatibility are unverified)",
+	)
+	if slicesContains(facts.ReasonCodes, control.ReasonTargetTopologyUnverified) {
+		fmt.Fprintln(
+			out,
+			"  (the target world size differs from the source's rank count; run a real topology check before migrating)",
+		)
+	}
 }
 
 func factRTOSecondsText(value *int64) string {

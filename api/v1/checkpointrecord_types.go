@@ -49,11 +49,13 @@ type CheckpointReadinessStatus struct {
 	// LastDrill actually ran. Zero means the drill reported no step count,
 	// which is not the same as "it ran none".
 	LastDrillSteps int32 `json:"lastDrillSteps,omitempty"`
-	// LastDrillRanksReady and LastDrillRanksTotal record the drill's rank
-	// coverage, so "every rank was verified" is a stored fact instead of an
-	// assumption about how the drill job was configured.
-	LastDrillRanksReady int32 `json:"lastDrillRanksReady,omitempty"`
-	LastDrillRanksTotal int32 `json:"lastDrillRanksTotal,omitempty"`
+	// LastDrillRanksReported and LastDrillRanksExpected record the drill's
+	// rank coverage, so "every rank was verified" is a stored fact instead of
+	// an assumption about how the drill job was configured. The identities,
+	// not just a count, let a later assessment name the ranks that are
+	// missing.
+	LastDrillRanksReported []int32 `json:"lastDrillRanksReported,omitempty"`
+	LastDrillRanksExpected int32   `json:"lastDrillRanksExpected,omitempty"`
 	// StateComplete reports the resume-state closure as observed by the
 	// agents. It is a pointer so "no agent reported closure evidence" stays
 	// distinguishable from "the closure is incomplete".

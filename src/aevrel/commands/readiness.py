@@ -297,15 +297,15 @@ def _load_drill_outcome(
     # Rank coverage is counted against the checkpoint's own inventory, so a
     # rank that reported success but is not part of this checkpoint cannot
     # inflate it.
-    ranks_ready = sum(
-        1
+    ranks_reported = sorted(
+        payload["rank"]
         for payload in reports
         if payload["rank"] in expected
         and payload["ok"]
         and payload["modelLoaded"]
         and payload["optimizerLoaded"]
     )
-    ranks_total = len(expected)
+    ranks_expected = len(expected)
     if details:
         return DrillOutcome(
             phase="Failed",
@@ -314,8 +314,8 @@ def _load_drill_outcome(
             proof_ref=proof_ref,
             detail="; ".join(details),
             resume_state_digests=tuple(digests),
-            ranks_ready=ranks_ready,
-            ranks_total=ranks_total,
+            ranks_reported=tuple(ranks_reported),
+            ranks_expected=ranks_expected,
             checkpoint_version=record.version,
             checkpoint_metadata_digest=record.metadata_digest,
         )
@@ -325,8 +325,8 @@ def _load_drill_outcome(
         steps_ran=steps_ran,
         proof_ref=proof_ref,
         resume_state_digests=tuple(digests),
-        ranks_ready=ranks_ready,
-        ranks_total=ranks_total,
+        ranks_reported=tuple(ranks_reported),
+        ranks_expected=ranks_expected,
         checkpoint_version=record.version,
         checkpoint_metadata_digest=record.metadata_digest,
     )

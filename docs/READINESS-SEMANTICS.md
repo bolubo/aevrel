@@ -150,24 +150,32 @@ Rules:
 
 ## Evidence source and invalidation
 
-A published fact is only as good as the evidence under it and as the rule that
-withdraws it. This table names both, per field:
+A published fact is only as good as the evidence under it, as the component
+that produces that evidence, and as the rule that withdraws it. Every field
+therefore carries all three. A row that cannot name its producer is a field
+nobody is accountable for, which is how a `null` silently becomes a `true`:
 
-| Field | Evidence required | What invalidates it |
-| --- | --- | --- |
-| `complete` | an inventory listing every expected rank and shard | a rank or shard absent from a later scan (`RANK_MISSING`, `SHARD_MISSING`, `SHARD_TRUNCATED`) |
-| `fresh` | a **content timestamp** within `max_age` | content older than `max_age` (`STALE`); no timestamp at all |
-| `loadable` | a drill that succeeded, ran at least `MIN_DRILL_STEPS` training steps, covered every expected rank, and was produced for **this** checkpoint's version and metadata digest | drill failed (`DRILL_FAILED`); step count below the minimum (`DRILL_STEPS_MISSING`); `ranks_ready < ranks_total` (`DRILL_RANK_COVERAGE_INCOMPLETE`); record moved to another version or digest (`DRILL_PROOF_STALE`); manifest bound to another checkpoint (`RESUME_MANIFEST_INVALID`); drill restored a different manifest than the closure describes (`RESUME_COMPONENT_DIGEST_MISMATCH`); gate requested and closure incomplete (`STATE_CLOSURE_INCOMPLETE`) |
-| `movable` | source `complete` and a positive target world size | source incomplete or target world size not positive (`TARGET_BLOCKED`) |
-| `state_complete` | a closure verdict for one manifest, anchored to the manifest a drill restored | manifest describes another checkpoint (`RESUME_MANIFEST_INVALID`); no evidence at all (`null`, never `false`) |
+| Field | Produced by | Evidence required | What invalidates it |
+| --- | --- | --- | --- |
+| `complete` | the provider inventory scan (`dcp` / `lrs` scanner, written to `status.ranks`) | an inventory listing every expected rank and shard | a rank or shard absent from a later scan (`RANK_MISSING`, `SHARD_MISSING`, `SHARD_TRUNCATED`) |
+| `fresh` | the checkpoint provider's content timestamp (`created_at`, else filesystem `latest_mtime`) | a **content timestamp** within `max_age` | content older than `max_age` (`STALE`); no timestamp at all |
+| `loadable` | the restore drill (`RestoreDrill` → `lastDrill*` on the record), judged by `AssessReadiness` | a drill that succeeded, ran at least `MIN_DRILL_STEPS` training steps, **named every expected rank**, and was produced for **this** checkpoint's version and metadata digest | drill failed (`DRILL_FAILED`); step count below the minimum (`DRILL_STEPS_MISSING`); fewer ranks named than the inventory covers (`DRILL_RANK_COVERAGE_INCOMPLETE`); no ranks named, or ranks with no world to measure them against (`DRILL_RANK_COVERAGE_UNREPORTED`); record moved to another version or digest (`DRILL_PROOF_STALE`); manifest bound to another checkpoint (`RESUME_MANIFEST_INVALID`); drill restored a different manifest than the closure describes (`RESUME_COMPONENT_DIGEST_MISMATCH`); gate requested and closure incomplete (`STATE_CLOSURE_INCOMPLETE`) |
+| `movable` | the control plane, from `complete` plus `spec.target.worldSize` | source `complete` and a positive target world size | source incomplete or target world size not positive (`TARGET_BLOCKED`) |
+| `state_complete` | the resume-state manifest classifier (CLI `aevrel verify`, or the agent pointed at one manifest) | a closure verdict for one manifest, anchored to the manifest a drill restored | manifest describes another checkpoint (`RESUME_MANIFEST_INVALID`); no evidence at all (`null`, never `false`) |
 
-Two consequences are deliberate:
+Three consequences are deliberate:
 
 - **A success flag is not evidence.** `succeeded=true` is the drill's own
   claim; the step count, the rank coverage and the checkpoint identity are
   what turn it into a fact. A drill that loaded the bytes and stopped
   (zero steps) or that covered half the world proves that those bytes load,
   not that training resumes, so `loadable` is withdrawn rather than rounded up.
+- **A drill that says nothing has proved nothing.** Rank coverage is carried
+  as the ranks the drill actually restored (`ranks_reported`) against the world
+  it was launched for (`ranks_expected`), not as a pair of counters. When the
+  drill names no rank, the verdict is `DRILL_RANK_COVERAGE_UNREPORTED` — not
+  "0 of N", which would report a restore failure the evidence never showed.
+  Silence has never been coverage.
 - **Evidence can expire without the checkpoint changing.** Every drill fact is
   bound to `(version, metadata digest)`. When the record moves to a newer
   checkpoint, the old proof stops supporting the new one even though it was

@@ -76,8 +76,8 @@ def _drill(**overrides) -> DrillOutcome:
         "steps_ran": 10,
         "proof_ref": "proof://drill/1",
         "resume_state_digests": (_manifest().compute_digest(),),
-        "ranks_ready": 2,
-        "ranks_total": 2,
+        "ranks_reported": (0, 1),
+        "ranks_expected": 2,
         "checkpoint_version": "step-100",
         "checkpoint_metadata_digest": DIGEST,
     }
@@ -117,26 +117,55 @@ def test_partial_rank_coverage_is_withdrawn() -> None:
     result = assess_readiness(
         _record(),
         now=NOW,
-        drill=_drill(ranks_ready=1, ranks_total=2),
+        drill=_drill(ranks_reported=(0,)),
     )
     assert result.status == ReadinessStatus.TARGET_BLOCKED
     assert result.loadable is False
     reasons = {reason.code: reason.detail for reason in result.reasons}
-    assert "1 of 2 ranks" in reasons[
+    assert "covered 1 of 2 ranks, missing ranks [1]" in reasons[
         ReasonCode.DRILL_RANK_COVERAGE_INCOMPLETE.value
     ]
 
 
-def test_unreported_coverage_does_not_invent_a_failure() -> None:
-    # Zero means "the drill reported no coverage", which is not a claim of
-    # partial coverage. It must not be read as 0 of N.
+def test_half_of_a_four_rank_world_is_withdrawn() -> None:
+    # The DoD states this case as "2 of 4": half a world is not a checkpoint.
+    result = assess_readiness(
+        _record(ranks=4),
+        now=NOW,
+        drill=_drill(ranks_reported=(0, 1), ranks_expected=4),
+    )
+    assert result.status == ReadinessStatus.TARGET_BLOCKED
+    assert result.loadable is False
+    reasons = {reason.code: reason.detail for reason in result.reasons}
+    assert "covered 2 of 4 ranks, missing ranks [2 3]" in reasons[
+        ReasonCode.DRILL_RANK_COVERAGE_INCOMPLETE.value
+    ]
+
+
+def test_unreported_coverage_is_withdrawn() -> None:
+    # Silence is not coverage. A drill that names no rank used to fall through
+    # the gate and leave loadable=True; it must now withdraw the claim, and it
+    # must not be dressed up as a partial restore either.
     result = assess_readiness(
         _record(),
         now=NOW,
-        drill=_drill(ranks_ready=0, ranks_total=0),
+        drill=_drill(ranks_reported=(), ranks_expected=0),
     )
-    assert result.status == ReadinessStatus.READY
-    assert result.loadable is True
+    assert result.status == ReadinessStatus.TARGET_BLOCKED
+    assert result.loadable is False
+    codes = _codes(result)
+    assert ReasonCode.DRILL_RANK_COVERAGE_UNREPORTED.value in codes
+    assert ReasonCode.DRILL_RANK_COVERAGE_INCOMPLETE.value not in codes
+
+
+def test_coverage_without_a_world_is_unproven() -> None:
+    result = assess_readiness(
+        _record(ranks=0),
+        now=NOW,
+        drill=_drill(ranks_reported=(0,), ranks_expected=0),
+    )
+    assert result.status == ReadinessStatus.TARGET_BLOCKED
+    assert ReasonCode.DRILL_RANK_COVERAGE_UNREPORTED.value in _codes(result)
 
 
 def test_proof_for_another_version_is_stale_not_failed() -> None:

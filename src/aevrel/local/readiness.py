@@ -300,13 +300,64 @@ def _drill_evidence_gap(
             f"restore drill ran {drill.steps_ran} training steps, at least "
             f"{MIN_DRILL_STEPS} are required",
         )
-    if drill.ranks_total > 0 and drill.ranks_ready < drill.ranks_total:
+    return _rank_coverage_gap(record, drill)
+
+
+def _rank_coverage_gap(record, drill) -> Reason | None:
+    """Report why the drill's rank coverage does not support loadable=True.
+
+    Three answers, and they are deliberately different facts:
+
+    - the drill named no rank: coverage is *unreported*
+      (DRILL_RANK_COVERAGE_UNREPORTED). Absence is not zero, and it is
+      certainly not "all ranks". This branch is checked first on purpose:
+      measuring a silent drill against the inventory would report "covered 0
+      of 4", which asserts that the drill ran and proved nothing - a fact we
+      do not have;
+    - the drill covered fewer ranks than the checkpoint has: the restore was
+      partial (DRILL_RANK_COVERAGE_INCOMPLETE), and the missing ranks are
+      named so an operator can act on them;
+    - the drill covered every expected rank: no gap.
+    """
+    if not drill.ranks_reported:
+        return Reason(
+            ReasonCode.DRILL_RANK_COVERAGE_UNREPORTED.value,
+            "restore drill reported no rank coverage, so full coverage is "
+            "unproven",
+        )
+    reported = set(drill.ranks_reported)
+    # The checkpoint's own rank inventory is authoritative when present: a
+    # drill can only be judged against the world the checkpoint actually has.
+    if record.ranks:
+        expected = sorted(rank.rank for rank in record.ranks)
+    else:
+        expected = list(range(drill.ranks_expected))
+    if not expected:
+        # The drill named ranks but no world size, and the record carries no
+        # inventory: there is nothing to measure completeness against, so the
+        # claim stays unproven instead of being rounded up.
+        return Reason(
+            ReasonCode.DRILL_RANK_COVERAGE_UNREPORTED.value,
+            f"restore drill reported ranks {_rank_list(drill.ranks_reported)} "
+            "but no expected world size, so full coverage is unproven",
+        )
+    missing = [rank for rank in expected if rank not in reported]
+    if missing:
         return Reason(
             ReasonCode.DRILL_RANK_COVERAGE_INCOMPLETE.value,
-            f"restore drill covered {drill.ranks_ready} of "
-            f"{drill.ranks_total} ranks",
+            f"restore drill covered {len(expected) - len(missing)} of "
+            f"{len(expected)} ranks, missing ranks {_rank_list(missing)}",
         )
     return None
+
+
+def _rank_list(ranks) -> str:
+    """Render a rank set the way the Go side does (`[0 2 3]`).
+
+    The verdict is published by both implementations, so the two must not
+    disagree on how the same evidence is described.
+    """
+    return "[" + " ".join(str(rank) for rank in ranks) + "]"
 
 
 def _manifest_identity_mismatch(record, manifest) -> str | None:

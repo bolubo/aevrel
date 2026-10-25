@@ -2,6 +2,7 @@ package control
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -44,8 +45,8 @@ func evidenceDrill() DrillOutcome {
 		Succeeded:                true,
 		StepsRan:                 10,
 		ProofRef:                 "proof://drill/1",
-		RanksReady:               2,
-		RanksTotal:               2,
+		RanksReported:            []int{0, 1},
+		RanksExpected:            2,
 		CheckpointVersion:        "step-100",
 		CheckpointMetadataDigest: evidenceDigest,
 	}
@@ -106,9 +107,32 @@ func TestSuccessWithoutStepsIsWithdrawn(t *testing.T) {
 
 func TestPartialRankCoverageIsWithdrawn(t *testing.T) {
 	drill := evidenceDrill()
-	drill.RanksReady = 1
+	drill.RanksReported = []int{0}
 	result := AssessReadiness(ReadinessInput{
 		Record: evidenceRecord(2),
+		Now:    evidenceNow(),
+		Drill:  &drill,
+	})
+	if result.Status != ReadinessTargetBlocked {
+		t.Fatalf("status = %q", result.Status)
+	}
+	if result.Loadable == nil || *result.Loadable {
+		t.Fatalf("loadable = %v", result.Loadable)
+	}
+	if !hasCode(evidenceCodes(result), ReasonDrillRankCoverageIncomplete) {
+		t.Fatalf("reasons = %v", evidenceCodes(result))
+	}
+}
+
+// The DoD states the acceptance case as "2 of 4": a drill that comes back with
+// half the world is not a restorable checkpoint, and the verdict has to name
+// the ranks the operator is missing instead of only counting them.
+func TestHalfOfAFourRankWorldIsWithdrawn(t *testing.T) {
+	drill := evidenceDrill()
+	drill.RanksReported = []int{0, 1}
+	drill.RanksExpected = 4
+	result := AssessReadiness(ReadinessInput{
+		Record: evidenceRecord(4),
 		Now:    evidenceNow(),
 		Drill:  &drill,
 	})
@@ -118,21 +142,61 @@ func TestPartialRankCoverageIsWithdrawn(t *testing.T) {
 	if !hasCode(evidenceCodes(result), ReasonDrillRankCoverageIncomplete) {
 		t.Fatalf("reasons = %v", evidenceCodes(result))
 	}
+	var detail string
+	for _, reason := range result.Reasons {
+		if reason.Code == ReasonDrillRankCoverageIncomplete {
+			detail = reason.Detail
+		}
+	}
+	if !strings.Contains(detail, "covered 2 of 4 ranks") ||
+		!strings.Contains(detail, "missing ranks [2 3]") {
+		t.Fatalf("detail = %q", detail)
+	}
 }
 
-// Zero coverage means "the drill reported none", which is not a claim of
-// partial coverage and must not be read as 0 of N.
-func TestUnreportedCoverageDoesNotInventAFailure(t *testing.T) {
+// DoD 5: a drill that names no rank has not proved coverage. Silence used to
+// fall through the gate and leave loadable=true; it must now withdraw the
+// claim rather than be read as "0 of 0, therefore fine".
+func TestUnreportedCoverageIsWithdrawn(t *testing.T) {
 	drill := evidenceDrill()
-	drill.RanksReady = 0
-	drill.RanksTotal = 0
+	drill.RanksReported = nil
+	drill.RanksExpected = 0
 	result := AssessReadiness(ReadinessInput{
 		Record: evidenceRecord(2),
 		Now:    evidenceNow(),
 		Drill:  &drill,
 	})
-	if result.Status != ReadinessReady {
+	if result.Status != ReadinessTargetBlocked {
 		t.Fatalf("status = %q (%v)", result.Status, evidenceCodes(result))
+	}
+	if result.Loadable == nil || *result.Loadable {
+		t.Fatalf("a silent drill must not leave loadable=true: %v", result.Loadable)
+	}
+	if !hasCode(evidenceCodes(result), ReasonDrillRankCoverageUnreported) {
+		t.Fatalf("reasons = %v", evidenceCodes(result))
+	}
+	if hasCode(evidenceCodes(result), ReasonDrillRankCoverageIncomplete) {
+		t.Fatalf("silence must not be reported as a partial restore: %v",
+			evidenceCodes(result))
+	}
+}
+
+// A drill that names ranks but no world, against a record with no inventory,
+// gives nothing to measure completeness against. Unproven is not satisfied.
+func TestCoverageWithoutAWorldIsUnproven(t *testing.T) {
+	drill := evidenceDrill()
+	drill.RanksReported = []int{0}
+	drill.RanksExpected = 0
+	result := AssessReadiness(ReadinessInput{
+		Record: evidenceRecord(0),
+		Now:    evidenceNow(),
+		Drill:  &drill,
+	})
+	if result.Status != ReadinessTargetBlocked {
+		t.Fatalf("status = %q", result.Status)
+	}
+	if !hasCode(evidenceCodes(result), ReasonDrillRankCoverageUnreported) {
+		t.Fatalf("reasons = %v", evidenceCodes(result))
 	}
 }
 
@@ -247,7 +311,7 @@ func TestDrillEvidenceGapOrderingIsExplicit(t *testing.T) {
 	drill := evidenceDrill()
 	drill.CheckpointMetadataDigest = evidenceOtherDigest
 	drill.StepsRan = 0
-	drill.RanksReady = 0
+	drill.RanksReported = nil
 	gap, ok := drillEvidenceGap(evidenceRecord(2), drill)
 	if !ok {
 		t.Fatal("expected a gap")

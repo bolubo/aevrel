@@ -311,13 +311,77 @@ func drillEvidenceGap(record CheckpointRecord, drill DrillOutcome) (Reason, bool
 			),
 		}, true
 	}
-	if drill.RanksTotal > 0 && drill.RanksReady < drill.RanksTotal {
+	return rankCoverageGap(record, drill)
+}
+
+// rankCoverageGap reports why the drill's rank coverage does not support
+// loadable=true.
+//
+// Three answers, and they are deliberately different facts:
+//
+//   - the drill named no rank: coverage is *unreported*
+//     (DRILL_RANK_COVERAGE_UNREPORTED). Absence is not zero, and it is
+//     certainly not "all ranks". This branch is checked first on purpose:
+//     measuring a silent drill against the inventory would report "covered
+//     0 of 4", which asserts that the drill ran and proved nothing — a fact
+//     we do not have;
+//   - the drill covered fewer ranks than the checkpoint has: the restore was
+//     partial (DRILL_RANK_COVERAGE_INCOMPLETE), and the missing ranks are
+//     named so an operator can act on them;
+//   - the drill covered every expected rank: no gap.
+func rankCoverageGap(record CheckpointRecord, drill DrillOutcome) (Reason, bool) {
+	if len(drill.RanksReported) == 0 {
+		return Reason{
+			Code: ReasonDrillRankCoverageUnreported,
+			Detail: "restore drill reported no rank coverage, " +
+				"so full coverage is unproven",
+		}, true
+	}
+	reported := make(map[int]struct{}, len(drill.RanksReported))
+	for _, rank := range drill.RanksReported {
+		reported[rank] = struct{}{}
+	}
+	// The checkpoint's own rank inventory is authoritative when present: a
+	// drill can only be judged against the world the checkpoint actually
+	// has. RanksExpected is the fallback for records that carry no
+	// per-rank inventory.
+	expected := make([]int, 0, len(record.Ranks))
+	for _, inventory := range record.Ranks {
+		expected = append(expected, inventory.Rank)
+	}
+	if len(expected) == 0 {
+		for rank := 0; rank < drill.RanksExpected; rank++ {
+			expected = append(expected, rank)
+		}
+	}
+	if len(expected) == 0 {
+		// The drill named ranks but no world size, and the record carries no
+		// inventory: there is nothing to measure completeness against, so
+		// the claim stays unproven instead of being rounded up.
+		return Reason{
+			Code: ReasonDrillRankCoverageUnreported,
+			Detail: fmt.Sprintf(
+				"restore drill reported ranks %v but no expected world size, "+
+					"so full coverage is unproven",
+				drill.RanksReported,
+			),
+		}, true
+	}
+	missing := make([]int, 0, len(expected))
+	for _, rank := range expected {
+		if _, ok := reported[rank]; ok {
+			continue
+		}
+		missing = append(missing, rank)
+	}
+	if len(missing) > 0 {
 		return Reason{
 			Code: ReasonDrillRankCoverageIncomplete,
 			Detail: fmt.Sprintf(
-				"restore drill covered %d of %d ranks",
-				drill.RanksReady,
-				drill.RanksTotal,
+				"restore drill covered %d of %d ranks, missing ranks %v",
+				len(expected)-len(missing),
+				len(expected),
+				missing,
 			),
 		}, true
 	}

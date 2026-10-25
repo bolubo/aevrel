@@ -4,6 +4,11 @@
     "detail": "",
     "phase": "Succeeded",
     "proof_ref": "proof-conf-0001",
+    "ranks_expected": 2,
+    "ranks_reported": [
+      0,
+      1
+    ],
     "steps_ran": 3,
     "succeeded": true
   },

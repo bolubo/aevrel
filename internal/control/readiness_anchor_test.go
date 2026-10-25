@@ -22,6 +22,8 @@ func anchorInput() ReadinessInput {
 			Phase:                 "Succeeded",
 			Succeeded:             true,
 			StepsRan:              10,
+			RanksReported:         []int{0, 1},
+			RanksExpected:         2,
 			ResumeManifestDigests: []string{anchorDigest},
 		},
 		State: &StateClosureSummary{

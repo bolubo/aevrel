@@ -24,10 +24,12 @@ func TestReadinessReadyWithDrill(t *testing.T) {
 	now := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	target := 3
 	success := DrillOutcome{
-		Phase:     "Succeeded",
-		Succeeded: true,
-		StepsRan:  10,
-		ProofRef:  "proof://drill/1",
+		Phase:         "Succeeded",
+		Succeeded:     true,
+		StepsRan:      10,
+		ProofRef:      "proof://drill/1",
+		RanksReported: []int{0, 1, 2},
+		RanksExpected: 3,
 	}
 	record := CheckpointRecord{
 		Complete:    true,

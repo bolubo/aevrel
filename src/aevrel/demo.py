@@ -170,8 +170,8 @@ def _run_dcp_demo(root: Path, spec: dict[str, Any]) -> dict[str, Any]:
             succeeded=True,
             steps_ran=steps,
             proof_ref=proof_ref,
-            ranks_ready=len(record.ranks),
-            ranks_total=len(record.ranks),
+            ranks_reported=tuple(rank.rank for rank in record.ranks),
+            ranks_expected=len(record.ranks),
             checkpoint_version=record.version,
             checkpoint_metadata_digest=record.metadata_digest,
         )

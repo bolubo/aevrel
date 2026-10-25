@@ -52,6 +52,7 @@ class ReasonCode(str, Enum):
     # checkpoint is bad".
     DRILL_STEPS_MISSING = "DRILL_STEPS_MISSING"
     DRILL_RANK_COVERAGE_INCOMPLETE = "DRILL_RANK_COVERAGE_INCOMPLETE"
+    DRILL_RANK_COVERAGE_UNREPORTED = "DRILL_RANK_COVERAGE_UNREPORTED"
     DRILL_PROOF_STALE = "DRILL_PROOF_STALE"
     TARGET_TOPOLOGY_UNVERIFIED = "TARGET_TOPOLOGY_UNVERIFIED"
 
@@ -160,11 +161,12 @@ class DrillOutcome:
     # Distinct resume-state manifest digests the drill ranks actually
     # restored. Empty means the drill produced no closure evidence.
     resume_state_digests: tuple[str, ...] = ()
-    # Rank coverage. Zero means the drill reported no coverage at all, which
-    # is not the same as full coverage: an unreported number cannot vouch for
-    # anything.
-    ranks_ready: int = 0
-    ranks_total: int = 0
+    # Rank coverage: which ranks the drill proved, and the world size it was
+    # launched for. Both empty means the drill reported no coverage at all,
+    # which is not full coverage: an unreported set cannot vouch for a world.
+    # The identities, not just a count, let a verdict name the missing ranks.
+    ranks_reported: tuple[int, ...] = ()
+    ranks_expected: int = 0
     # Identity of the checkpoint this proof was produced for. When either
     # field disagrees with the record, the proof describes some other
     # checkpoint and loadability must be withdrawn.
@@ -180,9 +182,9 @@ class DrillOutcome:
             "detail": self.detail,
             "resume_state_digests": list(self.resume_state_digests),
         }
-        if self.ranks_total:
-            payload["ranks_ready"] = self.ranks_ready
-            payload["ranks_total"] = self.ranks_total
+        if self.ranks_reported or self.ranks_expected:
+            payload["ranks_reported"] = list(self.ranks_reported)
+            payload["ranks_expected"] = self.ranks_expected
         if self.checkpoint_version:
             payload["checkpoint_version"] = self.checkpoint_version
         if self.checkpoint_metadata_digest:

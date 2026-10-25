@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/bolubo/aevrel/internal/control"
 	"github.com/bolubo/aevrel/internal/kueueadapter"
 )
 
@@ -89,5 +90,40 @@ func TestExecuteKueueStatusAndExplain(t *testing.T) {
 		if !strings.Contains(text, wanted) {
 			t.Fatalf("explain missing %q:\n%s", wanted, text)
 		}
+	}
+}
+
+// movable is a two-field check. Printing it alone is how a consumer reads it
+// as "this checkpoint will run at the target size", so the explanation carries
+// the qualifier whenever the fact is true — and the topology caveat only when
+// the assessment actually raised TARGET_TOPOLOGY_UNVERIFIED.
+func TestKueueExplainQualifiesMovable(t *testing.T) {
+	movable := true
+	var out bytes.Buffer
+	writeMovableCaveat(&out, kueueadapter.CheckpointFacts{Movable: &movable})
+	text := out.String()
+	if !strings.Contains(text, "coarse filter, not a topology verdict") {
+		t.Fatalf("movable caveat missing:/n%s", text)
+	}
+	if strings.Contains(text, "target world size differs") {
+		t.Fatalf("topology caveat must not fire without the reason code:/n%s", text)
+	}
+
+	out.Reset()
+	writeMovableCaveat(&out, kueueadapter.CheckpointFacts{
+		Movable:     &movable,
+		ReasonCodes: []string{control.ReasonTargetTopologyUnverified},
+	})
+	text = out.String()
+	if !strings.Contains(text, "target world size differs from the source's rank count") {
+		t.Fatalf("topology caveat missing:/n%s", text)
+	}
+
+	// movable=null means "not evaluated", which is neither movable nor a
+	// migration guarantee: there is nothing to qualify.
+	out.Reset()
+	writeMovableCaveat(&out, kueueadapter.CheckpointFacts{})
+	if out.Len() != 0 {
+		t.Fatalf("an unevaluated movable must print nothing:/n%s", out.String())
 	}
 }

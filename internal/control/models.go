@@ -35,6 +35,7 @@ const (
 	ReasonResumeManifestInvalid       = "RESUME_MANIFEST_INVALID"
 	ReasonDrillStepsMissing           = "DRILL_STEPS_MISSING"
 	ReasonDrillRankCoverageIncomplete = "DRILL_RANK_COVERAGE_INCOMPLETE"
+	ReasonDrillRankCoverageUnreported = "DRILL_RANK_COVERAGE_UNREPORTED"
 	ReasonDrillProofStale             = "DRILL_PROOF_STALE"
 	ReasonTargetTopologyUnverified    = "TARGET_TOPOLOGY_UNVERIFIED"
 )
@@ -92,11 +93,13 @@ type DrillOutcome struct {
 	// the drill ranks actually restored; empty means no closure evidence.
 	ResumeManifestDigests []string `json:"resume_manifest_digests,omitempty"`
 
-	// RanksReady and RanksTotal carry the drill's rank coverage. Zero means
-	// the drill reported no coverage at all, which is not the same as full
-	// coverage: an unreported number cannot vouch for anything.
-	RanksReady int `json:"ranks_ready,omitempty"`
-	RanksTotal int `json:"ranks_total,omitempty"`
+	// RanksReported lists the ranks the drill actually proved, and
+	// RanksExpected is the world size it was launched for. Both empty means
+	// the drill reported no coverage at all, which is not full coverage: an
+	// unreported set cannot vouch for a world. Carrying the identities, not
+	// just a count, is what lets a verdict name the ranks that are missing.
+	RanksReported []int `json:"ranks_reported,omitempty"`
+	RanksExpected int   `json:"ranks_expected,omitempty"`
 
 	// CheckpointVersion and CheckpointMetadataDigest name the checkpoint this
 	// proof was produced for. When either disagrees with the record, the proof

@@ -38,12 +38,19 @@ These come from comparing what the storage has with what the record expects.
 | `DRILL_MISSING` | no restore drill has verified this checkpoint | `loadable` stays `null` |
 | `DRILL_FAILED` | the drill ran and failed | `loadable: false` |
 | `DRILL_STEPS_MISSING` | the drill reports success but ran fewer than `MIN_DRILL_STEPS` training steps | `loadable: false` — loading bytes is not resuming training |
-| `DRILL_RANK_COVERAGE_INCOMPLETE` | `ranks_ready < ranks_total`: the drill did not cover the whole world | `loadable: false` — a partial restore is not a restorable checkpoint |
+| `DRILL_RANK_COVERAGE_INCOMPLETE` | the drill named ranks, but fewer than the checkpoint's inventory covers: the missing ranks are listed in the detail | `loadable: false` — a partial restore is not a restorable checkpoint |
+| `DRILL_RANK_COVERAGE_UNREPORTED` | the drill named **no** rank, or named ranks without a world size to measure them against | `loadable: false` — silence is not coverage, and it is not "0 of N" either |
 | `DRILL_PROOF_STALE` | the proof is bound to a version or metadata digest the record no longer has | `loadable: false` — the proof describes a checkpoint that is gone, which is not the same as a broken drill |
 
-The last three withdraw a claim the drill itself reported as successful. They
+The last four withdraw a claim the drill itself reported as successful. They
 exist because `succeeded=true` is the drill's assertion, not evidence: only the
 step count, the rank coverage and the checkpoint identity turn it into a fact.
+
+`DRILL_RANK_COVERAGE_UNREPORTED` is deliberately separate from
+`DRILL_RANK_COVERAGE_INCOMPLETE`. "The drill proved 2 of 4 ranks" and "the
+drill told us nothing" are different facts about the world, and an operator
+acts differently on each; collapsing the second into the first would report a
+failure the evidence never showed.
 
 ## Target readiness
 

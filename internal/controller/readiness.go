@@ -122,8 +122,8 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 		// The drill evidence describes the last drill, not this assessment,
 		// so it is carried across instead of recomputed.
 		LastDrillSteps:                 previousReadiness.LastDrillSteps,
-		LastDrillRanksReady:            previousReadiness.LastDrillRanksReady,
-		LastDrillRanksTotal:            previousReadiness.LastDrillRanksTotal,
+		LastDrillRanksReported:         previousReadiness.LastDrillRanksReported,
+		LastDrillRanksExpected:         previousReadiness.LastDrillRanksExpected,
 		EstimatedRTOSeconds:            readiness.EstimatedRTOSeconds,
 		LastDrill:                      readiness.LastDrill,
 		LastDrillVersion:               lastDrillVersion,
@@ -288,8 +288,8 @@ func controlDrill(
 		Phase:                 phase,
 		Succeeded:             *readiness.Loadable,
 		StepsRan:              int(readiness.LastDrillSteps),
-		RanksReady:            int(readiness.LastDrillRanksReady),
-		RanksTotal:            int(readiness.LastDrillRanksTotal),
+		RanksReported:         controlRanksReported(readiness.LastDrillRanksReported),
+		RanksExpected:         int(readiness.LastDrillRanksExpected),
 		ProofRef:              readiness.LastDrill,
 		ResumeManifestDigests: digests,
 		// The proof was produced for the checkpoint the drill saw, not for
@@ -298,6 +298,17 @@ func controlDrill(
 		CheckpointVersion:        readiness.LastDrillVersion,
 		CheckpointMetadataDigest: readiness.LastDrillDigest,
 	}
+}
+
+func controlRanksReported(ranks []int32) []int {
+	if len(ranks) == 0 {
+		return nil
+	}
+	reported := make([]int, 0, len(ranks))
+	for _, rank := range ranks {
+		reported = append(reported, int(rank))
+	}
+	return reported
 }
 
 // controlDrillForRecord passes the drill's own identity through unchanged.

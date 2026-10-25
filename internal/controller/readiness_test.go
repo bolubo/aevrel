@@ -109,13 +109,13 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 				Bytes: 16,
 			}},
 			Readiness: aevrelv1.CheckpointReadinessStatus{
-				Loadable:            &loadable,
-				LastDrill:           "default/drill",
-				LastDrillVersion:    "step-100",
-				LastDrillDigest:     "sha256:test",
-				LastDrillSteps:      3,
-				LastDrillRanksReady: 1,
-				LastDrillRanksTotal: 1,
+				Loadable:               &loadable,
+				LastDrill:              "default/drill",
+				LastDrillVersion:       "step-100",
+				LastDrillDigest:        "sha256:test",
+				LastDrillSteps:         3,
+				LastDrillRanksReported: []int32{0},
+				LastDrillRanksExpected: 1,
 			},
 		},
 	}
@@ -153,10 +153,12 @@ func TestCheckpointReadinessReconcilerPreservesMatchingDrillEvidence(t *testing.
 		t.Fatalf("drill evidence = %+v", got.Status.Readiness)
 	}
 	// The step and rank evidence decides whether the drill counts at all, so
-	// it has to survive the round trip through the API.
+	// it has to survive the round trip through the API. The rank identities
+	// travel, not a count: a verdict has to be able to name the missing ranks.
 	if got.Status.Readiness.LastDrillSteps != 3 ||
-		got.Status.Readiness.LastDrillRanksReady != 1 ||
-		got.Status.Readiness.LastDrillRanksTotal != 1 {
+		len(got.Status.Readiness.LastDrillRanksReported) != 1 ||
+		got.Status.Readiness.LastDrillRanksReported[0] != 0 ||
+		got.Status.Readiness.LastDrillRanksExpected != 1 {
 		t.Fatalf("drill coverage = %+v", got.Status.Readiness)
 	}
 }
@@ -600,13 +602,13 @@ func TestControlDrillUsesReferenceAndOutcome(t *testing.T) {
 func TestControlDrillCarriesProvenIdentity(t *testing.T) {
 	ready := true
 	status := aevrelv1.CheckpointReadinessStatus{
-		Loadable:            &ready,
-		LastDrill:           "default/restore-drill",
-		LastDrillVersion:    "step-100",
-		LastDrillDigest:     "sha256:old",
-		LastDrillSteps:      3,
-		LastDrillRanksReady: 4,
-		LastDrillRanksTotal: 4,
+		Loadable:               &ready,
+		LastDrill:              "default/restore-drill",
+		LastDrillVersion:       "step-100",
+		LastDrillDigest:        "sha256:old",
+		LastDrillSteps:         3,
+		LastDrillRanksReported: []int32{0, 1, 2, 3},
+		LastDrillRanksExpected: 4,
 	}
 	drill := controlDrillForRecord(status, "step-100", "sha256:new")
 	if drill == nil {
@@ -619,7 +621,9 @@ func TestControlDrillCarriesProvenIdentity(t *testing.T) {
 		drill.CheckpointMetadataDigest != "sha256:old" {
 		t.Fatalf("identity not carried: %+v", drill)
 	}
-	if drill.StepsRan != 3 || drill.RanksReady != 4 || drill.RanksTotal != 4 {
+	if drill.StepsRan != 3 ||
+		len(drill.RanksReported) != 4 ||
+		drill.RanksExpected != 4 {
 		t.Fatalf("coverage not carried: %+v", drill)
 	}
 }
@@ -629,11 +633,13 @@ func TestControlDrillCarriesProvenIdentity(t *testing.T) {
 func TestControlDrillRejectsStaleCheckpointEvidence(t *testing.T) {
 	ready := true
 	status := aevrelv1.CheckpointReadinessStatus{
-		Loadable:         &ready,
-		LastDrill:        "default/restore-drill",
-		LastDrillVersion: "step-100",
-		LastDrillDigest:  "sha256:old",
-		LastDrillSteps:   3,
+		Loadable:               &ready,
+		LastDrill:              "default/restore-drill",
+		LastDrillVersion:       "step-100",
+		LastDrillDigest:        "sha256:old",
+		LastDrillSteps:         3,
+		LastDrillRanksReported: []int32{0},
+		LastDrillRanksExpected: 1,
 	}
 	drill := controlDrillForRecord(status, "step-100", "sha256:new")
 	readiness := control.AssessReadiness(control.ReadinessInput{

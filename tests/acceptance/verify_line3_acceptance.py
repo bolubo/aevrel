@@ -45,6 +45,7 @@ GO_CONFORMANCE_TEST = ROOT / "internal" / "control" / "readiness_conformance_tes
 EVIDENCE_REASONS = (
     "DRILL_STEPS_MISSING",
     "DRILL_RANK_COVERAGE_INCOMPLETE",
+    "DRILL_RANK_COVERAGE_UNREPORTED",
     "DRILL_PROOF_STALE",
     "RESUME_MANIFEST_INVALID",
     "TARGET_TOPOLOGY_UNVERIFIED",
@@ -55,10 +56,16 @@ EVIDENCE_REASONS = (
 EVIDENCE_FIXTURES = (
     "drill-steps-missing",
     "drill-rank-coverage-incomplete",
+    "drill-rank-coverage-unreported",
     "proof-stale",
     "manifest-identity-mismatch",
     "target-topology-unverified",
 )
+
+# Every readiness field has to name the component that produces its evidence,
+# the evidence itself, and the rule that withdraws it. Field names here are the
+# published JSON names, so a rename in the model surfaces as a doc failure.
+EVIDENCE_FIELDS = ("complete", "fresh", "loadable", "movable", "state_complete")
 
 
 def read(path: Path) -> str:
@@ -82,20 +89,41 @@ def check_min_drill_steps(errors: list[str]) -> None:
 
 
 def check_rank_coverage(errors: list[str]) -> None:
-    """Every expected rank must be covered; one rank is not a world."""
-    if "RanksReady" not in read(GO_MODELS):
-        errors.append("DrillOutcome carries no rank coverage")
-    if "drill.RanksTotal > 0 && drill.RanksReady < drill.RanksTotal" not in read(
-        GO_READINESS
-    ):
-        errors.append("the Go assessment does not compare ready and total ranks")
-    if "ranks_ready" not in read(PY_MODELS):
-        errors.append("the Python drill outcome carries no rank coverage")
-    if "drill.ranks_ready < drill.ranks_total" not in read(PY_READINESS):
-        errors.append("the Python assessment does not compare ready and total ranks")
+    """Every expected rank must be covered; one rank is not a world.
+
+    Three answers matter and the gate must keep them apart: the drill named
+    fewer ranks than the checkpoint has (a partial restore), the drill named no
+    rank at all (no evidence), and the drill named every rank (no gap).
+    """
+    go_models = read(GO_MODELS)
+    if "RanksReported []int" not in go_models:
+        errors.append("DrillOutcome carries no rank identities")
+    if "RanksExpected int" not in go_models:
+        errors.append("DrillOutcome carries no expected world size")
+    go = read(GO_READINESS)
+    if "if len(drill.RanksReported) == 0 {" not in go:
+        errors.append("the Go assessment does not treat a silent drill as unproven")
+    if "ReasonDrillRankCoverageUnreported" not in go:
+        errors.append("the Go assessment never reports unreported coverage")
+    if "missing ranks %v" not in go:
+        errors.append("the Go assessment does not name the missing ranks")
+    py_models = read(PY_MODELS)
+    if "ranks_reported: tuple[int, ...]" not in py_models:
+        errors.append("the Python drill outcome carries no rank identities")
+    if "ranks_expected: int" not in py_models:
+        errors.append("the Python drill outcome carries no expected world size")
+    py = read(PY_READINESS)
+    if "if not drill.ranks_reported:" not in py:
+        errors.append("the Python assessment does not treat a silent drill as unproven")
+    if "DRILL_RANK_COVERAGE_UNREPORTED" not in py:
+        errors.append("the Python assessment never reports unreported coverage")
+    if "missing ranks" not in py:
+        errors.append("the Python assessment does not name the missing ranks")
     controller = read(ROOT / "src" / "aevrel" / "commands" / "readiness.py")
     if "missing drill reports for ranks" not in controller:
         errors.append("the drill report aggregator accepts a partial world")
+    if "ranks_reported = sorted(" not in controller:
+        errors.append("the drill report aggregator drops the rank identities")
 
 
 def check_proof_invalidation(errors: list[str]) -> None:
@@ -109,7 +137,11 @@ def check_proof_invalidation(errors: list[str]) -> None:
     if "DRILL_PROOF_STALE" not in py:
         errors.append("the Python assessment never reports DRILL_PROOF_STALE")
     api = read(GO_API)
-    for field in ("LastDrillSteps", "LastDrillRanksReady", "LastDrillRanksTotal"):
+    for field in (
+        "LastDrillSteps",
+        "LastDrillRanksReported",
+        "LastDrillRanksExpected",
+    ):
         if field not in api:
             errors.append(f"the persisted readiness status lacks {field}")
     # The proof identity has to survive on the record, or the staleness check
@@ -161,15 +193,28 @@ def check_fail_closed_status(errors: list[str]) -> None:
 
 
 def check_movable_is_coarse(errors: list[str]) -> None:
-    """movable is a coarse filter, and every surface has to say so."""
+    """movable is a coarse filter, and every surface has to say so.
+
+    Three surfaces publish it — the semantics page, the v1 contract and the
+    `kueue explain` output — and a consumer reads whichever one it finds
+    first. One surface describing a migration guarantee is enough to undo the
+    other two.
+    """
     if "ReasonTargetTopologyUnverified" not in read(GO_READINESS):
         errors.append("the Go assessment attaches no topology caveat")
     if "TARGET_TOPOLOGY_UNVERIFIED" not in read(PY_READINESS):
         errors.append("the Python assessment attaches no topology caveat")
     if "coarse" not in read(PY_CLI):
         errors.append("the CLI does not label movable as a coarse check")
-    if "coarse filter" not in read(SEMANTICS):
+    semantics = read(SEMANTICS)
+    if "coarse filter" not in semantics:
         errors.append("the semantics page does not label movable as a coarse filter")
+    contract = read(CONTRACT)
+    if "coarse filter, not a topology verdict" not in contract:
+        errors.append("the v1 contract does not qualify movable as a coarse filter")
+    go_cli = read(ROOT / "cmd" / "ctl" / "kueue.go")
+    if "coarse filter, not a topology verdict" not in go_cli:
+        errors.append("kueue explain does not qualify movable as a coarse filter")
 
 
 def check_conformance_gate(errors: list[str]) -> None:
@@ -196,6 +241,44 @@ def check_shared_fixtures(errors: list[str]) -> None:
     py_test = read(PY_CONFORMANCE_TEST)
     if "assert python_codes - go_codes == set()" not in py_test:
         errors.append("no machine check that the reason-code sets agree")
+
+
+def check_evidence_provenance(errors: list[str]) -> None:
+    """Each readiness field must name its producer, not only its evidence.
+
+    A field whose producer is unnamed is a field nobody owns; that is exactly
+    how an unset value quietly becomes a safe one.
+    """
+    semantics = read(SEMANTICS)
+    rows = [
+        line
+        for line in semantics.splitlines()
+        if line.startswith("| `") and line.rstrip().endswith("|")
+    ]
+    by_field: dict[str, list[str]] = {}
+    for line in rows:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if not cells or not cells[0].startswith("`"):
+            continue
+        by_field[cells[0].strip("`")] = cells
+    for field in EVIDENCE_FIELDS:
+        cells = by_field.get(field)
+        if cells is None:
+            errors.append(f"the semantics table does not document {field}")
+            continue
+        if len(cells) != 4:
+            errors.append(
+                f"{field} has {len(cells)} columns; producer, evidence and "
+                "invalidation are all required"
+            )
+            continue
+        producer, evidence, invalidates = cells[1], cells[2], cells[3]
+        if not producer or producer.lower().startswith("unknown"):
+            errors.append(f"{field} does not name the component that produces it")
+        if not evidence:
+            errors.append(f"{field} does not state the evidence it requires")
+        if not invalidates:
+            errors.append(f"{field} does not state what invalidates it")
 
 
 def check_documentation(errors: list[str]) -> None:
@@ -260,6 +343,7 @@ def main() -> int:
         ("movable is coarse", check_movable_is_coarse),
         ("conformance gate", check_conformance_gate),
         ("shared fixtures", check_shared_fixtures),
+        ("evidence provenance", check_evidence_provenance),
         ("documentation", check_documentation),
         ("reason code declarations", check_reason_codes_are_declared),
         ("registrations", check_registrations),

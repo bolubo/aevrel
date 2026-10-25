@@ -11,6 +11,11 @@
   produced for another version or metadata digest is reported as
   `DRILL_PROOF_STALE` instead of being conflated with a failed drill. See
   [docs/READINESS-SEMANTICS.md](docs/READINESS-SEMANTICS.md).
+- Rank coverage is carried as identities, not a count: a drill reports
+  `ranks_reported` against `ranks_expected`, so a verdict can name the ranks
+  that did not come back instead of only counting them. A drill that reports
+  **no** rank at all is `DRILL_RANK_COVERAGE_UNREPORTED`: silence is not
+  coverage, and it is no longer read as "0 of 0, therefore fine".
 - The manifest identity anchor (`RESUME_MANIFEST_INVALID`) is enforced on the Go
   side as well: agents report the `checkpoint` their manifest describes, the
   record persists it, and a complete closure for another checkpoint can no

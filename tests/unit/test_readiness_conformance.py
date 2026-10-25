@@ -79,8 +79,8 @@ def build_drill(payload: dict | None) -> DrillOutcome | None:
         proof_ref=payload.get("proof_ref", ""),
         detail=payload.get("detail", ""),
         resume_state_digests=tuple(payload.get("resume_manifest_digests", ())),
-        ranks_ready=payload.get("ranks_ready", 0),
-        ranks_total=payload.get("ranks_total", 0),
+        ranks_reported=tuple(payload.get("ranks_reported", ())),
+        ranks_expected=payload.get("ranks_expected", 0),
         checkpoint_version=payload.get("checkpoint_version", ""),
         checkpoint_metadata_digest=payload.get(
             "checkpoint_metadata_digest", ""

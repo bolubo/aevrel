@@ -67,7 +67,7 @@ it never means "fine".
 | `complete` | bool or null | the saved inventory is complete | copied from `readiness.complete` |
 | `fresh` | bool or null | the content is inside the freshness window | control plane decides; the envelope may only downgrade |
 | `loadable` | bool or null | a restore drill proved the bytes load | `null` = no verdict |
-| `movable` | bool or null | the checkpoint can move to the requested target | `null` = not evaluated |
+| `movable` | bool or null | `true` when the source is complete **and** the target world size is positive: a coarse filter, not a topology verdict | `null` = not evaluated; never claim mesh, placement or format compatibility. When the target world size differs from the source's rank count and no topology check ran, `TARGET_TOPOLOGY_UNVERIFIED` appears in `reasonCodes` while `movable` stays `true` |
 | `observedAt` | string | RFC3339 time the evidence was collected | required for record facts |
 | `source` | string | fact source, see above | required |
 | `reasonCodes` | []string | readiness reason codes, verbatim and in order | must match the readiness layer 1:1 |
