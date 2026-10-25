@@ -13,13 +13,114 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..state import ResumeStateManifest, classify_resume_state
 
-SCHEMA_VERSION = "1"
+
+SCHEMA_VERSION = "2"
+SUPPORTED_SCHEMA_VERSIONS = ("1", "2")
+RESUME_STATE_CLOSURES = ("COMPLETE", "PARTIAL", "MISSING", "MALFORMED")
 DEFAULT_REPORT_PATH = "/dev/termination-log"
 
 
 class TargetReportError(ValueError):
     """Raised when a target-ready report is incomplete or inconsistent."""
+
+
+@dataclass(frozen=True)
+class ComponentEvidence:
+    """Per-component presence as declared by the resume-state manifest."""
+
+    kind: str
+    required: bool
+    present: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "required": self.required,
+            "present": self.present,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "ComponentEvidence":
+        return cls(
+            kind=str(payload["kind"]),
+            required=bool(payload["required"]),
+            present=bool(payload["present"]),
+        )
+
+
+@dataclass(frozen=True)
+class ResumeStateEvidence:
+    """Binding of a readiness claim to one resume-state manifest.
+
+    The manifest digest is the only binding point: component digests stay in
+    the manifest, so a report can never disagree with itself.
+    """
+
+    manifest_digest: str
+    closure: str
+    components: tuple[ComponentEvidence, ...]
+
+    def __post_init__(self) -> None:
+        if not self.manifest_digest.startswith("sha256:"):
+            raise TargetReportError("resumeState.manifestDigest must be sha256")
+        if self.closure not in RESUME_STATE_CLOSURES:
+            raise TargetReportError(
+                f"unsupported resumeState closure: {self.closure}"
+            )
+
+    @classmethod
+    def from_manifest(cls, manifest: ResumeStateManifest) -> "ResumeStateEvidence":
+        """Derive evidence from a manifest, classifying it on the spot.
+
+        Deriving the closure here (instead of accepting a caller-supplied
+        value) makes a digest/closure disagreement impossible.
+        """
+        report = classify_resume_state(manifest.to_dict())
+        return cls(
+            manifest_digest=manifest.compute_digest(),
+            closure=report.status,
+            components=tuple(
+                ComponentEvidence(
+                    kind=component.kind,
+                    required=component.required,
+                    present=component.present,
+                )
+                for component in manifest.components
+            ),
+        )
+
+    @property
+    def complete(self) -> bool:
+        return self.closure == "COMPLETE"
+
+    def missing_required(self) -> tuple[str, ...]:
+        return tuple(
+            component.kind
+            for component in self.components
+            if component.required and not component.present
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "manifestDigest": self.manifest_digest,
+            "closure": self.closure,
+            "components": [
+                component.to_dict() for component in self.components
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "ResumeStateEvidence":
+        return cls(
+            manifest_digest=str(payload["manifestDigest"]),
+            closure=str(payload["closure"]),
+            components=tuple(
+                ComponentEvidence.from_dict(item)
+                for item in payload["components"]
+            ),
+        )
 
 
 @dataclass(frozen=True)
@@ -31,16 +132,30 @@ class TargetReadyReport:
     model_loaded: bool
     optimizer_loaded: bool
     steps_ran: int
-    state_complete: bool = False
+    state_complete: bool | None = None
+    resume_state: ResumeStateEvidence | None = None
     ok: bool = True
     error: str = ""
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        if self.state_complete is None:
+            # Derive the legacy flag instead of letting callers restate what
+            # the evidence already proves; a report without evidence can
+            # never claim completeness.
+            object.__setattr__(
+                self,
+                "state_complete",
+                (
+                    self.resume_state.complete
+                    if self.resume_state is not None
+                    else False
+                ),
+            )
         self.validate()
 
     def validate(self) -> None:
-        if self.schema_version != SCHEMA_VERSION:
+        if self.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
             raise TargetReportError(
                 f"unsupported schemaVersion: {self.schema_version}"
             )
@@ -70,9 +185,22 @@ class TargetReadyReport:
             raise TargetReportError("error must be a string")
         if self.ok and self.error:
             raise TargetReportError("ok report must not contain an error")
+        if self.schema_version == SCHEMA_VERSION:
+            if not isinstance(self.resume_state, ResumeStateEvidence):
+                raise TargetReportError(
+                    "schemaVersion 2 requires resumeState evidence"
+                )
+            if self.state_complete != self.resume_state.complete:
+                raise TargetReportError(
+                    "stateComplete disagrees with resumeState.closure"
+                )
+        elif self.resume_state is not None:
+            raise TargetReportError(
+                "schemaVersion 1 must not carry resumeState evidence"
+            )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "schemaVersion": self.schema_version,
             "migrationUID": self.migration_uid,
             "version": self.version,
@@ -85,6 +213,9 @@ class TargetReadyReport:
             "ok": self.ok,
             "error": self.error,
         }
+        if self.resume_state is not None:
+            payload["resumeState"] = self.resume_state.to_dict()
+        return payload
 
     def write(self, path: str | Path | None = None) -> Path:
         destination = resolve_report_path(path)
@@ -136,11 +267,11 @@ def write_target_ready_report(
     model_loaded: bool,
     optimizer_loaded: bool,
     steps_ran: int,
+    resume_state: ResumeStateEvidence,
     migration_uid: str | None = None,
     version: str | None = None,
     rank: int | None = None,
     role: str = "worker",
-    state_complete: bool = False,
     ok: bool = True,
     error: str = "",
     path: str | Path | None = None,
@@ -158,7 +289,8 @@ def write_target_ready_report(
         model_loaded=bool(model_loaded),
         optimizer_loaded=bool(optimizer_loaded),
         steps_ran=int(steps_ran),
-        state_complete=bool(state_complete),
+        state_complete=resume_state.complete,
+        resume_state=resume_state,
         ok=bool(ok),
         error=error,
     )
@@ -170,7 +302,8 @@ def load_target_ready_report(path: str | Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise TargetReportError("target-ready report must be a JSON object")
-    required = {
+    version = payload.get("schemaVersion")
+    base_fields = {
         "schemaVersion",
         "migrationUID",
         "version",
@@ -183,6 +316,12 @@ def load_target_ready_report(path: str | Path) -> dict[str, Any]:
         "ok",
         "error",
     }
+    if version == "1":
+        required = base_fields
+    elif version == SCHEMA_VERSION:
+        required = base_fields | {"resumeState"}
+    else:
+        raise TargetReportError(f"unsupported schemaVersion: {version!r}")
     missing = sorted(required - set(payload))
     extra = sorted(set(payload) - required)
     if missing:
@@ -202,8 +341,13 @@ def load_target_ready_report(path: str | Path) -> dict[str, Any]:
         optimizer_loaded=payload["optimizerLoaded"],
         steps_ran=payload["stepsRan"],
         state_complete=payload["stateComplete"],
+        resume_state=(
+            ResumeStateEvidence.from_dict(payload["resumeState"])
+            if version == SCHEMA_VERSION
+            else None
+        ),
         ok=payload["ok"],
         error=payload["error"],
-        schema_version=payload["schemaVersion"],
+        schema_version=version,
     )
     return report.to_dict()

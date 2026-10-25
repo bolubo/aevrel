@@ -1,14 +1,22 @@
-"""StateProvider adapter for the full TrainingState closure."""
+"""Component-granular providers for the LRS training-state closure.
+
+Each provider serves exactly one resume component (``training.model``,
+``training.optimizer``, ...) captured from a single frozen snapshot. They
+are capture-only: restoring a component set must go through
+:class:`aevrel.lrs.resume_adapter.TrainingResumeAdapter`, which rebuilds the
+training state and restores it once, so components can never be applied
+out of order or partially.
+"""
 
 from __future__ import annotations
-
-from collections.abc import Callable
 
 import numpy as np
 import torch
 
 from ..state import StateProviderError
-from .state_closure import TrainingState
+
+
+COMPONENT_FORMAT = "torch-training-component-v1"
 
 
 def _equal(left, right) -> bool:
@@ -37,7 +45,8 @@ def _equal(left, right) -> bool:
     return left == right
 
 
-def training_states_equal(left: TrainingState, right: TrainingState) -> bool:
+def training_states_equal(left, right) -> bool:
+    """Bitwise comparison of two training states."""
     return (
         _equal(left.step, right.step)
         and _equal(left.model, right.model)
@@ -49,33 +58,34 @@ def training_states_equal(left: TrainingState, right: TrainingState) -> bool:
         and _equal(left.generator, right.generator)
         and _equal(left.scaler, right.scaler)
         and _equal(left.extra, right.extra)
+        and _equal(left.consumed_samples, right.consumed_samples)
+        and _equal(left.micro_batch_size, right.micro_batch_size)
+        and _equal(left.num_microbatches, right.num_microbatches)
+        and _equal(left.grad_accum_steps, right.grad_accum_steps)
+        and _equal(left.data_loader, right.data_loader)
+        and _equal(left.rank_sampler, right.rank_sampler)
     )
 
 
-class TrainingStateProvider:
-    """Capture/restore a TrainingState into the generic state bundle."""
+class TrainingComponentProvider:
+    """Serve one component of a frozen snapshot as a bundle entry."""
 
-    name = "training.state"
-    format = "torch-training-state-v1"
-
-    def __init__(
-        self,
-        capture: Callable[[], TrainingState],
-        restore: Callable[[TrainingState], None],
-    ) -> None:
-        self._capture = capture
-        self._restore = restore
+    def __init__(self, kind: str, payload: bytes, *, prefix: str = "training") -> None:
+        if not kind:
+            raise ValueError("component kind is required")
+        self.kind = kind
+        self.name = f"{prefix}.{kind}"
+        self.format = COMPONENT_FORMAT
+        self._payload = bytes(payload)
 
     def capture(self) -> bytes:
-        return self._capture().to_bytes()
+        return self._payload
 
     def restore(self, data: bytes) -> None:
-        self._restore(TrainingState.from_bytes(bytes(data)))
+        raise StateProviderError(
+            f"component provider {self.name} is capture-only; "
+            "restore through TrainingResumeAdapter.restore_exact"
+        )
 
-    def verify(self, data: bytes) -> None:
-        expected = TrainingState.from_bytes(bytes(data))
-        actual = self._capture()
-        if not training_states_equal(expected, actual):
-            raise StateProviderError(
-                "restored training state does not match its entry"
-            )
+    def __repr__(self) -> str:
+        return f"TrainingComponentProvider({self.name!r}, {len(self._payload)} bytes)"

@@ -15,6 +15,8 @@ from .target_ready import (
     TargetReadyError,
 )
 from .target_report import (
+    ComponentEvidence,
+    ResumeStateEvidence,
     TargetReadyReport,
     TargetReportError,
     load_target_ready_report,
@@ -24,9 +26,11 @@ from .verify import VerificationError, verify
 
 __all__ = [
     "CommandTargetReady",
+    "ComponentEvidence",
     "DcpTargetReady",
     "HttpTargetReady",
     "ProofError",
+    "ResumeStateEvidence",
     "TargetReadyChain",
     "TargetReadyError",
     "TargetReadyReport",

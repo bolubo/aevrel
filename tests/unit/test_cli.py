@@ -10,6 +10,7 @@ import yaml
 from aevrel import __version__
 from aevrel.cli import main
 from aevrel.manifest import load_spec
+from aevrel.state.resume_state import parse_resume_state
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,
@@ -17,6 +18,13 @@ from tests.fixtures.generated import (
 
 EXAMPLE = (
     Path(__file__).resolve().parents[2] / "examples" / "toy-4to3" / "checkpoint.yaml"
+)
+
+RESUME_FIXTURE = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures"
+    / "resume-state"
+    / "complete.json"
 )
 
 
@@ -383,3 +391,124 @@ def test_capabilities_cli_is_machine_readable(capsys) -> None:
     assert "state-bundle" in payload["features"]
     assert "target-ready" in payload["features"]
     assert "local-tui" in payload["features"]
+
+
+def _prepare_target_for_proof(tmp_path):
+    spec, source_arrays, _ = generate_sharded_spec(
+        (8, 4),
+        (2, 2),
+        ("Shard(0)", "Shard(1)"),
+        (3, 1),
+        ("Shard(0)", "Replicate()"),
+    )
+    materialize_source_files(spec, source_arrays, tmp_path)
+    spec_path = tmp_path / "spec.yaml"
+    plan_path = tmp_path / "plan.json"
+    target_root = tmp_path / "target"
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+    assert main(["plan", "--spec", str(spec_path), "--out", str(plan_path)]) == 0
+    assert main(
+        [
+            "apply",
+            "--spec",
+            str(spec_path),
+            "--plan",
+            str(plan_path),
+            "--target-root",
+            str(target_root),
+        ]
+    ) == 0
+    return spec_path, plan_path, target_root
+
+
+def _resume_manifest_copy(tmp_path, name):
+    payload = json.loads(RESUME_FIXTURE.read_text(encoding="utf-8"))
+    path = tmp_path / name
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path, payload
+
+
+def test_proof_build_binds_the_resume_manifest_cli(tmp_path, capsys) -> None:
+    spec_path, plan_path, target_root = _prepare_target_for_proof(tmp_path)
+    resume_path, resume_payload = _resume_manifest_copy(tmp_path, "resume.json")
+    expected_digest = parse_resume_state(resume_payload).compute_digest()
+
+    proof_path = tmp_path / "proof.json"
+    assert main(
+        [
+            "proof-build",
+            "--spec",
+            str(spec_path),
+            "--plan",
+            str(plan_path),
+            "--target-root",
+            str(target_root),
+            "--resume-state",
+            str(resume_path),
+            "--out",
+            str(proof_path),
+        ]
+    ) == 0
+    proof = json.loads(proof_path.read_text(encoding="utf-8"))
+    assert proof["resume_manifest_digest"] == expected_digest
+
+    capsys.readouterr()
+    assert main(
+        [
+            "proof-verify",
+            "--proof",
+            str(proof_path),
+            "--target-root",
+            str(target_root),
+            "--plan",
+            str(plan_path),
+            "--resume-state",
+            str(resume_path),
+        ]
+    ) == 0
+    assert '"resume_bound": true' in capsys.readouterr().out
+
+
+def test_proof_verify_rejects_a_foreign_resume_manifest_cli(
+    tmp_path,
+    capsys,
+) -> None:
+    spec_path, plan_path, target_root = _prepare_target_for_proof(tmp_path)
+    resume_path, _ = _resume_manifest_copy(tmp_path, "resume.json")
+    other_path, other_payload = _resume_manifest_copy(tmp_path, "other.json")
+    other_payload["checkpoint"]["metadataDigest"] = "sha256:" + "d" * 64
+    other_path.write_text(
+        json.dumps(other_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    proof_path = tmp_path / "proof.json"
+    assert main(
+        [
+            "proof-build",
+            "--spec",
+            str(spec_path),
+            "--plan",
+            str(plan_path),
+            "--target-root",
+            str(target_root),
+            "--resume-state",
+            str(resume_path),
+            "--out",
+            str(proof_path),
+        ]
+    ) == 0
+
+    capsys.readouterr()
+    assert main(
+        [
+            "proof-verify",
+            "--proof",
+            str(proof_path),
+            "--target-root",
+            str(target_root),
+            "--resume-state",
+            str(other_path),
+        ]
+    ) == 2
+    assert "resume manifest digest mismatch" in capsys.readouterr().err

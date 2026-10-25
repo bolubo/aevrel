@@ -21,7 +21,7 @@ import (
 
 func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
 	report, err := json.Marshal(map[string]any{
-		"schemaVersion":   "1",
+		"schemaVersion":   targetready.SchemaVersion,
 		"migrationUID":    "drill-1",
 		"version":         "step-100",
 		"rank":            0,
@@ -32,6 +32,17 @@ func TestRestoreDrillReconcilerPromotesReadyRecord(t *testing.T) {
 		"stateComplete":   true,
 		"ok":              true,
 		"error":           "",
+		"resumeState": map[string]any{
+			"manifestDigest": "sha256:" + zerosDigest(),
+			"closure":        targetready.ClosureComplete,
+			"components": []map[string]any{
+				{"kind": "model", "required": true, "present": true},
+				{"kind": "optimizer", "required": true, "present": true},
+				{"kind": "global_step", "required": true, "present": true},
+				{"kind": "dataloader", "required": true, "present": true},
+				{"kind": "rng", "required": true, "present": true},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -487,8 +498,30 @@ func restoreDrillReport(
 		OptimizerLoaded: true,
 		StepsRan:        10,
 		StateComplete:   true,
-		OK:              true,
+		ResumeState: &targetready.ResumeStateEvidence{
+			ManifestDigest: "sha256:" + zerosDigest(),
+			Closure:        targetready.ClosureComplete,
+			Components:     completeComponents(),
+		},
+		OK: true,
 	}
+}
+
+func completeComponents() []targetready.ResumeComponentEvidence {
+	kinds := []string{"model", "optimizer", "global_step", "dataloader", "rng"}
+	components := make([]targetready.ResumeComponentEvidence, 0, len(kinds))
+	for _, kind := range kinds {
+		components = append(components, targetready.ResumeComponentEvidence{
+			Kind:     kind,
+			Required: true,
+			Present:  true,
+		})
+	}
+	return components
+}
+
+func zerosDigest() string {
+	return "0000000000000000000000000000000000000000000000000000000000000000"
 }
 
 func restoreDrillPod(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -24,9 +25,10 @@ from ..planning.tensor_io import (
 from ..fastkernels import merkle_root
 
 
-PROOF_VERSION = "1"
+PROOF_VERSION = "2"
 DEFAULT_LEAF_BYTES = 4 * 1024 * 1024
 PROOF_SCHEMA_PATH = resource_path("proof.schema.json")
+_RESUME_DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 class ProofError(ValueError):
@@ -57,6 +59,20 @@ def _digest_bytes(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
+def _resume_digest(value: str | None) -> str | None:
+    """Validate an optional resume-state manifest digest.
+
+    ``None`` states that the proof makes no resume-closure claim. Any other
+    value must be a canonical ``sha256:<64 hex>`` digest so a verifier can
+    compare it byte for byte against the manifest it holds.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str) or not _RESUME_DIGEST_PATTERN.fullmatch(value):
+        raise ProofError(f"invalid resume manifest digest: {value!r}")
+    return value
+
+
 def _merkle_root(digests: list[str]) -> str:
     """Fold `sha256:<hex>` digests into one root over the native kernel.
 
@@ -79,6 +95,7 @@ def _proof_root(proof: dict[str, Any]) -> str:
                 "target_files_root": proof["target_files_root"],
                 "source_root": proof["source_root"],
                 "coverage_root": proof["coverage_root"],
+                "resume_manifest_digest": proof["resume_manifest_digest"],
             }
         )
     )
@@ -101,13 +118,20 @@ def build_proof(
     source: str | None = None,
     token: str | None = None,
     target_rank: int | None = None,
+    resume_manifest_digest: str | None,
 ) -> dict[str, Any]:
     """Build a compact Merkle/coverage proof for a completed migration.
 
     A rank-scoped proof is used by a target agent that only owns one rank's
     files. Several rank proofs can be combined with :func:`combine_proofs`.
+
+    ``resume_manifest_digest`` binds the proof to one resume-state manifest.
+    It is part of the proof root, so a proof cannot be replayed for a
+    different closure. Pass ``None`` only to state that this proof makes no
+    resume-closure claim.
     """
     validate_plan(plan, spec)
+    resume_manifest_digest = _resume_digest(resume_manifest_digest)
     source_storage = StorageRouter(source_base=source, token=token)
     target_storage = FileStorage()
     target_root_path = Path(target_root).resolve()
@@ -288,6 +312,7 @@ def build_proof(
         "target_files": target_files,
         "source_root": source_root_hash,
         "coverage_root": coverage_root,
+        "resume_manifest_digest": resume_manifest_digest,
         "root": "",
         "target_leaves": ordered_targets,
         "source_leaves": ordered_sources,
@@ -309,6 +334,8 @@ def combine_proofs(proofs: list[dict[str, Any]]) -> dict[str, Any]:
 
     plan_id: str | None = None
     plan_hash: str | None = None
+    resume_manifest_digest: str | None = None
+    resume_bound = False
     target_files: list[dict[str, Any]] = []
     target_leaves: dict[tuple[str, int, int], dict[str, Any]] = {}
     source_leaves: dict[tuple[str, int, int], dict[str, Any]] = {}
@@ -326,6 +353,14 @@ def combine_proofs(proofs: list[dict[str, Any]]) -> dict[str, Any]:
             or proof["plan_hash"] != plan_hash
         ):
             raise ProofError("cannot combine proofs from different plans")
+
+        if not resume_bound:
+            resume_manifest_digest = proof["resume_manifest_digest"]
+            resume_bound = True
+        elif proof["resume_manifest_digest"] != resume_manifest_digest:
+            raise ProofError(
+                "cannot combine proofs with different resume manifest digests"
+            )
 
         for entry in proof.get("target_files", []):
             name = entry["file"]
@@ -387,6 +422,7 @@ def combine_proofs(proofs: list[dict[str, Any]]) -> dict[str, Any]:
         "coverage_root": _merkle_root(
             [_digest_bytes(_canonical(item)) for item in coverage_payload]
         ),
+        "resume_manifest_digest": resume_manifest_digest,
         "root": "",
         "target_leaves": ordered_targets,
         "source_leaves": ordered_sources,
@@ -404,13 +440,25 @@ def verify_proof(
     plan: dict[str, Any] | None = None,
     source: str | None = None,
     token: str | None = None,
+    resume_manifest_digest: str | None = None,
 ) -> dict[str, Any]:
-    """Verify target bytes from a proof; source verification is optional."""
+    """Verify target bytes from a proof; source verification is optional.
+
+    When ``resume_manifest_digest`` is given the proof must be bound to that
+    exact manifest digest, so a proof built for one closure cannot verify a
+    different one.
+    """
     validate_proof(proof)
     if proof.get("version") != PROOF_VERSION:
         raise ProofError("unsupported proof version")
     if plan is not None and _digest_bytes(_canonical(plan)) != proof.get("plan_hash"):
         raise ProofError("plan hash mismatch")
+    expected_resume = _resume_digest(resume_manifest_digest)
+    if (
+        expected_resume is not None
+        and proof.get("resume_manifest_digest") != expected_resume
+    ):
+        raise ProofError("resume manifest digest mismatch")
     target_root_path = Path(target_root).resolve()
     target_storage = FileStorage()
     target_leaves = proof.get("target_leaves")
@@ -558,19 +606,7 @@ def verify_proof(
                 )
         source_verified = True
 
-    expected_root = _digest_bytes(
-        _canonical(
-            {
-                "plan_id": proof["plan_id"],
-                "plan_hash": proof["plan_hash"],
-                "target_root": proof["target_root"],
-                "target_files_root": proof["target_files_root"],
-                "source_root": proof["source_root"],
-                "coverage_root": proof["coverage_root"],
-            }
-        )
-    )
-    if proof.get("root") != expected_root:
+    if proof.get("root") != _proof_root(proof):
         raise ProofError("proof root mismatch")
     return {
         "passed": True,
@@ -579,6 +615,7 @@ def verify_proof(
         "target_files": len(sizes_by_file),
         "source_verified": source_verified,
         "reduction_verified": source_verified,
+        "resume_bound": proof.get("resume_manifest_digest") is not None,
     }
 
 

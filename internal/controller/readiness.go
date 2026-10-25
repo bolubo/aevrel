@@ -64,6 +64,12 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 	now := time.Now().UTC()
 	lastDrillVersion := record.Status.Readiness.LastDrillVersion
 	lastDrillDigest := record.Status.Readiness.LastDrillDigest
+	resumeClosure := record.Status.Readiness.ResumeClosure
+	resumeDigest := record.Status.Readiness.ResumeManifestDigest
+	resumeCodes := append(
+		[]string(nil),
+		record.Status.Readiness.ResumeReasonCodes...,
+	)
 	modelRecord := control.CheckpointRecord{
 		Checkpoint:     record.Spec.Checkpoint,
 		Namespace:      record.Namespace,
@@ -82,30 +88,36 @@ func (r *CheckpointReadinessReconciler) Reconcile(
 		record.Spec.Version,
 		record.Status.MetadataDigest,
 	)
-	readiness := control.AssessReadiness(
-		modelRecord,
-		now,
-		control.DefaultMaxAge,
-		controlTargetWorld(record.Status.Readiness.TargetWorldSize),
-		drill,
-	)
+	readiness := control.AssessReadiness(control.ReadinessInput{
+		Record:               modelRecord,
+		Now:                  now,
+		TargetWorldSize:      controlTargetWorld(record.Status.Readiness.TargetWorldSize),
+		Drill:                drill,
+		State:                controlStateClosure(resumeClosure, resumeDigest, resumeCodes),
+		RequireStateComplete: requireStateComplete(record),
+	})
 
 	before := record.Status.DeepCopy()
 	record.Status.Complete = readiness.Complete
 	record.Status.Fresh = readiness.Fresh
 	record.Status.Readiness = aevrelv1.CheckpointReadinessStatus{
-		Status:              string(readiness.Status),
-		Complete:            readiness.Complete,
-		Fresh:               readiness.Fresh,
-		Loadable:            readiness.Loadable,
-		Movable:             readiness.Movable,
-		Reasons:             apiReasons(readiness.Reasons),
-		ObservedAt:          readiness.ObservedAt,
-		TargetWorldSize:     apiTargetWorld(readiness.TargetWorldSize),
-		EstimatedRTOSeconds: readiness.EstimatedRTOSeconds,
-		LastDrill:           readiness.LastDrill,
-		LastDrillVersion:    lastDrillVersion,
-		LastDrillDigest:     lastDrillDigest,
+		Status:               string(readiness.Status),
+		Complete:             readiness.Complete,
+		Fresh:                readiness.Fresh,
+		Loadable:             readiness.Loadable,
+		Movable:              readiness.Movable,
+		Reasons:              apiReasons(readiness.Reasons),
+		ObservedAt:           readiness.ObservedAt,
+		TargetWorldSize:      apiTargetWorld(readiness.TargetWorldSize),
+		EstimatedRTOSeconds:  readiness.EstimatedRTOSeconds,
+		LastDrill:            readiness.LastDrill,
+		LastDrillVersion:     lastDrillVersion,
+		LastDrillDigest:      lastDrillDigest,
+		StateComplete:        readiness.StateComplete,
+		ReadinessLevel:       readiness.ReadinessLevel,
+		ResumeClosure:        resumeClosure,
+		ResumeManifestDigest: resumeDigest,
+		ResumeReasonCodes:    resumeCodes,
 	}
 	status := metav1.ConditionFalse
 	reason := "NotReady"
@@ -200,6 +212,33 @@ func apiTargetWorld(value *int) *int32 {
 	return &converted
 }
 
+// controlStateClosure turns the closure evidence stored on the record into
+// the control-plane summary.
+//
+// No evidence stays nil: the assessment then reports stateComplete=nil and
+// can never claim L4, which is what keeps "the agent did not look" distinct
+// from "the agent looked and the closure is incomplete".
+func controlStateClosure(
+	closure string,
+	manifestDigest string,
+	codes []string,
+) *control.StateClosureSummary {
+	if closure == "" {
+		return nil
+	}
+	return &control.StateClosureSummary{
+		Status:         closure,
+		Closed:         closure == control.ClosureComplete,
+		Codes:          append([]string(nil), codes...),
+		ManifestDigest: manifestDigest,
+	}
+}
+
+func requireStateComplete(record aevrelv1.CheckpointRecord) bool {
+	return record.Spec.RequireStateComplete != nil &&
+		*record.Spec.RequireStateComplete
+}
+
 func controlDrill(
 	readiness aevrelv1.CheckpointReadinessStatus,
 ) *control.DrillOutcome {
@@ -210,10 +249,15 @@ func controlDrill(
 	if *readiness.Loadable {
 		phase = "Succeeded"
 	}
+	digests := []string{}
+	if readiness.LastDrillDigest != "" {
+		digests = []string{readiness.LastDrillDigest}
+	}
 	return &control.DrillOutcome{
-		Phase:     phase,
-		Succeeded: *readiness.Loadable,
-		ProofRef:  readiness.LastDrill,
+		Phase:                 phase,
+		Succeeded:             *readiness.Loadable,
+		ProofRef:              readiness.LastDrill,
+		ResumeManifestDigests: digests,
 	}
 }
 
@@ -228,10 +272,15 @@ func controlDrillForRecord(
 	}
 	if readiness.LastDrillVersion != version ||
 		readiness.LastDrillDigest != metadataDigest {
+		digests := []string{}
+		if readiness.LastDrillDigest != "" {
+			digests = []string{readiness.LastDrillDigest}
+		}
 		return &control.DrillOutcome{
-			Phase:     "Failed",
-			Succeeded: false,
-			ProofRef:  readiness.LastDrill,
+			Phase:                 "Failed",
+			Succeeded:             false,
+			ProofRef:              readiness.LastDrill,
+			ResumeManifestDigests: digests,
 			Detail: fmt.Sprintf(
 				"restore drill evidence is for version %q digest %q, current version %q digest %q",
 				readiness.LastDrillVersion,

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
@@ -15,7 +17,8 @@ from torch.distributed.checkpoint.state_dict import (
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
-from aevrel.verification import write_target_ready_report
+from aevrel.state import build_manifest
+from aevrel.verification import ResumeStateEvidence, write_target_ready_report
 
 
 class TinyModel(nn.Module):
@@ -32,6 +35,20 @@ class TinyModel(nn.Module):
             )
             output = output + self.bulk(bulk_input)[:, : output.shape[1]]
         return output
+
+
+def _state_digest(state: dict[str, object]) -> str:
+    """Digest of the state dict a target actually loaded."""
+    hasher = hashlib.sha256()
+    for key in sorted(state):
+        value = state[key]
+        hasher.update(key.encode("utf-8"))
+        if isinstance(value, torch.Tensor):
+            flattened = value.detach().to("cpu").contiguous().reshape(-1)
+            hasher.update(flattened.view(torch.uint8).numpy().tobytes())
+        else:
+            hasher.update(repr(value).encode("utf-8"))
+    return "sha256:" + hasher.hexdigest()
 
 
 def main() -> None:
@@ -108,6 +125,24 @@ def main() -> None:
             optimizer.step()
         torch.cuda.synchronize()
 
+        metadata_path = Path(args.ckpt).expanduser() / ".metadata"
+        if not metadata_path.is_file():
+            raise SystemExit(f"DCP metadata not found: {metadata_path}")
+        manifest = build_manifest(
+            checkpoint_uid=args.migration_uid,
+            version=args.version,
+            metadata_digest=(
+                "sha256:"
+                + hashlib.sha256(metadata_path.read_bytes()).hexdigest()
+            ),
+            world_size=1,
+            present={"model": "dcp", "optimizer": "dcp"},
+            digests={
+                "model": _state_digest(model_state),
+                "optimizer": _state_digest(optim_state),
+            },
+            placements=("node/rank-0",),
+        )
         payload = write_target_ready_report(
             model_loaded=True,
             optimizer_loaded=True,
@@ -115,7 +150,7 @@ def main() -> None:
             migration_uid=args.migration_uid,
             version=args.version,
             rank=0,
-            state_complete=False,
+            resume_state=ResumeStateEvidence.from_manifest(manifest),
             path=args.report_path,
         )
         print(json.dumps(payload, indent=2, sort_keys=True))

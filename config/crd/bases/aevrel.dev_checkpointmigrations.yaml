@@ -616,6 +616,7 @@ spec:
                     - InvalidJob
                     - InvalidReport
                     - Unsupported
+                    - StateClosureIncomplete
                     - ProofPublishFailed
                     type: string
                   durationMilliseconds:

@@ -25,6 +25,7 @@ from .state import (
     restore_state,
     verify_state,
 )
+from .state.resume_state import parse_resume_state
 from .dcp import DcpError, export_dcp, inspect_dcp, migrate_dcp
 from .doctor import checkpoint_doctor, doctor, environment_doctor
 from .defaults import (
@@ -156,6 +157,11 @@ def _build_parser() -> argparse.ArgumentParser:
     proof_build.add_argument("--source", required=False)
     proof_build.add_argument("--token", required=False)
     proof_build.add_argument("--target-rank", type=int, required=False)
+    proof_build.add_argument(
+        "--resume-state",
+        required=False,
+        help="bind the proof to this resume-state manifest digest",
+    )
     proof_build.add_argument("--out", required=True)
 
     proof_verify = sub.add_parser("proof-verify")
@@ -164,6 +170,11 @@ def _build_parser() -> argparse.ArgumentParser:
     proof_verify.add_argument("--plan", required=False)
     proof_verify.add_argument("--source", required=False)
     proof_verify.add_argument("--token", required=False)
+    proof_verify.add_argument(
+        "--resume-state",
+        required=False,
+        help="require the proof to be bound to this manifest digest",
+    )
 
     proof_merge = sub.add_parser("proof-merge")
     proof_merge.add_argument("--proof", action="append", required=True)
@@ -198,6 +209,11 @@ def _build_parser() -> argparse.ArgumentParser:
     agent.add_argument("--cache-bytes", type=int, default=512 * 1024 * 1024)
     agent.add_argument("--artifact-base-url", required=True)
     agent.add_argument("--proof", action="store_true")
+    agent.add_argument(
+        "--resume-state",
+        required=False,
+        help="resume-state manifest backing the target checkpoint",
+    )
     agent.add_argument(
         "--load-smoke",
         action="store_true",
@@ -414,6 +430,23 @@ def _build_parser() -> argparse.ArgumentParser:
             "all checkpoint ranks must be covered"
         ),
     )
+    readiness.add_argument(
+        "--resume-state",
+        default=None,
+        metavar="PATH",
+        help=(
+            "resume-state manifest JSON describing what this checkpoint "
+            "stores; binds the readiness verdict to one manifest"
+        ),
+    )
+    readiness.add_argument(
+        "--require-state-complete",
+        action="store_true",
+        help=(
+            "turn the assessment into an L4 claim; needs --resume-state and "
+            "a drill that restored the same manifest"
+        ),
+    )
     readiness.add_argument("--strict", action="store_true")
     readiness.add_argument("--json", action="store_true")
 
@@ -599,6 +632,7 @@ def main(argv: list[str] | None = None) -> int:
                 source=args.source,
                 token=args.token,
                 target_rank=args.target_rank,
+                resume_manifest_digest=_resume_digest_arg(args.resume_state),
             )
             Path(args.out).write_text(
                 json.dumps(proof, indent=2, sort_keys=True) + "\n",
@@ -620,6 +654,7 @@ def main(argv: list[str] | None = None) -> int:
                 plan=plan_payload,
                 source=args.source,
                 token=args.token,
+                resume_manifest_digest=_resume_digest_arg(args.resume_state),
             )
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
@@ -680,6 +715,7 @@ def main(argv: list[str] | None = None) -> int:
                 source_token=token,
                 proof_enabled=args.proof,
                 load_smoke=args.load_smoke,
+                resume_manifest_digest=_resume_digest_arg(args.resume_state),
             )
             server = build_agent_server(
                 args.listen,
@@ -691,6 +727,7 @@ def main(argv: list[str] | None = None) -> int:
                 dcp_checkpoint=args.checkpoint,
                 dcp_metadata=args.metadata,
                 target_root=args.target_root,
+                resume_state_path=args.resume_state,
                 public_url=public_url,
                 max_cache_bytes=args.cache_bytes,
                 tls_cert=args.tls_cert or None,
@@ -1293,6 +1330,19 @@ def _load_json_object(path: str) -> dict:
     if not isinstance(payload, dict):
         raise ManifestError(f"JSON document must be an object: {path}")
     return payload
+
+
+def _resume_digest_arg(path: str | None) -> str | None:
+    """Resolve an optional resume-state manifest path to its digest."""
+    if not path:
+        return None
+    payload = _load_json_object(path)
+    try:
+        return parse_resume_state(payload).compute_digest()
+    except ValueError as exc:
+        raise ManifestError(
+            f"invalid resume-state manifest {path}: {exc}"
+        ) from exc
 
 
 def _write_json(payload: dict, path: str | None) -> None:

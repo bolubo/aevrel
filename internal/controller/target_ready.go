@@ -257,12 +257,13 @@ func (r *Reconciler) reconcileTargetReady(
 			},
 		)
 	}
-	evaluation := targetready.Evaluate(
-		reports,
-		expectedRanks,
-		settings.Version,
-		settings.Steps,
-	)
+	evaluation := targetready.Evaluate(targetready.EvaluateOptions{
+		Reports:              reports,
+		ExpectedRanks:        expectedRanks,
+		Version:              settings.Version,
+		MinSteps:             settings.Steps,
+		RequireStateComplete: liveRequiresState(migration),
+	})
 	return r.finishTargetReady(
 		ctx,
 		status,
@@ -621,13 +622,6 @@ func (r *Reconciler) finishTargetReady(
 	message string,
 	evaluation targetready.Evaluation,
 ) (ctrl.Result, error) {
-	if liveRequiresState(migration) && !evaluation.StateComplete {
-		condition = "StateIncomplete"
-		message = "rank-local state closure is incomplete (L4)"
-		evaluation.Ready = false
-		evaluation.Condition = condition
-		evaluation.Message = message
-	}
 	if condition == "Ready" && !evaluation.Ready {
 		condition = "Incomplete"
 		message = "target-ready evaluation did not pass"

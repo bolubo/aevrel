@@ -20,6 +20,8 @@
     "fresh": { "type": "boolean" },
     "loadable": { "type": ["boolean", "null"] },
     "movable": { "type": ["boolean", "null"] },
+    "state_complete": { "type": ["boolean", "null"] },
+    "readiness_level": { "type": "string", "enum": ["L3", "L4"] },
     "reasons": {
       "type": "array",
       "items": {

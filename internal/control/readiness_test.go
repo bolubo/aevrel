@@ -11,7 +11,7 @@ func TestReadinessRequiresDrill(t *testing.T) {
 		Complete:    true,
 		LatestMtime: now.Add(-time.Minute).Format(time.RFC3339),
 	}
-	got := AssessReadiness(record, now, DefaultMaxAge, nil, nil)
+	got := AssessReadiness(ReadinessInput{Record: record, Now: now})
 	if got.Status != ReadinessUnverified {
 		t.Fatalf("status = %s, want %s", got.Status, ReadinessUnverified)
 	}
@@ -33,7 +33,7 @@ func TestReadinessReadyWithDrill(t *testing.T) {
 		Complete:    true,
 		LatestMtime: now.Add(-time.Minute).Format(time.RFC3339),
 	}
-	got := AssessReadiness(record, now, DefaultMaxAge, &target, &success)
+	got := AssessReadiness(ReadinessInput{Record: record, Now: now, TargetWorldSize: &target, Drill: &success})
 	if got.Status != ReadinessReady {
 		t.Fatalf("status = %s, want %s", got.Status, ReadinessReady)
 	}
@@ -55,7 +55,7 @@ func TestReadinessIncompleteWinsOverStale(t *testing.T) {
 			Detail: "rank 2 missing",
 		}},
 	}
-	got := AssessReadiness(record, now, time.Minute, nil, nil)
+	got := AssessReadiness(ReadinessInput{Record: record, Now: now, MaxAge: time.Minute})
 	if got.Status != ReadinessIncomplete {
 		t.Fatalf("status = %s, want %s", got.Status, ReadinessIncomplete)
 	}
@@ -72,7 +72,7 @@ func TestReadinessFailedDrillBlocks(t *testing.T) {
 		Succeeded: false,
 		Detail:    "target load failed",
 	}
-	got := AssessReadiness(record, now, DefaultMaxAge, nil, &failed)
+	got := AssessReadiness(ReadinessInput{Record: record, Now: now, Drill: &failed})
 	if got.Status != ReadinessTargetBlocked {
 		t.Fatalf("status = %s, want %s", got.Status, ReadinessTargetBlocked)
 	}

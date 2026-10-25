@@ -7,8 +7,11 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
+from aevrel.state import parse_resume_state
 from aevrel.verification.target_report import (
+    ResumeStateEvidence,
     TargetReportError,
     environment_rank,
     resolve_report_path,
@@ -43,10 +46,17 @@ def _parser() -> argparse.ArgumentParser:
         help="Defaults to JOB_COMPLETION_INDEX.",
     )
     parser.add_argument("--role", default="worker")
+    parser.add_argument(
+        "--resume-state",
+        required=True,
+        help=(
+            "Resume-state manifest JSON describing what the target "
+            "actually restored. The report binds to its digest."
+        ),
+    )
     parser.add_argument("--model-loaded", action="store_true")
     parser.add_argument("--optimizer-loaded", action="store_true")
     parser.add_argument("--steps-ran", type=int, required=True)
-    parser.add_argument("--state-complete", action="store_true")
     parser.add_argument("--not-ok", action="store_true")
     parser.add_argument("--error", default="")
     parser.add_argument("--quiet", action="store_true")
@@ -57,6 +67,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         rank = environment_rank() if args.rank is None else args.rank
+        manifest = parse_resume_state(
+            json.loads(
+                Path(args.resume_state).expanduser().read_text(encoding="utf-8")
+            )
+        )
         payload = write_target_ready_report(
             migration_uid=args.migration_uid,
             version=args.version,
@@ -65,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             model_loaded=args.model_loaded,
             optimizer_loaded=args.optimizer_loaded,
             steps_ran=args.steps_ran,
-            state_complete=args.state_complete,
+            resume_state=ResumeStateEvidence.from_manifest(manifest),
             ok=not args.not_ok,
             error=args.error,
             path=args.report_path,

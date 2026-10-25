@@ -25,6 +25,9 @@ const (
 	ReasonDrillFailed       = "DRILL_FAILED"
 	ReasonTargetUnspecified = "TARGET_UNSPECIFIED"
 	ReasonTargetBlocked     = "TARGET_BLOCKED"
+
+	ReasonStateClosureIncomplete = "STATE_CLOSURE_INCOMPLETE"
+	ReasonResumeDigestMismatch   = "RESUME_COMPONENT_DIGEST_MISMATCH"
 )
 
 type Reason struct {
@@ -59,6 +62,7 @@ type CheckpointRecord struct {
 	Ranks          []RankInventory `json:"ranks"`
 	ObservedAt     string          `json:"observed_at"`
 	LatestMtime    string          `json:"latest_mtime,omitempty"`
+	CreatedAt      string          `json:"created_at,omitempty"`
 	Complete       bool            `json:"complete"`
 	Reasons        []Reason        `json:"reasons,omitempty"`
 }
@@ -69,6 +73,9 @@ type DrillOutcome struct {
 	StepsRan  int    `json:"steps_ran"`
 	ProofRef  string `json:"proof_ref,omitempty"`
 	Detail    string `json:"detail,omitempty"`
+	// ResumeManifestDigests lists the distinct resume-state manifest digests
+	// the drill ranks actually restored; empty means no closure evidence.
+	ResumeManifestDigests []string `json:"resume_manifest_digests,omitempty"`
 }
 
 type CheckpointReadiness struct {
@@ -77,11 +84,14 @@ type CheckpointReadiness struct {
 	Fresh               bool            `json:"fresh"`
 	Loadable            *bool           `json:"loadable"`
 	Movable             *bool           `json:"movable"`
+	StateComplete       *bool           `json:"state_complete"`
+	ReadinessLevel      string          `json:"readiness_level,omitempty"`
 	Reasons             []Reason        `json:"reasons,omitempty"`
 	ObservedAt          string          `json:"observed_at"`
 	TargetWorldSize     *int            `json:"target_world_size,omitempty"`
 	EstimatedRTOSeconds *int64          `json:"estimated_rto_seconds,omitempty"`
 	LastDrill           string          `json:"last_drill,omitempty"`
+	LastDrillDigest     string          `json:"last_drill_digest,omitempty"`
 }
 
 type RestoreDrill struct {

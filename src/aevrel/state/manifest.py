@@ -25,6 +25,25 @@ def _digest(payload: bytes) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
+def canonical_payload(payload: Any) -> bytes:
+    """Canonical JSON encoding shared by every manifest digest.
+
+    Public so sibling contracts (e.g. the checkpoint-level resume-state
+    manifest) reuse one encoding instead of forking a second one.
+    """
+    return _canonical(payload)
+
+
+def payload_digest(payload: Any) -> str:
+    """Digest of a payload under the shared canonical encoding."""
+    return _digest(canonical_payload(payload))
+
+
+def blob_digest(payload: bytes) -> str:
+    """Digest of raw blob bytes; bundle storage and manifests agree here."""
+    return _digest(bytes(payload))
+
+
 @dataclass(frozen=True)
 class StateEntry:
     rank: int

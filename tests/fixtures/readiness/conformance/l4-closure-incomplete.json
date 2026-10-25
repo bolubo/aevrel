@@ -1,0 +1,200 @@
+{
+  "description": "Model-only closure with the L4 gate requested must fail closed: the loadable claim is retracted and closure is reported as incomplete.",
+  "drill": {
+    "detail": "",
+    "phase": "Succeeded",
+    "proof_ref": "proof-conf-0001",
+    "resume_manifest_digests": [
+      "sha256:9aa619588dd82dc5d192e750aae6f1a13e18e665dcb299020ed02810c0516780"
+    ],
+    "steps_ran": 3,
+    "succeeded": true
+  },
+  "expected": {
+    "complete": true,
+    "estimatedRtoSeconds": 1800,
+    "fresh": true,
+    "lastDrill": "proof-conf-0001",
+    "lastDrillDigest": "sha256:9aa619588dd82dc5d192e750aae6f1a13e18e665dcb299020ed02810c0516780",
+    "loadable": false,
+    "movable": null,
+    "observedAt": "2026-10-25T00:00:00Z",
+    "readinessLevel": "L3",
+    "reasons": [
+      "STATE_CLOSURE_INCOMPLETE"
+    ],
+    "stateComplete": false,
+    "status": "TARGET_BLOCKED",
+    "targetWorldSize": null
+  },
+  "manifest": {
+    "checkpoint": {
+      "metadataDigest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "uid": "job-conf-0001",
+      "version": "v1"
+    },
+    "components": [
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": null,
+        "kind": "dataloader",
+        "name": "dataloader",
+        "present": false,
+        "provider": "none",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": null,
+        "kind": "global_step",
+        "name": "global_step",
+        "present": false,
+        "provider": "none",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": null,
+        "kind": "lr_scheduler",
+        "name": "lr_scheduler",
+        "present": false,
+        "provider": "none",
+        "required": false
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:9372c470eeadd5ecd9c3c74c2b3cb633f8e2f2fad799250a0f70d652b6b825e4",
+        "kind": "model",
+        "name": "model",
+        "present": true,
+        "provider": "lrs.training",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": null,
+        "kind": "optimizer",
+        "name": "optimizer",
+        "present": false,
+        "provider": "none",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": null,
+        "kind": "rank_local",
+        "name": "rank_local",
+        "present": false,
+        "provider": "none",
+        "required": false
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": null,
+        "kind": "rng",
+        "name": "rng",
+        "present": false,
+        "provider": "none",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": null,
+        "kind": "sampler",
+        "name": "sampler",
+        "present": false,
+        "provider": "none",
+        "required": false
+      }
+    ],
+    "schemaVersion": "1",
+    "topology": {
+      "mesh": "1d",
+      "placements": [
+        "node-a/rank-0",
+        "node-a/rank-1"
+      ],
+      "worldSize": 2
+    }
+  },
+  "maxAgeSeconds": 86400,
+  "name": "l4-closure-incomplete",
+  "now": "2026-10-25T00:00:00Z",
+  "record": {
+    "checkpoint": "ckpt-conf-0001",
+    "complete": true,
+    "created_at": null,
+    "format_version": "1",
+    "job_uid": "job-conf-0001",
+    "latest_mtime": "2026-10-24T23:30:00Z",
+    "metadata_digest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "namespace": "team-a",
+    "observed_at": "2026-10-25T00:00:00Z",
+    "provider": "dcp",
+    "ranks": [],
+    "reasons": [],
+    "step": 1200,
+    "version": "v1"
+  },
+  "requireStateComplete": true,
+  "resumeState": {
+    "closed": false,
+    "codes": [
+      "RESUME_COMPONENT_MISSING",
+      "RESUME_COMPONENT_MISSING",
+      "RESUME_COMPONENT_MISSING",
+      "RESUME_COMPONENT_MISSING"
+    ],
+    "manifestDigest": "sha256:9aa619588dd82dc5d192e750aae6f1a13e18e665dcb299020ed02810c0516780",
+    "status": "PARTIAL"
+  },
+  "targetWorldSize": null
+}

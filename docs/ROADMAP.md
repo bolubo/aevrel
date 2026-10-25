@@ -16,9 +16,13 @@ Define the state required to continue training:
 - scheduler, epoch, and global step;
 - topology and rank-local state.
 
-The first supported slice is DCP-based checkpoint inspection and restore
-validation. Additional runtime adapters will be added only when they can be
-tested against a real runtime.
+The DCP-based inspection and closure-gating slice is implemented: capture to a
+manifest, classify into COMPLETE/PARTIAL/MISSING/MALFORMED, expose the closure
+summary over the agent protocol (v2), and gate target readiness (L3/L4) on
+closure completeness. See [Resume-state closure contract](RESUME-STATE.md) and
+[implementation and upgrade notes](RESUME-CLOSURE-CHANGES.md). Additional
+runtime adapters will be added only when they can be tested against a real
+runtime.
 
 ### Scheduler and runtime contract
 

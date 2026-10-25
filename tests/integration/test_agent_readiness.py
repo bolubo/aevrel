@@ -68,3 +68,74 @@ def test_agent_exposes_readonly_checkpoint_record(tmp_path: Path) -> None:
         server.shutdown()
         thread.join(timeout=5)
         server.server_close()
+
+
+def _checkpoint_record(tmp_path: Path, **kwargs):
+    """Serve one agent and read its checkpoint record."""
+    checkpoint = _source_dcp(tmp_path)
+    server = build_agent_server(
+        "0.0.0.0:0",
+        "secret",
+        tmp_path / "agent-state",
+        dcp_checkpoint=checkpoint,
+        public_url="http://source",
+        **kwargs,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://{_local_ip()}:{server.server_address[1]}"
+        request = Request(
+            base + "/v1/checkpoint-record",
+            headers={"Authorization": "Bearer secret"},
+        )
+        return json.loads(urlopen(request).read())
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+
+def test_checkpoint_record_is_protocol_two_without_closure(tmp_path: Path) -> None:
+    pytest.importorskip("torch")
+    payload = _checkpoint_record(tmp_path)
+    assert payload["version"] == "2"
+    # No manifest configured is an absence of evidence, not a bad checkpoint.
+    assert payload["resumeState"] is None
+
+
+def test_checkpoint_record_carries_the_resume_state_summary(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("torch")
+    manifest = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "resume-state"
+        / "complete.json"
+    )
+    payload = _checkpoint_record(tmp_path, resume_state_path=manifest)
+    summary = payload["resumeState"]
+    assert summary["closure"] == "COMPLETE"
+    assert summary["manifestDigest"].startswith("sha256:")
+    assert summary["reasonCodes"] == []
+    kinds = {item["kind"] for item in summary["components"]}
+    assert {"model", "optimizer", "global_step", "rng", "dataloader"} <= kinds
+    for item in summary["components"]:
+        if item["required"]:
+            assert item["present"] is True
+
+
+def test_checkpoint_record_surfaces_a_malformed_manifest(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("torch")
+    broken = tmp_path / "broken-resume.json"
+    broken.write_text(json.dumps({"components": []}), encoding="utf-8")
+    payload = _checkpoint_record(tmp_path, resume_state_path=broken)
+    summary = payload["resumeState"]
+    # A manifest that does not parse stays visible instead of reading as
+    # "no evidence": the closure is MALFORMED and carries no digest.
+    assert summary["closure"] == "MALFORMED"
+    assert summary["manifestDigest"] == ""
+    assert "RESUME_MANIFEST_INVALID" in summary["reasonCodes"]

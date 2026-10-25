@@ -7,17 +7,17 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from aevrel.lrs.resume_adapter import TrainingResumeAdapter
 from aevrel.lrs.sampler import RankSampler
 from aevrel.lrs.state_closure import (
     capture_state as capture_training,
     restore_state as restore_training,
 )
-from aevrel.lrs.training_provider import TrainingStateProvider
 from aevrel.state import (
+    RESUME_STATE_COMPLETE,
     StateBundle,
     capture_state as capture_bundle,
-    restore_state as restore_bundle,
-    verify_restored,
+    classify_resume_state,
 )
 
 
@@ -56,30 +56,32 @@ def _train(model, optimizer, sampler, x, y, steps):
     return losses
 
 
-def _source_provider(model, optimizer, generator, sampler, step):
+def _adapter(model, optimizer, generator, sampler, step):
     def capture():
         return capture_training(
             model,
             optimizer,
             generator=generator,
             step=step[0],
-            extra={"rank_sampler": sampler.capture()},
+            consumed_samples=step[0] * 8,
+            data_loader={"position": step[0]},
+            rank_sampler=sampler.capture(),
         )
 
-    def restore(state):
+    def apply(state):
         restore_training(
             state,
             model,
             optimizer,
             generator=generator,
         )
-        sampler.restore(state.extra["rank_sampler"])
+        sampler.restore(state.rank_sampler)
         step[0] = state.step
 
-    return TrainingStateProvider(capture, restore)
+    return TrainingResumeAdapter(capture, apply)
 
 
-def test_training_state_bundle_restores_trajectory_and_sampler(
+def test_component_bundle_restores_trajectory_and_sampler(
     tmp_path: Path,
 ) -> None:
     torch.manual_seed(5)
@@ -104,45 +106,37 @@ def test_training_state_bundle_restores_trajectory_and_sampler(
     source_model, source_opt, source_gen, source_sampler = _make()
     _train(source_model, source_opt, source_sampler, x, y, 3)
     source_step = [3]
+    source = _adapter(
+        source_model, source_opt, source_gen, source_sampler, source_step
+    )
     root = tmp_path / "state"
-    capture_bundle(
+    bundle = capture_bundle(
         root=root,
         checkpoint_id="job-1",
         version="step-3",
         rank=0,
         source_world_size=1,
-        providers=[
-            _source_provider(
-                source_model,
-                source_opt,
-                source_gen,
-                source_sampler,
-                source_step,
-            )
-        ],
+        providers=list(source.providers()),
     )
+    report = classify_resume_state(
+        source.manifest(
+            checkpoint_uid="job-1",
+            checkpoint_version="step-3",
+            metadata_digest="sha256:" + "e" * 64,
+            world_size=1,
+            placements=("rank-0",),
+        ).to_dict()
+    )
+    assert report.status == RESUME_STATE_COMPLETE
 
     target_model, target_opt, target_gen, target_sampler = _make()
     target_step = [3]
-    target_provider = _source_provider(
-        target_model,
-        target_opt,
-        target_gen,
-        target_sampler,
-        target_step,
+    target = _adapter(
+        target_model, target_opt, target_gen, target_sampler, target_step
     )
-    bundle = StateBundle.read(root)
-    restore_bundle(
-        bundle,
-        target_rank=0,
-        providers=[target_provider],
-        strict=True,
-    )
-    verify_restored(
-        bundle,
-        target_rank=0,
-        providers=[target_provider],
-    )
+    restored = StateBundle.read(root)
+    target.restore_exact(restored)
+    target.verify_restored(restored)
 
     continued_losses = _train(
         target_model,
@@ -170,3 +164,4 @@ def test_training_state_bundle_restores_trajectory_and_sampler(
     )
     assert target_sampler.draw() == uninterrupted_next
     assert target_step[0] == 3
+    assert bundle.manifest.complete is True

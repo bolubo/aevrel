@@ -14,6 +14,7 @@ type Aggregate struct {
 	Ready                bool         `json:"ready"`
 	Condition            string       `json:"condition"`
 	Message              string       `json:"message"`
+	ReasonCodes          []string     `json:"reasonCodes,omitempty"`
 	RanksReady           int32        `json:"ranksReady"`
 	RanksTotal           int32        `json:"ranksTotal"`
 	StepsRan             int32        `json:"stepsRan"`
@@ -40,6 +41,7 @@ func NewAggregate(
 		Ready:         evaluation.Ready,
 		Condition:     evaluation.Condition,
 		Message:       evaluation.Message,
+		ReasonCodes:   append([]string(nil), evaluation.ReasonCodes...),
 		RanksReady:    evaluation.RanksReady,
 		RanksTotal:    evaluation.RanksTotal,
 		StepsRan:      evaluation.StepsRan,

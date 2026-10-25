@@ -1,0 +1,49 @@
+{
+  "description": "Content timestamp older than the window: STALE even though inventory is complete.",
+  "drill": {
+    "detail": "",
+    "phase": "Succeeded",
+    "proof_ref": "proof-conf-0001",
+    "steps_ran": 3,
+    "succeeded": true
+  },
+  "expected": {
+    "complete": true,
+    "estimatedRtoSeconds": 172800,
+    "fresh": false,
+    "lastDrill": "proof-conf-0001",
+    "lastDrillDigest": null,
+    "loadable": true,
+    "movable": null,
+    "observedAt": "2026-10-25T00:00:00Z",
+    "readinessLevel": "L3",
+    "reasons": [
+      "STALE"
+    ],
+    "stateComplete": null,
+    "status": "STALE",
+    "targetWorldSize": null
+  },
+  "maxAgeSeconds": 86400,
+  "name": "l3-stale",
+  "now": "2026-10-25T00:00:00Z",
+  "record": {
+    "checkpoint": "ckpt-conf-0001",
+    "complete": true,
+    "created_at": null,
+    "format_version": "1",
+    "job_uid": "job-conf-0001",
+    "latest_mtime": "2026-10-23T00:00:00Z",
+    "metadata_digest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "namespace": "team-a",
+    "observed_at": "2026-10-25T00:00:00Z",
+    "provider": "dcp",
+    "ranks": [],
+    "reasons": [],
+    "step": 1200,
+    "version": "v1"
+  },
+  "requireStateComplete": false,
+  "resumeState": null,
+  "targetWorldSize": null
+}

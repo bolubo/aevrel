@@ -92,6 +92,12 @@ spec:
                 type: string
               provider:
                 type: string
+              requireStateComplete:
+                description: |-
+                  RequireStateComplete turns the readiness assessment into an L4 claim:
+                  the record may not read READY unless the resume-state closure is
+                  complete.
+                type: boolean
               sourceWorldSize:
                 format: int32
                 minimum: 1
@@ -239,6 +245,11 @@ spec:
                     type: boolean
                   observedAt:
                     type: string
+                  readinessLevel:
+                    description: |-
+                      ReadinessLevel is L3 (bytes verified) or L4 (closure verified and
+                      anchored to the manifest a restore drill actually used).
+                    type: string
                   reasons:
                     items:
                       properties:
@@ -252,6 +263,23 @@ spec:
                       - detail
                       type: object
                     type: array
+                  resumeClosure:
+                    description: ResumeClosure is the closure verdict the agents reported.
+                    type: string
+                  resumeManifestDigest:
+                    description: ResumeManifestDigest binds that verdict to one manifest.
+                    type: string
+                  resumeReasonCodes:
+                    description: ResumeReasonCodes lists the closure reasons, sorted.
+                    items:
+                      type: string
+                    type: array
+                  stateComplete:
+                    description: |-
+                      StateComplete reports the resume-state closure as observed by the
+                      agents. It is a pointer so "no agent reported closure evidence" stays
+                      distinguishable from "the closure is incomplete".
+                    type: boolean
                   status:
                     type: string
                   targetWorldSize:

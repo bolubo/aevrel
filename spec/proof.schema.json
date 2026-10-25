@@ -1,23 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aevrel.dev/schemas/proof-v1.json",
+  "$id": "https://aevrel.dev/schemas/proof-v2.json",
   "title": "MigrationProof",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "version", "plan_id", "plan_hash", "target_root", "target_files_root",
     "source_root",
-    "coverage_root", "root", "target_files", "target_leaves",
-    "source_leaves", "coverage"
+    "coverage_root", "resume_manifest_digest", "root", "target_files",
+    "target_leaves", "source_leaves", "coverage"
   ],
   "properties": {
-    "version": { "type": "string", "const": "1" },
+    "version": { "type": "string", "const": "2" },
     "plan_id": { "type": "string", "minLength": 1 },
     "plan_hash": { "$ref": "#/$defs/hash" },
     "target_root": { "$ref": "#/$defs/hash" },
     "target_files_root": { "$ref": "#/$defs/hash" },
     "source_root": { "$ref": "#/$defs/hash" },
     "coverage_root": { "$ref": "#/$defs/hash" },
+    "resume_manifest_digest": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/hash" }]
+    },
     "root": { "$ref": "#/$defs/hash" },
     "target_files": {
       "type": "array",

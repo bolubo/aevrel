@@ -3,8 +3,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
+
+
+#: Canonical wire format for instants the local adapter emits.
+OBSERVED_AT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+
+def iso_utc(value: datetime) -> str:
+    """Render an instant as UTC with a ``Z`` suffix and second precision.
+
+    The format is fixed instead of delegated to ``isoformat`` so every
+    implementation (and every field the control plane reads) emits identical
+    bytes: ``+00:00`` and ``Z`` describe the same instant, but a consumer
+    diffing proofs should not have to know that.
+    """
+    return value.astimezone(timezone.utc).strftime(OBSERVED_AT_FORMAT)
 
 
 class ReadinessStatus(str, Enum):
@@ -28,6 +44,9 @@ class ReasonCode(str, Enum):
     DRILL_FAILED = "DRILL_FAILED"
     TARGET_UNSPECIFIED = "TARGET_UNSPECIFIED"
     TARGET_BLOCKED = "TARGET_BLOCKED"
+    STATE_CLOSURE_INCOMPLETE = "STATE_CLOSURE_INCOMPLETE"
+    RESUME_COMPONENT_DIGEST_MISMATCH = "RESUME_COMPONENT_DIGEST_MISMATCH"
+    RESUME_MANIFEST_INVALID = "RESUME_MANIFEST_INVALID"
 
 
 class DrillPhase(str, Enum):
@@ -103,6 +122,7 @@ class CheckpointRecord:
     latest_mtime: str | None
     complete: bool
     reasons: tuple[Reason, ...]
+    created_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -117,6 +137,7 @@ class CheckpointRecord:
             "ranks": [rank.to_dict() for rank in self.ranks],
             "observed_at": self.observed_at,
             "latest_mtime": self.latest_mtime,
+            "created_at": self.created_at,
             "complete": self.complete,
             "reasons": [reason.to_dict() for reason in self.reasons],
         }
@@ -129,6 +150,9 @@ class DrillOutcome:
     steps_ran: int = 0
     proof_ref: str = ""
     detail: str = ""
+    # Distinct resume-state manifest digests the drill ranks actually
+    # restored. Empty means the drill produced no closure evidence.
+    resume_state_digests: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -137,6 +161,7 @@ class DrillOutcome:
             "steps_ran": self.steps_ran,
             "proof_ref": self.proof_ref,
             "detail": self.detail,
+            "resume_state_digests": list(self.resume_state_digests),
         }
 
 
@@ -154,6 +179,8 @@ class CheckpointReadiness:
     last_drill: str | None = None
     last_drill_version: str | None = None
     last_drill_digest: str | None = None
+    state_complete: bool | None = None
+    readiness_level: str = "L3"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -162,6 +189,8 @@ class CheckpointReadiness:
             "fresh": self.fresh,
             "loadable": self.loadable,
             "movable": self.movable,
+            "state_complete": self.state_complete,
+            "readiness_level": self.readiness_level,
             "reasons": [reason.to_dict() for reason in self.reasons],
             "observed_at": self.observed_at,
             "target_world_size": self.target_world_size,

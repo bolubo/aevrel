@@ -16,6 +16,10 @@ Start with the path that matches your goal.
 
 - [Product overview](../README.md)
 - [Architecture](ARCHITECTURE.md)
+- [Resume-state closure contract](RESUME-STATE.md)
+- [Readiness semantics (L3/L4)](READINESS-SEMANTICS.md)
+- [Failure code catalog](FAILURE-CODES.md)
+- [Resume-state closure: changes and upgrade notes](RESUME-CLOSURE-CHANGES.md)
 - [Roadmap](ROADMAP.md)
 
 ## Integrations

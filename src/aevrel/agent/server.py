@@ -46,6 +46,40 @@ from ..gpu_batch import AdaptiveBatchCodec, BATCH_ENCODING
 MAX_METADATA_BYTES = 32 * 1024 * 1024
 
 
+def resume_state_summary(path: Path | None) -> dict[str, Any] | None:
+    """Summarize the resume-state manifest this agent can see.
+
+    ``None`` means "this agent has no closure evidence", which the controller
+    must treat as an absence of proof rather than an incomplete checkpoint.
+    A manifest that exists but does not parse still produces a summary with
+    ``closure: MALFORMED`` and no digest, so the failure stays visible
+    instead of silently degrading to "no evidence".
+    """
+    if path is None:
+        return None
+    from ..state.resume_state import classify_resume_state
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise AgentError(f"could not read resume-state manifest {path}: {exc}") from exc
+    report = classify_resume_state(payload)
+    manifest = report.manifest
+    return {
+        "closure": report.status,
+        "manifestDigest": report.manifest_digest or "",
+        "components": [
+            {
+                "kind": component.kind,
+                "required": component.required,
+                "present": component.present,
+            }
+            for component in (manifest.components if manifest is not None else ())
+        ],
+        "reasonCodes": [reason.code for reason in report.reasons],
+    }
+
+
 class AgentError(RuntimeError):
     """Raised when an agent cannot serve or mutate a task."""
 
@@ -99,6 +133,7 @@ class AgentApp:
         public_url: str | None = None,
         max_cache_bytes: int = 512 * 1024 * 1024,
         range_codec: RangeCodec | None = None,
+        resume_state_path: str | Path | None = None,
     ) -> None:
         if not controller_token:
             raise AgentError("controller token must not be empty")
@@ -123,6 +158,9 @@ class AgentApp:
             Path(target_root).resolve() if target_root else None
         )
         self.public_url = (public_url or "http://127.0.0.1:9443").rstrip("/")
+        self.resume_state_path = (
+            Path(resume_state_path).resolve() if resume_state_path else None
+        )
         self.range_codec = (
             range_codec
             if range_codec is not None
@@ -319,8 +357,9 @@ class AgentApp:
         except LocalError as exc:
             raise AgentError(str(exc)) from exc
         return {
-            "version": "1",
+            "version": "2",
             "record": record.to_dict(),
+            "resumeState": resume_state_summary(self.resume_state_path),
         }
 
     def ranks(self) -> dict[str, Any]:
@@ -552,6 +591,7 @@ def build_agent_server(
     public_url: str | None = None,
     max_cache_bytes: int = 512 * 1024 * 1024,
     range_codec: RangeCodec | None = None,
+    resume_state_path: str | Path | None = None,
     tls_cert: str | Path | None = None,
     tls_key: str | Path | None = None,
     tls_ca: str | Path | None = None,
@@ -568,6 +608,7 @@ def build_agent_server(
         public_url=public_url,
         max_cache_bytes=max_cache_bytes,
         range_codec=range_codec,
+        resume_state_path=resume_state_path,
     )
     app.recover_tasks()
     host, port = _parse_listen(listen)

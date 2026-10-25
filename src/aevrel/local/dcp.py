@@ -15,6 +15,7 @@ from .models import (
     Reason,
     ReasonCode,
     ShardRef,
+    iso_utc,
 )
 from ..dcp import read_dcp_metadata
 from .provider import ProviderCapabilities
@@ -160,9 +161,9 @@ class DCPStateProvider:
                 "sha256:" + hashlib.sha256(metadata_bytes).hexdigest()
             ),
             ranks=tuple(ranks),
-            observed_at=datetime.now(timezone.utc).isoformat(),
+            observed_at=iso_utc(datetime.now(timezone.utc)),
             latest_mtime=(
-                datetime.fromtimestamp(latest, timezone.utc).isoformat()
+                iso_utc(datetime.fromtimestamp(latest, timezone.utc))
                 if latest is not None
                 else None
             ),

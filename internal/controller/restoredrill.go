@@ -213,24 +213,13 @@ func (r *RestoreDrillReconciler) Reconcile(
 			nil,
 		)
 	}
-	evaluation := targetready.Evaluate(
-		reports,
-		expected,
-		drill.Spec.Version,
-		drill.Spec.Steps,
-	)
-	if drill.Spec.RequireStateComplete && !evaluation.StateComplete {
-		return r.finishDrillWithJob(
-			ctx,
-			&drill,
-			"Failed",
-			"StateIncomplete",
-			"target reports do not prove complete rank-local state",
-			jobName,
-			startedAt,
-			&evaluation,
-		)
-	}
+	evaluation := targetready.Evaluate(targetready.EvaluateOptions{
+		Reports:              reports,
+		ExpectedRanks:        expected,
+		Version:              drill.Spec.Version,
+		MinSteps:             drill.Spec.Steps,
+		RequireStateComplete: drill.Spec.RequireStateComplete,
+	})
 	phase := "Failed"
 	if evaluation.Ready {
 		phase = "Succeeded"

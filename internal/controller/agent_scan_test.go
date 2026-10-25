@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -313,7 +314,13 @@ func checkpointScanResponse(worldSize int) string {
 		}`, rank, rank, rank, rank))
 	}
 	return fmt.Sprintf(`{
-		"version": "1",
+		"version": "2",
+		"resumeState": {
+			"manifestDigest": "sha256:`+strings.Repeat("c", 64)+`",
+			"closure": "COMPLETE",
+			"components": [{"kind": "model", "required": true, "present": true}],
+			"reasonCodes": []
+		},
 		"record": {
 			"checkpoint": "/checkpoints/job42",
 			"namespace": "default",

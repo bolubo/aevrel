@@ -10,7 +10,8 @@ from aevrel.cli import main
 from aevrel.dcp import export_dcp
 from aevrel.executor import apply
 from aevrel.planning import plan
-from aevrel.verification import write_target_ready_report
+from aevrel.state import build_manifest
+from aevrel.verification import ResumeStateEvidence, write_target_ready_report
 from tests.fixtures.generated import (
     generate_sharded_spec,
     materialize_source_files,
@@ -30,6 +31,34 @@ def _source_dcp(tmp_path: Path) -> Path:
     output = tmp_path / "source.dcp"
     export_dcp(spec, output)
     return output
+
+_DIGEST = "sha256:" + "0" * 64
+
+
+def _evidence(uid: str) -> ResumeStateEvidence:
+    """Complete resume-state evidence for a report written by a test."""
+    return ResumeStateEvidence.from_manifest(
+        build_manifest(
+            checkpoint_uid=uid,
+            version=uid,
+            metadata_digest=_DIGEST,
+            world_size=1,
+            present={
+                "model": "lrs.training",
+                "optimizer": "lrs.training",
+                "global_step": "lrs.metadata",
+                "dataloader": "lrs.training",
+                "rng": "lrs.rng",
+            },
+            digests={
+                "model": _DIGEST,
+                "optimizer": _DIGEST,
+                "global_step": _DIGEST,
+                "dataloader": _DIGEST,
+                "rng": _DIGEST,
+            },
+        )
+    )
 
 
 def _tree_digest(root: Path) -> str:
@@ -88,6 +117,7 @@ def test_readiness_cli_uses_complete_drill_reports(tmp_path, capsys) -> None:
             migration_uid=source.name,
             version=source.name,
             rank=rank,
+            resume_state=_evidence(source.name),
             path=reports / f"rank{rank}.json",
         )
 
@@ -124,6 +154,7 @@ def test_readiness_cli_fails_closed_on_partial_drill_reports(
         migration_uid=source.name,
         version=source.name,
         rank=0,
+        resume_state=_evidence(source.name),
         path=report,
     )
 
@@ -159,6 +190,7 @@ def test_readiness_cli_rejects_drill_report_version_mismatch(
         migration_uid=source.name,
         version="mismatched-version",
         rank=0,
+        resume_state=_evidence(source.name),
         path=report,
     )
 
@@ -199,6 +231,7 @@ def test_readiness_cli_rejects_drill_report_migration_uid_mismatch(
         migration_uid="mismatched-uid",
         version=source.name,
         rank=0,
+        resume_state=_evidence(source.name),
         path=report,
     )
 
@@ -240,6 +273,7 @@ def test_readiness_cli_rejects_duplicate_rank_drill_reports(
         migration_uid=source.name,
         version=source.name,
         rank=0,
+        resume_state=_evidence(source.name),
         path=reports / "rank0_a.json",
     )
     write_target_ready_report(
@@ -249,6 +283,7 @@ def test_readiness_cli_rejects_duplicate_rank_drill_reports(
         migration_uid=source.name,
         version=source.name,
         rank=0,
+        resume_state=_evidence(source.name),
         path=reports / "rank0_b.json",
     )
 

@@ -1,0 +1,43 @@
+{
+  "description": "No drill evidence: UNVERIFIED, loadable stays null (not false).",
+  "drill": null,
+  "expected": {
+    "complete": true,
+    "estimatedRtoSeconds": 1800,
+    "fresh": true,
+    "lastDrill": null,
+    "lastDrillDigest": null,
+    "loadable": null,
+    "movable": null,
+    "observedAt": "2026-10-25T00:00:00Z",
+    "readinessLevel": "L3",
+    "reasons": [
+      "DRILL_MISSING"
+    ],
+    "stateComplete": null,
+    "status": "UNVERIFIED",
+    "targetWorldSize": null
+  },
+  "maxAgeSeconds": 86400,
+  "name": "no-drill",
+  "now": "2026-10-25T00:00:00Z",
+  "record": {
+    "checkpoint": "ckpt-conf-0001",
+    "complete": true,
+    "created_at": null,
+    "format_version": "1",
+    "job_uid": "job-conf-0001",
+    "latest_mtime": "2026-10-24T23:30:00Z",
+    "metadata_digest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "namespace": "team-a",
+    "observed_at": "2026-10-25T00:00:00Z",
+    "provider": "dcp",
+    "ranks": [],
+    "reasons": [],
+    "step": 1200,
+    "version": "v1"
+  },
+  "requireStateComplete": false,
+  "resumeState": null,
+  "targetWorldSize": null
+}

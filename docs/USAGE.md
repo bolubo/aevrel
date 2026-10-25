@@ -63,6 +63,35 @@ python -m aevrel readiness \
 Every expected rank must be represented. A partial report set remains
 unverified.
 
+## Resume-state closure (L3 vs L4)
+
+Pass the manifest the checkpoint actually stores to bind the verdict to one
+manifest, and add `--require-state-complete` to claim L4:
+
+```bash
+python -m aevrel readiness \
+  --checkpoint /data/job/checkpoint \
+  --drill-report ./reports \
+  --resume-state ./resume-state.json \
+  --require-state-complete \
+  --strict
+```
+
+Without the flag the assessment stays an L3 claim and reports
+`state_complete` and `readiness_level` for consumers to act on. With the flag:
+
+- an incomplete closure blocks the result (`TARGET_BLOCKED`,
+  `STATE_CLOSURE_INCOMPLETE`) and retracts `loadable`;
+- the drill reports must carry the same manifest digest as the assessed
+  manifest, otherwise `RESUME_COMPONENT_DIGEST_MISMATCH` blocks the result;
+- a manifest that describes another checkpoint, version or metadata digest is
+  rejected as `RESUME_MANIFEST_INVALID`;
+- `--require-state-complete` without `--resume-state` exits 2: an L4 claim must
+  be anchored to one manifest.
+
+Only an anchored, complete closure on a `READY` checkpoint reports
+`readiness_level: L4`.
+
 ## DCP migration
 
 ```bash

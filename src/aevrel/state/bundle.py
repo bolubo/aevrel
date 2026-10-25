@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from .manifest import StateEntry, StateManifest
+from .manifest import StateEntry, StateManifest, blob_digest
 from .providers import StateProvider
 
 
@@ -72,6 +72,15 @@ class StateBundle:
                 )
             blobs[entry.digest] = data
         return cls(root=base, manifest=manifest, blobs=blobs)
+
+    def entries_for_target(self, target_rank: int) -> dict[str, StateEntry]:
+        """Entries of the source rank that maps to ``target_rank``."""
+        source_rank = _source_rank_for_target(self.manifest.rank_map, target_rank)
+        return {
+            entry.name: entry
+            for entry in self.manifest.entries
+            if entry.rank == source_rank
+        }
 
 
 def capture_state(
@@ -243,9 +252,7 @@ def _source_rank_for_target(rank_map: dict[int, int], target_rank: int) -> int:
 
 
 def _digest(payload: bytes) -> str:
-    import hashlib
-
-    return "sha256:" + hashlib.sha256(payload).hexdigest()
+    return blob_digest(payload)
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:

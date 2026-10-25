@@ -250,7 +250,7 @@ type TargetReadyRankStatus struct {
 // TargetReadyStatus proves whether the target workload loaded the committed
 // checkpoint and continued training for the required number of steps.
 type TargetReadyStatus struct {
-	// +kubebuilder:validation:Enum=Pending;Ready;LoadFailed;StepFailed;VersionMismatch;Timeout;JobFailed;Incomplete;InvalidJob;InvalidReport;Unsupported;ProofPublishFailed
+	// +kubebuilder:validation:Enum=Pending;Ready;LoadFailed;StepFailed;VersionMismatch;Timeout;JobFailed;Incomplete;InvalidJob;InvalidReport;Unsupported;StateClosureIncomplete;ProofPublishFailed
 	Condition            string                  `json:"condition,omitempty"`
 	Ready                bool                    `json:"ready"`
 	Version              string                  `json:"version,omitempty"`

@@ -1,0 +1,33 @@
+{
+  "checkpoint": {
+    "metadataDigest": "sha256:e7b14d93955b694cdbc393dd2f74dbfda364756a86f887d575f617945293b3f6",
+    "uid": "ckpt-cpu-fixture-0001",
+    "version": "v1"
+  },
+  "components": [
+    {
+      "coverage": {
+        "ranks": [
+          0,
+          1
+        ],
+        "worldSize": 2
+      },
+      "digest": "sha256:a9ea478daa3d92c5a5dae84df1fba4b6df7c1d820c2c427e5ad6506bc379b206",
+      "kind": "model",
+      "name": "model",
+      "present": true,
+      "provider": "lrs.training",
+      "required": true
+    }
+  ],
+  "schemaVersion": "1",
+  "topology": {
+    "mesh": "1d",
+    "placements": [
+      "node-a/rank-0",
+      "node-a/rank-1"
+    ],
+    "worldSize": 2
+  }
+}

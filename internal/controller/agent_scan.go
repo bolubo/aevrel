@@ -24,8 +24,66 @@ const maxAgentCheckpointResponseBytes int64 = 16 * 1024 * 1024
 var reasonRankPattern = regexp.MustCompile(`(?i)rank\s+(\d+)`)
 
 type agentCheckpointResponse struct {
-	Version string              `json:"version"`
-	Record  agentCheckpointFact `json:"record"`
+	Version     string              `json:"version"`
+	Record      agentCheckpointFact `json:"record"`
+	ResumeState *agentResumeState   `json:"resumeState"`
+}
+
+// agentResumeState is the resume-state closure summary a version 2 agent
+// reports next to its checkpoint fact. It answers one question: does this
+// agent see a closed component set, and if so which manifest describes it?
+//
+// A nil *agentResumeState means "this agent has no closure evidence", which
+// the controller must treat as an absence of proof, never as a closed set.
+type agentResumeState struct {
+	ManifestDigest string                 `json:"manifestDigest"`
+	Closure        string                 `json:"closure"`
+	Components     []agentResumeComponent `json:"components"`
+	ReasonCodes    []string               `json:"reasonCodes"`
+}
+
+type agentResumeComponent struct {
+	Kind     string `json:"kind"`
+	Required bool   `json:"required"`
+	Present  bool   `json:"present"`
+}
+
+var resumeManifestDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+func (r *agentResumeState) validate() error {
+	switch r.Closure {
+	case "COMPLETE", "PARTIAL", "MISSING", "MALFORMED":
+	default:
+		return fmt.Errorf("unsupported resumeState closure %q", r.Closure)
+	}
+	if r.Closure == "MALFORMED" {
+		// A manifest that did not parse cannot have a digest; saying so is
+		// what keeps a broken file visible instead of looking like "none".
+		if r.ManifestDigest != "" {
+			return fmt.Errorf("a malformed resumeState must not carry a manifest digest")
+		}
+	} else if !resumeManifestDigestPattern.MatchString(r.ManifestDigest) {
+		return fmt.Errorf("resumeState manifestDigest must be sha256")
+	}
+	seen := make(map[string]struct{}, len(r.Components))
+	for _, component := range r.Components {
+		if component.Kind == "" {
+			return fmt.Errorf("resumeState component kind is required")
+		}
+		if _, ok := seen[component.Kind]; ok {
+			return fmt.Errorf("duplicate resumeState component %q", component.Kind)
+		}
+		seen[component.Kind] = struct{}{}
+	}
+	return nil
+}
+
+// agreesWith reports whether two agents describe the same closure.
+func (r *agentResumeState) agreesWith(other *agentResumeState) bool {
+	if other == nil {
+		return false
+	}
+	return r.Closure == other.Closure && r.ManifestDigest == other.ManifestDigest
 }
 
 type agentCheckpointFact struct {
@@ -66,6 +124,7 @@ type agentReasonFact struct {
 type checkpointAgentObservation struct {
 	Endpoint string
 	Fact     agentCheckpointFact
+	Resume   *agentResumeState
 }
 
 func (r *CheckpointReadinessReconciler) discoverAgent(
@@ -88,13 +147,14 @@ func (r *CheckpointReadinessReconciler) discoverAgent(
 	}
 	observations := make([]checkpointAgentObservation, 0, len(endpoints))
 	for _, endpoint := range endpoints {
-		fact, err := r.queryCheckpointAgent(ctx, record, endpoint, token)
+		fact, resume, err := r.queryCheckpointAgent(ctx, record, endpoint, token)
 		if err != nil {
 			return fmt.Errorf("agent %s: %w", endpoint, err)
 		}
 		observations = append(observations, checkpointAgentObservation{
 			Endpoint: endpoint,
 			Fact:     fact,
+			Resume:   resume,
 		})
 	}
 	return applyAgentCheckpointFacts(record, observations)
@@ -164,7 +224,7 @@ func (r *CheckpointReadinessReconciler) queryCheckpointAgent(
 	record *aevrelv1.CheckpointRecord,
 	endpoint string,
 	token string,
-) (agentCheckpointFact, error) {
+) (agentCheckpointFact, *agentResumeState, error) {
 	values := url.Values{}
 	if record.Namespace != "" {
 		values.Set("namespace", record.Namespace)
@@ -181,7 +241,7 @@ func (r *CheckpointReadinessReconciler) queryCheckpointAgent(
 		nil,
 	)
 	if err != nil {
-		return agentCheckpointFact{}, err
+		return agentCheckpointFact{}, nil, err
 	}
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
@@ -192,11 +252,11 @@ func (r *CheckpointReadinessReconciler) queryCheckpointAgent(
 	}
 	response, err := httpClient.Do(request)
 	if err != nil {
-		return agentCheckpointFact{}, fmt.Errorf("query checkpoint record: %w", err)
+		return agentCheckpointFact{}, nil, fmt.Errorf("query checkpoint record: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return agentCheckpointFact{}, fmt.Errorf(
+		return agentCheckpointFact{}, nil, fmt.Errorf(
 			"agent returned HTTP %d",
 			response.StatusCode,
 		)
@@ -207,15 +267,25 @@ func (r *CheckpointReadinessReconciler) queryCheckpointAgent(
 		maxAgentCheckpointResponseBytes,
 	))
 	if err := decoder.Decode(&payload); err != nil {
-		return agentCheckpointFact{}, fmt.Errorf("decode checkpoint record: %w", err)
+		return agentCheckpointFact{}, nil, fmt.Errorf("decode checkpoint record: %w", err)
 	}
-	if payload.Version != "1" {
-		return agentCheckpointFact{}, fmt.Errorf(
-			"unsupported checkpoint record version %q",
+	if payload.Version != "2" {
+		return agentCheckpointFact{}, nil, fmt.Errorf(
+			"unsupported checkpoint record version %q: a readiness agent must "+
+				"report resume-state closure (version 2)",
 			payload.Version,
 		)
 	}
-	return payload.Record, nil
+	if payload.ResumeState != nil {
+		if err := payload.ResumeState.validate(); err != nil {
+			return agentCheckpointFact{}, nil, fmt.Errorf(
+				"invalid resumeState from %s: %w",
+				endpoint,
+				err,
+			)
+		}
+	}
+	return payload.Record, payload.ResumeState, nil
 }
 
 func applyAgentCheckpointFacts(
@@ -439,7 +509,71 @@ func applyAgentCheckpointFacts(
 	record.Status.Complete = len(resultReasons) == 0
 	record.Status.Ranks = resultRanks
 	record.Status.Readiness.Reasons = resultReasons
+	resume, mismatch := mergeResumeState(observations)
+	if mismatch != "" {
+		record.Status.Readiness.Reasons = append(
+			record.Status.Readiness.Reasons,
+			aevrelv1.ControlReason{Code: "RESUME_MISMATCH", Detail: mismatch},
+		)
+	}
+	applyResumeState(&record.Status.Readiness, resume)
 	return nil
+}
+
+// mergeResumeState picks the one closure summary every agent agrees on.
+//
+// Agents that see the same checkpoint must describe the same manifest. When
+// they disagree the evidence is dropped rather than averaged, so no caller
+// can pick a convenient verdict out of a split cluster.
+func mergeResumeState(
+	observations []checkpointAgentObservation,
+) (*agentResumeState, string) {
+	var agreed *agentResumeState
+	for _, observation := range observations {
+		if observation.Resume == nil {
+			continue
+		}
+		if agreed == nil {
+			agreed = observation.Resume
+			continue
+		}
+		if !agreed.agreesWith(observation.Resume) {
+			return nil, fmt.Sprintf(
+				"%s reports closure %s digest %s, other agents report %s digest %s",
+				observation.Endpoint,
+				observation.Resume.Closure,
+				observation.Resume.ManifestDigest,
+				agreed.Closure,
+				agreed.ManifestDigest,
+			)
+		}
+	}
+	return agreed, ""
+}
+
+// applyResumeState stores the closure evidence the controller will assess.
+// An absent summary clears the fields so a stale verdict cannot survive an
+// agent that stops reporting it.
+func applyResumeState(
+	status *aevrelv1.CheckpointReadinessStatus,
+	resume *agentResumeState,
+) {
+	if resume == nil {
+		status.ResumeClosure = ""
+		status.ResumeManifestDigest = ""
+		status.ResumeReasonCodes = nil
+		return
+	}
+	codes := make([]string, 0, len(resume.ReasonCodes))
+	for _, code := range resume.ReasonCodes {
+		if code != "" {
+			codes = append(codes, code)
+		}
+	}
+	sort.Strings(codes)
+	status.ResumeClosure = resume.Closure
+	status.ResumeManifestDigest = resume.ManifestDigest
+	status.ResumeReasonCodes = codes
 }
 
 func carryAgentReason(

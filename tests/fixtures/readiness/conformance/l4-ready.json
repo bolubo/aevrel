@@ -1,0 +1,193 @@
+{
+  "description": "Closure complete and the L4 gate requested: READY at L4.",
+  "drill": {
+    "detail": "",
+    "phase": "Succeeded",
+    "proof_ref": "proof-conf-0001",
+    "resume_manifest_digests": [
+      "sha256:dad9e3b9acb209b486f13c37f8db5431dd01e70d583eea2ab759b65cce97c6f4"
+    ],
+    "steps_ran": 3,
+    "succeeded": true
+  },
+  "expected": {
+    "complete": true,
+    "estimatedRtoSeconds": 1800,
+    "fresh": true,
+    "lastDrill": "proof-conf-0001",
+    "lastDrillDigest": "sha256:dad9e3b9acb209b486f13c37f8db5431dd01e70d583eea2ab759b65cce97c6f4",
+    "loadable": true,
+    "movable": null,
+    "observedAt": "2026-10-25T00:00:00Z",
+    "readinessLevel": "L4",
+    "reasons": [],
+    "stateComplete": true,
+    "status": "READY",
+    "targetWorldSize": null
+  },
+  "manifest": {
+    "checkpoint": {
+      "metadataDigest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "uid": "job-conf-0001",
+      "version": "v1"
+    },
+    "components": [
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:4406a7b793d5b5c9895797b8f6208e0c47945189e69dd6e5181d5a00f3f95999",
+        "kind": "dataloader",
+        "name": "dataloader",
+        "present": true,
+        "provider": "lrs.training",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:44f124790490946f2b6dc410633f97974069f6ae9f7979254402bbf9183fabc0",
+        "kind": "global_step",
+        "name": "global_step",
+        "present": true,
+        "provider": "lrs.metadata",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:f015fbedd2f6a36315f924edd2a50077a423d493766034a4ace2903dfcf89ae8",
+        "kind": "lr_scheduler",
+        "name": "lr_scheduler",
+        "present": true,
+        "provider": "lrs.training",
+        "required": false
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:9372c470eeadd5ecd9c3c74c2b3cb633f8e2f2fad799250a0f70d652b6b825e4",
+        "kind": "model",
+        "name": "model",
+        "present": true,
+        "provider": "lrs.training",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:23732d00643137c9b14b11bdb90f47a8e97b4da42cdfc0887912f4ff732c689c",
+        "kind": "optimizer",
+        "name": "optimizer",
+        "present": true,
+        "provider": "lrs.training",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:b7f395dec121e65f8de7f20423e8efd00e9239b42c93f5e57fa9a1154c056412",
+        "kind": "rank_local",
+        "name": "rank_local",
+        "present": true,
+        "provider": "lrs.rank_local",
+        "required": false
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:b1dc753bc89b0bcf8bd325ff0f3af44aae13d485aefc71063d95e938f24af20b",
+        "kind": "rng",
+        "name": "rng",
+        "present": true,
+        "provider": "lrs.rng",
+        "required": true
+      },
+      {
+        "coverage": {
+          "ranks": [
+            0,
+            1
+          ],
+          "worldSize": 2
+        },
+        "digest": "sha256:b7a56c61657d4e5cc44636b6f7fe94597cb1d803ab5db4a5ade18fc35cc937e7",
+        "kind": "sampler",
+        "name": "sampler",
+        "present": true,
+        "provider": "lrs.training",
+        "required": false
+      }
+    ],
+    "schemaVersion": "1",
+    "topology": {
+      "mesh": "1d",
+      "placements": [
+        "node-a/rank-0",
+        "node-a/rank-1"
+      ],
+      "worldSize": 2
+    }
+  },
+  "maxAgeSeconds": 86400,
+  "name": "l4-ready",
+  "now": "2026-10-25T00:00:00Z",
+  "record": {
+    "checkpoint": "ckpt-conf-0001",
+    "complete": true,
+    "created_at": null,
+    "format_version": "1",
+    "job_uid": "job-conf-0001",
+    "latest_mtime": "2026-10-24T23:30:00Z",
+    "metadata_digest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "namespace": "team-a",
+    "observed_at": "2026-10-25T00:00:00Z",
+    "provider": "dcp",
+    "ranks": [],
+    "reasons": [],
+    "step": 1200,
+    "version": "v1"
+  },
+  "requireStateComplete": true,
+  "resumeState": {
+    "closed": true,
+    "codes": [],
+    "manifestDigest": "sha256:dad9e3b9acb209b486f13c37f8db5431dd01e70d583eea2ab759b65cce97c6f4",
+    "status": "COMPLETE"
+  },
+  "targetWorldSize": null
+}

@@ -119,11 +119,13 @@ class TargetTaskExecutor:
         *,
         proof_enabled: bool = False,
         load_smoke: bool = False,
+        resume_manifest_digest: str | None = None,
     ) -> None:
         self.resolver = resolver
         self.source_token = source_token
         self.proof_enabled = proof_enabled
         self.load_smoke = load_smoke
+        self.resume_manifest_digest = resume_manifest_digest
 
     def __call__(self, task: TaskRecord) -> dict[str, Any]:
         spec = self.resolver.resolve(task.spec_ref)
@@ -169,6 +171,7 @@ class TargetTaskExecutor:
                 task.target_root,
                 token=self.source_token,
                 target_rank=task.rank,
+                resume_manifest_digest=self.resume_manifest_digest,
             )
             result = dict(report)
             result["proof"] = proof

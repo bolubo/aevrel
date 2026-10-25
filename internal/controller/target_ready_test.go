@@ -429,6 +429,10 @@ func reportFor(
 	rank int32,
 	ok bool,
 ) targetready.RankReport {
+	closure := targetready.ClosurePartial
+	if ok {
+		closure = targetready.ClosureComplete
+	}
 	return targetready.RankReport{
 		SchemaVersion:   targetready.SchemaVersion,
 		MigrationUID:    migrationUID(migration),
@@ -438,9 +442,48 @@ func reportFor(
 		ModelLoaded:     ok,
 		OptimizerLoaded: ok,
 		StepsRan:        10,
-		StateComplete:   false,
-		OK:              ok,
+		StateComplete:   ok,
+		ResumeState: &targetready.ResumeStateEvidence{
+			ManifestDigest: "sha256:" + zerosDigest(),
+			Closure:        closure,
+			Components:     componentsForClosure(closure),
+		},
+		OK: ok,
 	}
+}
+
+// partialReportFor keeps every L3 property intact while dropping one required
+// resume component, so the L4 gate can be exercised end to end.
+func partialReportFor(
+	migration *aevrelv1.CheckpointMigration,
+	rank int32,
+) targetready.RankReport {
+	report := reportFor(migration, rank, true)
+	components := componentsForClosure(targetready.ClosurePartial)
+	report.StateComplete = false
+	report.ResumeState = &targetready.ResumeStateEvidence{
+		ManifestDigest: report.ResumeState.ManifestDigest,
+		Closure:        targetready.ClosurePartial,
+		Components:     components,
+	}
+	return report
+}
+
+func componentsForClosure(closure string) []targetready.ResumeComponentEvidence {
+	kinds := []string{"model", "optimizer", "global_step", "dataloader", "rng"}
+	components := make([]targetready.ResumeComponentEvidence, 0, len(kinds))
+	for index, kind := range kinds {
+		present := true
+		if closure != targetready.ClosureComplete && index == len(kinds)-1 {
+			present = false
+		}
+		components = append(components, targetready.ResumeComponentEvidence{
+			Kind:     kind,
+			Required: true,
+			Present:  present,
+		})
+	}
+	return components
 }
 
 func envMap(values []corev1.EnvVar) map[string]string {

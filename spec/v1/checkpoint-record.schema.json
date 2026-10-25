@@ -23,6 +23,7 @@
     },
     "observed_at": { "type": "string", "minLength": 1 },
     "latest_mtime": { "type": ["string", "null"] },
+    "created_at": { "type": ["string", "null"] },
     "complete": { "type": "boolean" },
     "reasons": {
       "type": "array",

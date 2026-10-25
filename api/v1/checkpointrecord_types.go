@@ -45,6 +45,19 @@ type CheckpointReadinessStatus struct {
 	LastDrill           string          `json:"lastDrill,omitempty"`
 	LastDrillVersion    string          `json:"lastDrillVersion,omitempty"`
 	LastDrillDigest     string          `json:"lastDrillDigest,omitempty"`
+	// StateComplete reports the resume-state closure as observed by the
+	// agents. It is a pointer so "no agent reported closure evidence" stays
+	// distinguishable from "the closure is incomplete".
+	StateComplete *bool `json:"stateComplete,omitempty"`
+	// ReadinessLevel is L3 (bytes verified) or L4 (closure verified and
+	// anchored to the manifest a restore drill actually used).
+	ReadinessLevel string `json:"readinessLevel,omitempty"`
+	// ResumeClosure is the closure verdict the agents reported.
+	ResumeClosure string `json:"resumeClosure,omitempty"`
+	// ResumeManifestDigest binds that verdict to one manifest.
+	ResumeManifestDigest string `json:"resumeManifestDigest,omitempty"`
+	// ResumeReasonCodes lists the closure reasons, sorted.
+	ResumeReasonCodes []string `json:"resumeReasonCodes,omitempty"`
 }
 
 type CheckpointRecordSpec struct {
@@ -66,6 +79,10 @@ type CheckpointRecordSpec struct {
 	// checkpoint facts. Mutually exclusive with AgentEndpoint.
 	AgentSelector  *AgentSelector    `json:"agentSelector,omitempty"`
 	AgentSecretRef *ClusterSecretRef `json:"agentSecretRef,omitempty"`
+	// RequireStateComplete turns the readiness assessment into an L4 claim:
+	// the record may not read READY unless the resume-state closure is
+	// complete.
+	RequireStateComplete *bool `json:"requireStateComplete,omitempty"`
 }
 
 type CheckpointRecordStatus struct {

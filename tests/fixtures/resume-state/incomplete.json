@@ -1,0 +1,122 @@
+{
+  "checkpoint": {
+    "metadataDigest": "sha256:e7b14d93955b694cdbc393dd2f74dbfda364756a86f887d575f617945293b3f6",
+    "uid": "ckpt-cpu-fixture-0001",
+    "version": "v1"
+  },
+  "components": [
+    {
+      "coverage": {
+        "ranks": [
+          0,
+          1
+        ],
+        "worldSize": 2
+      },
+      "digest": "sha256:a9ea478daa3d92c5a5dae84df1fba4b6df7c1d820c2c427e5ad6506bc379b206",
+      "kind": "model",
+      "name": "model",
+      "present": true,
+      "provider": "lrs.training",
+      "required": true
+    },
+    {
+      "coverage": {
+        "ranks": [
+          0
+        ],
+        "worldSize": 2
+      },
+      "digest": "sha256:0fe30bf1187525735e6412fec66b18097addb24e2a8c336c30cb6fa8fa4c6836",
+      "kind": "optimizer",
+      "name": "optimizer",
+      "present": true,
+      "provider": "lrs.training",
+      "required": true
+    },
+    {
+      "coverage": {
+        "ranks": [
+          0,
+          1
+        ],
+        "worldSize": 2
+      },
+      "digest": "sha256:9fe9dedf5311441a3a991c65489d7fb22958bde43e180410f59c7003a3716bdc",
+      "kind": "global_step",
+      "name": "global_step",
+      "present": true,
+      "provider": "lrs.metadata",
+      "required": true
+    },
+    {
+      "coverage": {
+        "ranks": [
+          0,
+          1
+        ],
+        "worldSize": 2
+      },
+      "digest": null,
+      "kind": "dataloader",
+      "name": "dataloader",
+      "present": false,
+      "provider": "lrs.training",
+      "required": true
+    },
+    {
+      "coverage": {
+        "ranks": [
+          0,
+          1
+        ],
+        "worldSize": 2
+      },
+      "digest": "sha256:f8a8b49643ba3340466cbebe0485be6148e5002ea7ecc263e659aaaa9c3c477f",
+      "kind": "lr_scheduler",
+      "name": "lr_scheduler",
+      "present": true,
+      "provider": "lrs.training",
+      "required": false
+    },
+    {
+      "coverage": {
+        "ranks": [
+          0,
+          1
+        ],
+        "worldSize": 2
+      },
+      "digest": "sha256:54b5be8ac2d802ef7f95d0d1531dbdb142abe49be60908bf39d65ff15872876c",
+      "kind": "sampler",
+      "name": "sampler",
+      "present": true,
+      "provider": "lrs.training",
+      "required": false
+    },
+    {
+      "coverage": {
+        "ranks": [
+          0,
+          1
+        ],
+        "worldSize": 2
+      },
+      "digest": "sha256:03c8d77acabf66bb303428d9a61519a6a656424440166f67adb79cbb1a56c558",
+      "kind": "rank_local",
+      "name": "rank_local",
+      "present": true,
+      "provider": "lrs.training",
+      "required": false
+    }
+  ],
+  "schemaVersion": "1",
+  "topology": {
+    "mesh": "1d",
+    "placements": [
+      "node-a/rank-0",
+      "node-a/rank-1"
+    ],
+    "worldSize": 2
+  }
+}

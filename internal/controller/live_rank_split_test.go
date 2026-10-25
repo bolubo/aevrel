@@ -431,21 +431,21 @@ func TestLiveRankSplitExecutorFailureIsRetryable(t *testing.T) {
 func TestFinishTargetReadyEnforcesL4StateClosure(t *testing.T) {
 	for _, test := range []struct {
 		name          string
-		stateComplete bool
+		complete      bool
 		wantPhase     string
 		wantCondition string
 		wantLivePhase string
 	}{
 		{
 			name:          "incomplete state fails closed",
-			stateComplete: false,
+			complete:      false,
 			wantPhase:     aevrelv1.MigrationPhaseTargetFailed,
-			wantCondition: "StateIncomplete",
+			wantCondition: "StateClosureIncomplete",
 			wantLivePhase: "failed",
 		},
 		{
 			name:          "complete state succeeds",
-			stateComplete: true,
+			complete:      true,
 			wantPhase:     aevrelv1.MigrationPhaseSucceeded,
 			wantCondition: "Ready",
 			wantLivePhase: "succeeded",
@@ -459,21 +459,26 @@ func TestFinishTargetReadyEnforcesL4StateClosure(t *testing.T) {
 			if err != nil || !enabled {
 				t.Fatalf("settings = %+v enabled=%t err=%v", settings, enabled, err)
 			}
+			report := reportFor(migration, 0, true)
+			if !test.complete {
+				report = partialReportFor(migration, 0)
+			}
+			evaluation := targetready.Evaluate(targetready.EvaluateOptions{
+				Reports:              []targetready.RankReport{report},
+				ExpectedRanks:        []int32{0},
+				Version:              "step-100",
+				MinSteps:             10,
+				RequireStateComplete: true,
+			})
 			if _, err := reconciler.finishTargetReady(
 				context.Background(),
 				migration,
 				settings,
 				"target-validation",
 				metav1.Now().UTC().Format(timeRFC3339),
-				"Ready",
-				"all target ranks are ready",
-				targetready.Evaluation{
-					Ready:         true,
-					RanksReady:    4,
-					RanksTotal:    4,
-					StepsRan:      10,
-					StateComplete: test.stateComplete,
-				},
+				evaluation.Condition,
+				evaluation.Message,
+				evaluation,
 			); err != nil {
 				t.Fatal(err)
 			}

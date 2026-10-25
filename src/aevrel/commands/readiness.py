@@ -11,6 +11,11 @@ from ..local import LocalError
 from ..local.dcp import DCPStateProvider
 from ..local.models import CheckpointRecord, DrillOutcome
 from ..local.readiness import assess_readiness
+from ..state.resume_state import (
+    ResumeStateReport,
+    classify_resume_state,
+    parse_resume_state,
+)
 from ..verification.target_report import (
     TargetReportError,
     load_target_ready_report,
@@ -18,11 +23,27 @@ from ..verification.target_report import (
 from ..theme import print_section, print_result_block, status_label
 
 
-def _kv(label: str, value: object, width: int = 12) -> None:
+def _kv(label: str, value: object, width: int = 16) -> None:
     print(f"  {label:<{width}} {value}")
 
 
+def _tri_state(value: bool | None) -> str:
+    if value is None:
+        return "unknown"
+    return "true" if value else "false"
+
+
 def run_readiness(args: Namespace) -> int:
+    require_state_complete = bool(getattr(args, "require_state_complete", False))
+    resume_state_path = getattr(args, "resume_state", None)
+    if require_state_complete and not resume_state_path:
+        return _fail(
+            args,
+            "RESUME_MANIFEST_INVALID",
+            "readiness: --require-state-complete needs --resume-state "
+            "(an L4 claim must be anchored to one manifest)",
+        )
+
     provider = DCPStateProvider()
     try:
         record = provider.inventory(
@@ -33,30 +54,29 @@ def run_readiness(args: Namespace) -> int:
             step=args.step,
         )
     except LocalError as exc:
-        if getattr(args, "json", False):
-            print(json.dumps({"status": "failed", "error": exc.to_dict()}))
-        else:
-            print(f"aevrel readiness: {exc.code}: {exc}", file=sys.stderr)
-            print(f"RESULT: FAILED ({exc.code})", file=sys.stderr)
-        return 2
+        return _fail(args, exc.code, str(exc))
 
     drill = None
     if args.drill_report:
         try:
             drill = _load_drill_outcome(args.drill_report, record)
         except LocalError as exc:
-            if getattr(args, "json", False):
-                print(json.dumps({"status": "failed", "error": exc.to_dict()}))
-            else:
-                print(f"aevrel readiness: {exc.code}: {exc}", file=sys.stderr)
-                print(f"RESULT: FAILED ({exc.code})", file=sys.stderr)
-            return 2
+            return _fail(args, exc.code, str(exc))
+
+    resume_state: ResumeStateReport | None = None
+    if resume_state_path:
+        try:
+            resume_state = _load_resume_state(resume_state_path)
+        except LocalError as exc:
+            return _fail(args, exc.code, str(exc))
 
     readiness = assess_readiness(
         record,
         max_age_seconds=args.max_age_seconds,
         target_world_size=args.target_world,
         drill=drill,
+        resume_state=resume_state,
+        require_state_complete=require_state_complete,
     )
     payload = {
         "record": record.to_dict(),
@@ -64,6 +84,8 @@ def run_readiness(args: Namespace) -> int:
     }
     if drill is not None:
         payload["drill"] = drill.to_dict()
+    if resume_state is not None:
+        payload["resume_state"] = resume_state.to_dict()
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
@@ -82,13 +104,27 @@ def run_readiness(args: Namespace) -> int:
             "movable",
             "unknown" if readiness.movable is None else readiness.movable,
         )
+        _kv("state_complete", _tri_state(readiness.state_complete))
+        _kv("readiness_level", readiness.readiness_level)
         _kv("status", status_label(readiness.status.value))
         if drill is not None:
             _kv("drill", f"{drill.phase} ({drill.proof_ref})")
             if drill.detail:
                 print(f"  {drill.detail}")
+        if resume_state is not None and resume_state.manifest_digest:
+            _kv("manifest", resume_state.manifest_digest)
         for reason in readiness.reasons:
             print(f"  {reason.code}: {reason.detail}")
+        if (
+            resume_state is not None
+            and readiness.state_complete
+            and readiness.readiness_level == "L3"
+        ):
+            print(
+                "  NOTE: closure is complete but L4 is not claimed; pass "
+                "--require-state-complete (with a drill that proves the same "
+                "manifest) to gate on it"
+            )
         if readiness.status.value == "READY":
             print_result_block(True)
         else:
@@ -101,6 +137,48 @@ def run_readiness(args: Namespace) -> int:
     if args.strict and readiness.status.value != "READY":
         return 2
     return 0
+
+
+def _fail(args: Namespace, code: str, message: str) -> int:
+    """Report a failure once, keeping the U4 terminal contract.
+
+    Every failing path ends with an explicit ``RESULT: FAILED (code)`` line
+    on stderr so a terminal reader never sees a bare error.
+    """
+    if getattr(args, "json", False):
+        print(
+            json.dumps(
+                {"status": "failed", "error": {"code": code, "message": message}}
+            )
+        )
+    else:
+        print(f"aevrel readiness: {code}: {message}", file=sys.stderr)
+        print(f"RESULT: FAILED ({code})", file=sys.stderr)
+    return 2
+
+
+def _load_resume_state(path: str) -> ResumeStateReport:
+    location = Path(path).expanduser()
+    try:
+        payload = json.loads(location.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise LocalError(
+            "RESUME_MANIFEST_INVALID",
+            f"could not read resume-state manifest {location}: {exc}",
+        ) from exc
+    except ValueError as exc:
+        raise LocalError(
+            "RESUME_MANIFEST_INVALID",
+            f"{location}: resume-state manifest is not valid JSON: {exc}",
+        ) from exc
+    try:
+        manifest = parse_resume_state(payload)
+    except ValueError as exc:
+        raise LocalError(
+            "RESUME_MANIFEST_INVALID",
+            f"{location}: {exc}",
+        ) from exc
+    return classify_resume_state(manifest.to_dict())
 
 
 def _load_drill_outcome(
@@ -156,6 +234,20 @@ def _load_drill_outcome(
         seen[rank] = path
         reports.append(payload)
 
+    digests: list[str] = []
+    for payload in reports:
+        evidence = payload.get("resumeState")
+        if not evidence:
+            continue
+        digest = evidence["manifestDigest"]
+        if digest not in digests:
+            digests.append(digest)
+    if len(digests) > 1:
+        raise LocalError(
+            "DRILL_REPORT_INVALID",
+            "drill reports describe different resume-state manifests",
+        )
+
     expected = {rank.rank for rank in record.ranks}
     missing = sorted(expected - set(seen))
     extra = sorted(set(seen) - expected)
@@ -191,10 +283,12 @@ def _load_drill_outcome(
             steps_ran=steps_ran,
             proof_ref=proof_ref,
             detail="; ".join(details),
+            resume_state_digests=tuple(digests),
         )
     return DrillOutcome(
         phase="Succeeded",
         succeeded=True,
         steps_ran=steps_ran,
         proof_ref=proof_ref,
+        resume_state_digests=tuple(digests),
     )
