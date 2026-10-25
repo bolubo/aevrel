@@ -141,6 +141,31 @@ def reduce_bytes(inputs: Iterable[bytes], op: str, dtype: str) -> bytes:
     return extension().reduce_bytes(list(inputs), op, dtype)
 
 
+def verify_batches(
+    target: str,
+    sources: Sequence[str],
+    batches: Iterable[tuple[int, int, Iterable[tuple[int, int]]]],
+    op: str,
+    dtype: str,
+) -> int | None:
+    """Verify target bytes against their sources in one native scan.
+
+    ``batches`` is ``[(target_offset, target_size, [(source_offset, source_size)])]``
+    in plan order. Returns the absolute target offset of the first mismatch, or
+    ``None`` when every batch matches. The GIL is released for the whole scan.
+    """
+    return extension().verify_batches(
+        target,
+        list(sources),
+        [
+            (int(target_offset), int(target_size), [(int(o), int(s)) for o, s in inputs])
+            for target_offset, target_size, inputs in batches
+        ],
+        op,
+        dtype,
+    )
+
+
 def digest_bytes(data: bytes) -> str:
     """``sha256:<hex>`` for an in-memory payload."""
     return extension().digest_bytes(data)
@@ -183,5 +208,6 @@ __all__ = [
     "sha256_bytes",
     "sha256_concat",
     "sha256_file",
+    "verify_batches",
     "split_runs",
 ]

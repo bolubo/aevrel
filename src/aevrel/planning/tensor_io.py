@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from math import prod
 from typing import Callable, Iterable, TypeVar
 
 from .. import fastkernels
 from ..identity import resolve_source, source_id_for_shard, source_maps
+from ..parallel import worker_count
 from .layout import DTYPE_BYTES
 from ..storage.file import StorageError
 
@@ -112,17 +114,33 @@ def verify_source_checksums(
                 source_input,
             )
             used[source_id_for_shard(shard)] = shard
-    for identifier in sorted(used):
+    identifiers = sorted(used)
+
+    def check(identifier: str) -> "StorageError | None":
         shard = used[identifier]
         uri = shard["uri"]
         if not storage.exists(uri):
-            raise StorageError(f"source shard not found: {uri}")
+            return StorageError(f"source shard not found: {uri}")
         actual = storage.checksum(uri)
         if actual != shard["checksum"]:
-            raise StorageError(
+            return StorageError(
                 f"source checksum mismatch for {shard['tensor']}/rank{shard['rank']}: "
                 f"expected {shard['checksum']}, got {actual}"
             )
+        return None
+
+    workers = worker_count(len(identifiers), (used[i]["uri"] for i in identifiers))
+    if workers > 1:
+        # All shards are hashed; the first failure (in sorted-id order) is the
+        # one we surface, exactly as the sequential loop did. The native kernels
+        # release the GIL for the whole scan, so hashing actually overlaps.
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            outcomes = list(pool.map(check, identifiers))
+    else:
+        outcomes = [check(identifier) for identifier in identifiers]
+    for outcome in outcomes:
+        if outcome is not None:
+            raise outcome
     return len(used)
 
 

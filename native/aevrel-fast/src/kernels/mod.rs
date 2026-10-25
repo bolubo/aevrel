@@ -13,10 +13,12 @@
 pub mod hash;
 pub mod reduce;
 pub mod runs;
+pub mod verify;
 
 pub use hash::{digest_bytes, merkle_root, sha256_bytes, sha256_concat, sha256_file};
 pub use reduce::{reduce_bytes, DType};
 pub use runs::{byte_runs, coalesce_runs, paired_run_batches, split_runs};
+pub use verify::{verify_batches, Batch};
 
 /// Default run-batch ceiling used when a caller does not pass one.
 ///
