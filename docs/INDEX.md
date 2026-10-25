@@ -41,6 +41,11 @@ Start with the path that matches your goal.
 - [Code of conduct](../CODE_OF_CONDUCT.md)
 - [Changelog](../CHANGELOG.md)
 
+## Repository
+
+- [Repository tooling](../scripts/README.md)
+- [Experiments](../experiments/README.md)
+
 ## Release
 
 - [Aevrel 0.3.0 release notes](RELEASE-NOTES-0.3.0.md)

@@ -63,6 +63,10 @@ REQUIRED_FILES = (
 
 CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
+# Text files must not carry the executable bit. Copying from a Windows or
+# network filesystem sets it, and a stray 100755 makes the tree misleading.
+EXECUTABLE_TEXT_SUFFIXES = (".md", ".py", ".json", ".yml", ".yaml", ".toml")
+
 
 def _check_required(errors: list[str]) -> None:
     for relative in REQUIRED_FILES:
@@ -130,6 +134,25 @@ def _check_links(errors: list[str]) -> None:
                 )
 
 
+def _check_file_modes(errors: list[str]) -> None:
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "ls-files", "-s"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for line in result.stdout.splitlines():
+        meta, _, relative = line.partition("\t")
+        fields = meta.split()
+        if len(fields) < 3:
+            continue
+        if (
+            fields[0] == "100755"
+            and relative.lower().endswith(EXECUTABLE_TEXT_SUFFIXES)
+        ):
+            errors.append(f"text file has the executable bit: {relative}")
+
+
 def _check_yaml(errors: list[str]) -> None:
     paths = [
         *sorted((REPO / ".github/ISSUE_TEMPLATE").glob("*.yml")),
@@ -179,6 +202,7 @@ def check() -> dict[str, Any]:
     _check_required(errors)
     _check_forbidden(errors)
     _check_public_markdown_policy(errors)
+    _check_file_modes(errors)
     _check_links(errors)
     _check_yaml(errors)
     _check_governance_content(errors)
