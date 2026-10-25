@@ -15,6 +15,11 @@ from ..verification.target_report import (
     TargetReportError,
     load_target_ready_report,
 )
+from ..theme import print_section, print_result_block, status_label
+
+
+def _kv(label: str, value: object, width: int = 12) -> None:
+    print(f"  {label:<{width}} {value}")
 
 
 def run_readiness(args: Namespace) -> int:
@@ -60,38 +65,34 @@ def run_readiness(args: Namespace) -> int:
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
-        print(f"checkpoint: {record.checkpoint}")
-        print(f"provider:   {record.provider}")
-        print(f"version:    {record.version}")
-        print(f"ranks:      {len(record.ranks)}")
-        print(f"complete:   {record.complete}")
-        print(f"fresh:      {readiness.fresh}")
-        print(
-            "loadable:   "
-            + (
-                "unknown"
-                if readiness.loadable is None
-                else str(readiness.loadable)
-            )
+        print_section("READINESS")
+        _kv("checkpoint", record.checkpoint)
+        _kv("provider", record.provider)
+        _kv("version", record.version)
+        _kv("ranks", len(record.ranks))
+        _kv("complete", record.complete)
+        _kv("fresh", readiness.fresh)
+        _kv(
+            "loadable",
+            "unknown" if readiness.loadable is None else readiness.loadable,
         )
-        print(
-            "movable:    "
-            + (
-                "unknown"
-                if readiness.movable is None
-                else str(readiness.movable)
-            )
+        _kv(
+            "movable",
+            "unknown" if readiness.movable is None else readiness.movable,
         )
-        print(f"status:     {readiness.status.value}")
+        _kv("status", status_label(readiness.status.value))
         if drill is not None:
-            print(f"drill:      {drill.phase} ({drill.proof_ref})")
+            _kv("drill", f"{drill.phase} ({drill.proof_ref})")
             if drill.detail:
                 print(f"  {drill.detail}")
         for reason in readiness.reasons:
             print(f"  {reason.code}: {reason.detail}")
-        if readiness.status.value != "READY":
+        if readiness.status.value == "READY":
+            print_result_block(True)
+        else:
+            print("RESULT: NOT READY")
             print(
-                "next: run a restore drill / target load before treating "
+                "NEXT: run a restore drill / target load before treating "
                 "this checkpoint as recoverable"
             )
 

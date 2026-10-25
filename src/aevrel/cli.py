@@ -45,6 +45,14 @@ from .serve import serve
 from .storage.file import StorageError
 from .planning.tensor_io import TensorIOError
 from .verification import VerificationError, verify
+from .theme import (
+    AEVREL_WORDMARK,
+    TAGLINE,
+    render_banner,
+    print_section,
+    print_table,
+    print_result_block,
+)
 
 
 _PUBLIC_COMMANDS = (
@@ -105,6 +113,11 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="store_true", help="print version")
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="disable ANSI color (also honored via NO_COLOR env)",
+    )
     sub = parser.add_subparsers(
         dest="command",
         metavar=(
@@ -467,7 +480,9 @@ def _emit_failure(command: str, exc: Exception, json_mode: bool) -> int:
         }
         print(json.dumps(payload, indent=2))
     else:
+        code = getattr(exc, "code", type(exc).__name__)
         print(f"aevrel {command}: {exc}", file=sys.stderr)
+        print(f"RESULT: FAILED ({code})", file=sys.stderr)
     return 2
 
 
@@ -489,10 +504,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     args = parser.parse_args(arguments)
 
+    if args.no_color:
+        os.environ["NO_COLOR"] = "1"
     if args.version:
-        print(f"aevrel {__version__}")
+        print(render_banner())
+        print(f"{AEVREL_WORDMARK} {__version__}")
         return 0
     if not args.command:
+        print(render_banner())
         parser.print_help()
         return 2
     if args.command == "inspect":
@@ -901,7 +920,10 @@ def main(argv: list[str] | None = None) -> int:
                 ],
             }
             validate_capabilities(payload)
-            print(json.dumps(payload, indent=2, sort_keys=True))
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                _print_capabilities_summary(payload)
             return 0
         except ValueError as exc:
             return _emit_failure("capabilities", exc, args.json)
@@ -1038,6 +1060,7 @@ def _print_migration_summary(summary: dict) -> None:
     topology = summary["topology"]
     verification = summary["verification"]
     execution = summary["execution"]
+    print_section("MIGRATION")
     print("Migration complete")
     _print_kv("checkpoint", summary["checkpoint"])
     _print_kv("output", summary["output"])
@@ -1062,11 +1085,17 @@ def _print_migration_summary(summary: dict) -> None:
         f"{'passed' if verification.get('passed') else 'FAILED'}",
     )
     _print_kv("work dir", summary["work_dir"])
+    passed = bool(verification.get("passed"))
+    print_result_block(
+        passed,
+        code=None if passed else str(verification.get("method", "verify")),
+    )
 
 
 def _print_demo_summary(result: dict) -> None:
     verification = result["verification"]
     target = Path(result["work_dir"]) / "target"
+    print_section("DEMO")
     print("Demo complete")
     _print_kv("work dir", result["work_dir"])
     _print_kv("target", target)
@@ -1091,6 +1120,11 @@ def _print_demo_summary(result: dict) -> None:
         )
     else:
         _print_kv("next", "aevrel demo --dcp --work-dir ./aevrel-demo-dcp")
+    passed = bool(verification.get("passed"))
+    print_result_block(
+        passed,
+        code=None if passed else str(verification.get("method", "verify")),
+    )
 
 
 def _print_doctor_summary(
@@ -1098,17 +1132,40 @@ def _print_doctor_summary(
     *,
     checkpoint: str | None,
 ) -> None:
+    print_section("DOCTOR")
     if result["status"] == "ok":
         print("Ready to migrate." if checkpoint else "Environment ready.")
     else:
         print("Not ready.")
-    for check in result["checks"]:
-        marker = "ok" if check["ok"] else "FAIL"
-        print(f"  [{'ok' if check['ok'] else 'FAIL':<4}] {check['name']:<22} {check['detail']}")
-        if check.get("hint"):
-            print(f"       {'':<22} {check['hint']}")
-    if result["status"] == "ok" and not checkpoint:
-        print("Next: aevrel demo")
+    rows = [
+        [
+            "OK" if check["ok"] else "FAIL",
+            check["name"],
+            (
+                check.get("detail", "")
+                + (f" ({check['hint']})" if check.get("hint") else "")
+            ),
+        ]
+        for check in result["checks"]
+    ]
+    print_table(["CHECK", "NAME", "DETAIL"], rows)
+    ok = result["status"] == "ok"
+    print_result_block(
+        ok,
+        next_hint="aevrel demo" if ok and not checkpoint else None,
+    )
+
+
+def _print_capabilities_summary(payload: dict) -> None:
+    """Print a human-readable capabilities summary (non-JSON mode)."""
+    print_section("CAPABILITIES")
+    _print_kv("version", payload["version"])
+    _print_kv("apiVersion", payload["apiVersion"])
+    _print_kv("agentVersion", payload["agentVersion"])
+    _print_kv("roles", ", ".join(payload["roles"]))
+    rows = [[str(i + 1), feat] for i, feat in enumerate(payload["features"])]
+    print_table(["#", "FEATURE"], rows)
+    print_result_block(True)
 
 
 def _format_bytes(value: int) -> str:

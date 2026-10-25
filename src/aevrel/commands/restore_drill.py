@@ -8,6 +8,11 @@ from pathlib import Path
 
 from ..local.drill import run_restore_drill
 from ..local.errors import LocalError
+from ..theme import print_section, print_result_block
+
+
+def _kv(label: str, value: object, width: int = 12) -> None:
+    print(f"  {label:<{width}} {value}")
 
 
 def run_restore_drill_command(args) -> int:
@@ -42,14 +47,16 @@ def run_restore_drill_command(args) -> int:
                 f"aevrel restore-drill: {exc.code}: {exc}",
                 file=sys.stderr,
             )
+            print(f"RESULT: FAILED ({exc.code})", file=sys.stderr)
         return 2
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
-        print("restore drill complete")
-        print(f"  checkpoint: {result['checkpoint']}")
-        print(f"  rank:       {result['rank']}")
-        print(f"  steps:      {result['steps']}")
-        print(f"  report:     {result['report']}")
-        print(f"  duration:   {result['duration_seconds']:.3f}s")
+        print_section("RESTORE DRILL")
+        _kv("checkpoint", result["checkpoint"])
+        _kv("rank", result["rank"])
+        _kv("steps", result["steps"])
+        _kv("report", result["report"])
+        _kv("duration", f"{result['duration_seconds']:.3f}s")
+        print_result_block(True)
     return 0

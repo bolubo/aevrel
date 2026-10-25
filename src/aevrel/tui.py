@@ -20,6 +20,14 @@ from .local.dcp import DCPStateProvider
 from .local.drill import run_restore_drill
 from .local.models import DrillOutcome
 from .local.readiness import assess_readiness
+from .theme import (
+    AEVREL_WORDMARK_SPACED,
+    HAIRLINE,
+    ROLE_PAIR,
+    status_label,
+    status_role,
+    use_color,
+)
 
 
 @dataclass
@@ -48,6 +56,14 @@ class TuiState:
     progress: int = 0
     task_message: str = "idle"
     running: bool = False
+    show_help: bool = False
+    filter_text: str = ""
+    filter_active: bool = False
+    error: str = ""
+    # U10: which panel owns Tab focus (transfer/plane/context) and whether
+    # the checkpoint detail overlay is open. Both are pure view state.
+    focus: str = "plane"
+    detail_open: bool = False
 
 
 def _view(
@@ -122,8 +138,10 @@ class TuiApp:
                 pass
         screen.keypad(True)
 
-    def _attr(self, pair: int = 0, *, bold: bool = False, reverse: bool = False) -> int:
-        value = self.curses.color_pair(pair) if pair else 0
+    def _attr(self, pair: int | str = 0, *, bold: bool = False, reverse: bool = False) -> int:
+        if isinstance(pair, str):
+            pair = ROLE_PAIR.get(pair, 0)
+        value = self.curses.color_pair(pair) if (pair and use_color()) else 0
         if bold:
             value |= self.curses.A_BOLD
         if reverse:
@@ -152,6 +170,7 @@ class TuiApp:
             elif kind == "error":
                 self.state.running = False
                 self.state.task_message = "failed"
+                self.state.error = str(payload)
                 self._log(str(payload))
 
     def _finish_task(self, task: str, result: Any) -> None:
@@ -216,6 +235,7 @@ class TuiApp:
         self.state.task = task
         self.state.progress = 0
         self.state.task_message = "starting"
+        self.state.error = ""
 
         def progress(percent: int, message: str) -> None:
             self.events.put(
@@ -405,7 +425,7 @@ class TuiApp:
             0,
             prompt,
             max(1, width - 1),
-            self._attr(1, bold=True),
+            self._attr("accent", bold=True),
         )
         try:
             self.curses.echo()
@@ -431,9 +451,35 @@ class TuiApp:
             self._log(f"{label} updated")
 
     def _handle_key(self, key: Any) -> bool:
+        # Filter input mode captures text keys first.
+        if self.state.filter_active:
+            return self._handle_filter_key(key)
         if key in ("q", "Q"):
             return True
-        if key in ("d", "D"):
+        # ? stays reachable from every layer (U14); help stacks on top of
+        # the detail overlay and Esc only closes the topmost layer.
+        if key == "?":
+            self.state.show_help = not self.state.show_help
+            return False
+        if self.state.show_help:
+            if key in (27, "\x1b"):
+                self.state.show_help = False
+            return False
+        if self.state.detail_open:
+            return self._handle_detail_key(key)
+        if key == "/":
+            self.state.filter_active = True
+            self.state.filter_text = ""
+            return False
+        if key == "\t":
+            self._cycle_focus()
+        elif key in ("\n", "\r", 10) or key == getattr(
+            self.curses, "KEY_ENTER", -1
+        ):
+            self._open_detail()
+        elif key == getattr(self.curses, "KEY_RIGHT", -1):
+            self._open_detail()
+        elif key in ("d", "D"):
             self._demo()
         elif key in ("i", "I"):
             self._inspect()
@@ -453,7 +499,7 @@ class TuiApp:
             self._edit("drill_command", "drill command")
         elif key in ("n", "N"):
             self._edit("drill_steps", "drill steps")
-        elif key in ("k", "K"):
+        elif key in ("y", "Y"):
             self._edit("drill_rank", "drill rank")
         elif key in ("v", "V"):
             self.state.mode = (
@@ -468,22 +514,80 @@ class TuiApp:
                 "live" if self.state.transfer == "static" else "static"
             )
             self._log(f"transfer: {self.state.transfer}")
-        elif key in (self.curses.KEY_UP,):
-            if self.state.views:
-                self.state.selected = max(0, self.state.selected - 1)
-                if self.state.selected < self.state.scroll_offset:
-                    self.state.scroll_offset = self.state.selected
-        elif key in (self.curses.KEY_DOWN,):
-            if self.state.views:
-                limit = getattr(self, "_list_limit", 7)
-                self.state.selected = min(
-                    len(self.state.views) - 1,
-                    self.state.selected + 1,
-                )
-                if self.state.selected >= self.state.scroll_offset + limit:
-                    self.state.scroll_offset = self.state.selected - limit + 1
-                if self.state.scroll_offset < 0:
-                    self.state.scroll_offset = 0
+        elif key in (self.curses.KEY_UP, "k", "K"):
+            self._move_selection(-1)
+        elif key in (self.curses.KEY_DOWN, "j", "J"):
+            self._move_selection(1)
+        return False
+
+    def _handle_filter_key(self, key: Any) -> bool:
+        if key in (27, "\x1b"):
+            self.state.filter_active = False
+            self.state.filter_text = ""
+            return False
+        if key in ("\n", "\r", 10) or key == getattr(
+            self.curses, "KEY_ENTER", -1
+        ):
+            self.state.filter_active = False
+            return False
+        if key in (
+            getattr(self.curses, "KEY_BACKSPACE", -1),
+            127,
+            "\x7f",
+            "\b",
+        ):
+            self.state.filter_text = self.state.filter_text[:-1]
+            return False
+        if isinstance(key, str) and len(key) == 1 and key.isprintable():
+            self.state.filter_text += key
+            return False
+        return False
+
+    def _visible_views(self) -> list[tuple[int, View]]:
+        query = self.state.filter_text.strip().lower()
+        visible: list[tuple[int, View]] = []
+        for index, view in enumerate(self.state.views):
+            name = Path(view.path).name.lower()
+            if not query or query in name:
+                visible.append((index, view))
+        return visible
+
+    def _move_selection(self, delta: int) -> None:
+        visible = [index for index, _ in self._visible_views()]
+        if not visible:
+            return
+        if self.state.selected not in visible:
+            self.state.selected = visible[0] if delta > 0 else visible[-1]
+            return
+        pos = visible.index(self.state.selected)
+        new_pos = max(0, min(len(visible) - 1, pos + delta))
+        self.state.selected = visible[new_pos]
+        limit = getattr(self, "_list_limit", 7)
+        if self.state.selected < self.state.scroll_offset:
+            self.state.scroll_offset = self.state.selected
+        elif self.state.selected >= self.state.scroll_offset + limit:
+            self.state.scroll_offset = self.state.selected - limit + 1
+        if self.state.scroll_offset < 0:
+            self.state.scroll_offset = 0
+
+    def _cycle_focus(self) -> None:
+        """Tab: move panel focus left-to-right (transfer/plane/context)."""
+        order = ("transfer", "plane", "context")
+        current = self.state.focus if self.state.focus in order else "plane"
+        self.state.focus = order[(order.index(current) + 1) % len(order)]
+        self._log(f"focus: {self.state.focus}")
+
+    def _open_detail(self) -> None:
+        if self._selected() is None:
+            self._log("no checkpoint selected")
+            return
+        self.state.detail_open = True
+
+    def _handle_detail_key(self, key: Any) -> bool:
+        if key in (27, "\x1b") or key == getattr(
+            self.curses, "KEY_LEFT", -1
+        ):
+            self.state.detail_open = False
         return False
 
     def _draw(self, screen: Any) -> None:
@@ -500,8 +604,8 @@ class TuiApp:
             footer = 4
             body_y = 2
             body_h = height - body_y - footer
-            left_w = 38
-            right_w = 31
+            left_w = 32
+            right_w = 26
             center_x = left_w + 1
             center_w = width - left_w - right_w - 2
             right_x = width - right_w
@@ -509,6 +613,10 @@ class TuiApp:
             self._draw_center(screen, body_y, center_x, body_h, center_w)
             self._draw_right(screen, body_y, right_x, body_h, right_w)
             self._draw_footer(screen, height - footer, width)
+            if self.state.detail_open:
+                self._draw_detail(screen, height, width)
+            if self.state.show_help:
+                self._draw_help(screen, height, width)
             screen.refresh()
         except self.curses.error:
             pass
@@ -525,7 +633,7 @@ class TuiApp:
                 0,
                 0,
                 f"terminal too small: {width}x{height}; need >= 80x24",
-                self._attr(3, bold=True),
+                self._attr("warn", bold=True),
             )
             screen.refresh()
         except Exception:
@@ -545,11 +653,11 @@ class TuiApp:
         ):
             if row >= height - 2:
                 break
-            self._safe(screen, row, 0, f"{label:<10} {value}", self._attr(0))
+            self._safe(screen, row, 0, f"{label:<10} {value}", self._attr("neutral"))
             row += 1
         row += 1
         if row < height - 2:
-            self._safe(screen, row, 0, "CHECKPOINTS", self._attr(1, bold=True))
+            self._safe(screen, row, 0, "CHECKPOINTS", self._attr("accent", bold=True))
             row += 1
         limit = min(7, height - row - 4)
         offset = max(
@@ -573,21 +681,25 @@ class TuiApp:
         self._draw_footer(screen, height - 4, width)
 
     def _draw_header(self, screen: Any, width: int) -> None:
-        title = (
-            f"AEVREL {__version__}  CHECKPOINT CONTROL PLANE  "
-            f"LOCAL  {time.strftime('%H:%M:%S')}"
+        meta = (
+            f"{__version__}  ·  checkpoint control plane  ·  local  ·  "
+            f"{time.strftime('%H:%M:%S')}"
         )
-        self._safe(screen, 0, 0, title, self._attr(1, bold=True))
+        header = f"{AEVREL_WORDMARK_SPACED}    {meta}"
+        self._safe(screen, 0, 0, header, self._attr("accent", bold=True))
         self._safe(
             screen,
             1,
             0,
-            "=" * max(1, width - 1),
-            self._attr(0, bold=True),
+            HAIRLINE * max(1, width - 1),
+            self._attr("neutral"),
         )
 
     def _draw_footer(self, screen: Any, y: int, width: int) -> None:
-        if self.state.running:
+        if self.state.error:
+            line = f"ERROR  {self.state.error}"
+            attr = self._attr("error", bold=True)
+        elif self.state.running:
             bar_width = max(10, width - 52)
             filled = int(bar_width * self.state.progress / 100)
             bar = "#" * filled + "." * (bar_width - filled)
@@ -595,10 +707,10 @@ class TuiApp:
                 f"{self.state.task.upper():8} [{bar}] "
                 f"{self.state.progress:3d}%  {self.state.task_message}"
             )
-            attr = self._attr(2, bold=True)
+            attr = self._attr("ok", bold=True)
         else:
             line = "READY"
-            attr = self._attr(2)
+            attr = self._attr("ok")
         self._safe(screen, y, 0, line, attr)
         logs = self.state.logs[-2:]
         for index, item in enumerate(logs):
@@ -607,13 +719,26 @@ class TuiApp:
                 y + 1 + index,
                 0,
                 item,
-                self._attr(0),
+                self._attr("neutral"),
             )
-        keys = (
-            "D Demo  I Inspect  M Migrate  R Drill  E Source  O Output  "
-            "W Work  T Target  C Cmd  N Steps  K Rank  V Mode  B Transfer  Q Quit"
+        # U14: the key bar only ever lists keys that work right now.
+        self._safe(
+            screen,
+            y + 3,
+            0,
+            self._footer_keys(),
+            self._attr("neutral", bold=True),
         )
-        self._safe(screen, y + 3, 0, keys, self._attr(0, bold=True))
+
+    def _footer_keys(self) -> str:
+        # topmost layer first: the bar always describes what Esc / keys do now
+        if self.state.show_help:
+            return "? / Esc close help"
+        if self.state.filter_active:
+            return "type to filter · Enter confirm · Esc cancel"
+        if self.state.detail_open:
+            return "←/Esc back · q quit"
+        return "↑↓/jk move · Enter detail · Tab panel · / filter · ? help · q quit"
 
     def _draw_left(
         self,
@@ -623,12 +748,20 @@ class TuiApp:
         h: int,
         w: int,
     ) -> None:
-        self._box(screen, y, x, h, w, "TRANSFER")
+        self._box(
+            screen,
+            y,
+            x,
+            h,
+            w,
+            "TRANSFER",
+            focused=self.state.focus == "transfer",
+        )
         row = y + 2
-        self._safe(screen, row, x + 2, "[MODE]   DEMO" if self.state.mode == "demo" else "[MODE]   REAL", self._attr(1))
+        self._safe(screen, row, x + 2, "[MODE]   DEMO" if self.state.mode == "demo" else "[MODE]   REAL", self._attr("accent"))
         row += 1
         transfer = "STATIC" if self.state.transfer == "static" else "LIVE (EXPERIMENTAL)"
-        attr = self._attr(4 if self.state.transfer == "live" else 1)
+        attr = self._attr("error" if self.state.transfer == "live" else "accent")
         self._safe(screen, row, x + 2, f"[TYPE]   {transfer}", attr)
         row += 2
         row = self._field(screen, row, x + 2, w - 4, "SOURCE", self.state.source or "(empty)")
@@ -636,13 +769,13 @@ class TuiApp:
         row = self._field(screen, row, x + 2, w - 4, "OUTPUT", self.state.output or "(auto)")
         row = self._field(screen, row, x + 2, w - 4, "WORK", self.state.work or "(auto)")
         row += 1
-        self._safe(screen, row, x + 2, "D  generate demo", self._attr(1))
+        self._safe(screen, row, x + 2, "D  generate demo", self._attr("accent"))
         row += 1
-        self._safe(screen, row, x + 2, "I  inspect checkpoint", self._attr(1))
+        self._safe(screen, row, x + 2, "I  inspect checkpoint", self._attr("accent"))
         row += 1
-        self._safe(screen, row, x + 2, "M  migrate static", self._attr(1))
+        self._safe(screen, row, x + 2, "M  migrate static", self._attr("accent"))
         row += 1
-        self._safe(screen, row, x + 2, "R  restore drill", self._attr(1))
+        self._safe(screen, row, x + 2, "R  restore drill", self._attr("accent"))
         row += 2
         if self.state.transfer == "live":
             for line in textwrap.wrap(
@@ -650,7 +783,7 @@ class TuiApp:
                 "controller + live worker + GPU are required.",
                 max(10, w - 4),
             ):
-                self._safe(screen, row, x + 2, line, self._attr(4))
+                self._safe(screen, row, x + 2, line, self._attr("error"))
                 row += 1
         else:
             self._safe(
@@ -658,7 +791,7 @@ class TuiApp:
                 row,
                 x + 2,
                 "E/O/W/T edit fields",
-                self._attr(0, bold=True),
+                self._attr("neutral", bold=True),
             )
 
     def _draw_center(
@@ -669,58 +802,98 @@ class TuiApp:
         h: int,
         w: int,
     ) -> None:
-        self._box(screen, y, x, h, w, "CONTROL PLANE")
+        self._box(
+            screen,
+            y,
+            x,
+            h,
+            w,
+            "CONTROL PLANE",
+            focused=self.state.focus == "plane",
+        )
         row = y + 2
-        self._safe(screen, row, x + 2, "CHECKPOINTS", self._attr(1, bold=True))
+        self._safe(screen, row, x + 2, "CHECKPOINTS", self._attr("accent", bold=True))
         row += 1
         if not self.state.views:
             self._safe(
                 screen,
                 row,
                 x + 2,
-                "no checkpoint loaded; press D or I",
-                self._attr(0),
+                "NO CHECKPOINTS",
+                self._attr("warn", bold=True),
             )
-            row += 2
+            self._safe(
+                screen,
+                row + 1,
+                x + 2,
+                "press D to generate a demo, or I to inspect a source",
+                self._attr("neutral"),
+            )
+            row += 3
         else:
-            limit = min(7, h - 12)
-            self._list_limit = limit
-            offset = max(
-                0,
-                min(
-                    self.state.scroll_offset,
-                    max(0, len(self.state.views) - limit),
-                ),
-            )
-            self.state.scroll_offset = offset
-            for win_index, view in enumerate(
-                self.state.views[offset : offset + limit]
-            ):
-                abs_index = offset + win_index
-                marker = ">" if abs_index == self.state.selected else " "
-                status = view.readiness.get("status", "UNKNOWN")
-                line = (
-                    f"{marker} {Path(view.path).name[:max(12, w - 22)]}"
-                    f"  [{status}]"
+            visible = self._visible_views()
+            if not visible:
+                self._safe(
+                    screen,
+                    row,
+                    x + 2,
+                    f"NO MATCHES  /{self.state.filter_text}",
+                    self._attr("warn", bold=True),
                 )
-                attr = self._status_attr(status)
-                if abs_index == self.state.selected:
-                    attr |= self.curses.A_REVERSE
-                self._safe(screen, row, x + 2, line, attr)
+                self._safe(
+                    screen,
+                    row + 1,
+                    x + 2,
+                    "press Esc to clear the filter",
+                    self._attr("neutral"),
+                )
+                row += 3
+            else:
+                limit = min(7, h - 12)
+                self._list_limit = limit
+                offset = max(
+                    0,
+                    min(
+                        self.state.scroll_offset,
+                        max(0, len(visible) - limit),
+                    ),
+                )
+                self.state.scroll_offset = offset
+                name_w = max(10, min(30, w - 28))
+                self._safe(
+                    screen,
+                    row,
+                    x + 2,
+                    f"{'NAME':<{name_w}}  STATE",
+                    self._attr("accent", bold=True),
+                )
                 row += 1
-            row += 1
-            row = self._draw_readiness_legend(screen, row, x + 2, y, h)
-        self._safe(screen, row, x + 2, "DETAIL", self._attr(1, bold=True))
+                for abs_index, view in visible[offset : offset + limit]:
+                    marker = ">" if abs_index == self.state.selected else " "
+                    status = view.readiness.get("status", "UNKNOWN")
+                    name = Path(view.path).name
+                    if len(name) > name_w:
+                        name = name[:name_w]
+                    line = f"{marker} {name:<{name_w}}  {status_label(status)}"
+                    attr = self._status_attr(status)
+                    if abs_index == self.state.selected:
+                        attr |= self.curses.A_REVERSE
+                    self._safe(screen, row, x + 2, line, attr)
+                    row += 1
+                row += 1
+                row = self._draw_readiness_legend(screen, row, x + 2, y, h)
+        self._safe(screen, row, x + 2, "DETAIL", self._attr("accent", bold=True))
         row += 1
         view = self._selected()
         if view is None:
-            self._safe(screen, row, x + 2, "nothing selected", self._attr(0))
+            self._safe(screen, row, x + 2, "nothing selected", self._attr("neutral"))
             return
         readiness = view.readiness
         record = view.record
+        raw_status = str(readiness.get("status", "UNKNOWN"))
         details = [
             ("PATH", view.path),
-            ("STATUS", readiness.get("status", "UNKNOWN")),
+            ("STATUS", status_label(raw_status)),
             ("COMPLETE", self._bool(record.get("complete"))),
             ("FRESH", self._bool(readiness.get("fresh"))),
             ("LOADABLE", self._bool(readiness.get("loadable"))),
@@ -734,19 +907,19 @@ class TuiApp:
                 row,
                 x + 2,
                 f"{label:<10} {value}",
-                self._status_attr(str(value)) if label == "STATUS" else self._attr(0),
+                self._status_attr(raw_status) if label == "STATUS" else self._attr("neutral"),
             )
             row += 1
         reasons = readiness.get("reasons") or []
         if reasons and row < y + h - 2:
-            self._safe(screen, row, x + 2, "REASONS", self._attr(3, bold=True))
+            self._safe(screen, row, x + 2, "REASONS", self._attr("warn", bold=True))
             row += 1
             for reason in reasons[:2]:
                 text = f"{reason.get('code')}: {reason.get('detail')}"
                 for line in textwrap.wrap(text, max(20, w - 4))[:2]:
                     if row >= y + h - 2:
                         return
-                    self._safe(screen, row, x + 2, line, self._attr(3))
+                    self._safe(screen, row, x + 2, line, self._attr("warn"))
                     row += 1
         ranks = record.get("ranks") or []
         if ranks and row < y + h - 1:
@@ -754,7 +927,7 @@ class TuiApp:
                 f"R{item.get('rank')}:{len(item.get('shards') or [])}"
                 for item in ranks[:12]
             )
-            self._safe(screen, row, x + 2, f"RANKS     {cells}", self._attr(1))
+            self._safe(screen, row, x + 2, f"RANKS     {cells}", self._attr("accent"))
 
     def _draw_right(
         self,
@@ -764,7 +937,15 @@ class TuiApp:
         h: int,
         w: int,
     ) -> None:
-        self._box(screen, y, x, h, w, "CONTEXT")
+        self._box(
+            screen,
+            y,
+            x,
+            h,
+            w,
+            "CONTEXT",
+            focused=self.state.focus == "context",
+        )
         row = y + 2
         kubeconfig = os.environ.get("KUBECONFIG") or str(
             Path.home() / ".kube" / "config"
@@ -803,17 +984,17 @@ class TuiApp:
         for title, items in groups:
             if row >= y + h - 2:
                 return
-            self._safe(screen, row, x + 2, title, self._attr(1, bold=True))
+            self._safe(screen, row, x + 2, title, self._attr("accent", bold=True))
             row += 1
             for label, status, provenance in items:
                 if row >= y + h - 2:
                     return
                 if provenance == "verified" and status == "OK":
-                    color = 2
+                    color = "ok"
                 elif provenance == "mode-flag":
-                    color = 1
+                    color = "accent"
                 else:
-                    color = 0
+                    color = "neutral"
                 self._safe(
                     screen,
                     row,
@@ -833,10 +1014,10 @@ class TuiApp:
         label: str,
         value: str,
     ) -> int:
-        self._safe(screen, row, x, label, self._attr(0, bold=True))
+        self._safe(screen, row, x, label, self._attr("neutral", bold=True))
         row += 1
         for line in textwrap.wrap(str(value), max(8, width))[:2]:
-            self._safe(screen, row, x, line, self._attr(0))
+            self._safe(screen, row, x, line, self._attr("neutral"))
             row += 1
         return row + 1
 
@@ -848,31 +1029,39 @@ class TuiApp:
         h: int,
         w: int,
         title: str,
+        *,
+        focused: bool = False,
     ) -> None:
         if h < 3 or w < 4:
             return
-        border = self._attr(0)
-        self._safe(screen, y, x, "+" + "-" * (w - 2) + "+", border)
-        self._safe(screen, y + h - 1, x, "+" + "-" * (w - 2) + "+", border)
+        # Focused panel: accent border. Under NO_COLOR the pair collapses,
+        # so the weight (bold) carries the same cue without any color.
+        border = self._attr("accent" if focused else "neutral", bold=focused)
+        self._safe(screen, y, x, "┌" + "─" * (w - 2) + "┐", border)
+        self._safe(screen, y + h - 1, x, "└" + "─" * (w - 2) + "┘", border)
         for row in range(y + 1, y + h - 1):
-            self._safe(screen, row, x, "|", border)
-            self._safe(screen, row, x + w - 1, "|", border)
+            self._safe(screen, row, x, "│", border)
+            self._safe(screen, row, x + w - 1, "│", border)
         self._safe(
             screen,
             y,
             x + 2,
             f" {title} ",
-            self._attr(1, bold=True),
+            self._attr("accent", bold=True),
         )
 
     def _status_attr(self, status: str) -> int:
-        if status == "READY":
-            return self._attr(2, bold=True)
-        if status in {"UNVERIFIED", "STALE"}:
-            return self._attr(3)
-        if status in {"INCOMPLETE", "TARGET_BLOCKED"}:
-            return self._attr(4)
-        return self._attr(0)
+        role = status_role(status)
+        if not use_color():
+            # Monochrome: encode severity with weight/reverse, never color.
+            if role in ("ok", "warn"):
+                return self._attr("neutral", bold=True)
+            if role == "error":
+                return self._attr("neutral", reverse=True)
+            return self._attr("neutral")
+        if role == "ok":
+            return self._attr(role, bold=True)
+        return self._attr(role)
 
     def _draw_readiness_legend(self, screen, row, x, y, h) -> int:
         legend = [
@@ -882,7 +1071,7 @@ class TuiApp:
             ("UNKNOWN", self._status_attr("UNKNOWN")),
         ]
         if row < y + h - 2:
-            self._safe(screen, row, x, "LEGEND:", self._attr(1, bold=True))
+            self._safe(screen, row, x, "LEGEND:", self._attr("accent", bold=True))
             row += 1
         for text, attr in legend:
             if row >= y + h - 2:
@@ -890,6 +1079,103 @@ class TuiApp:
             self._safe(screen, row, x, f"  {text}", attr)
             row += 1
         return row + 1
+
+    def _overlay(
+        self,
+        screen: Any,
+        height: int,
+        width: int,
+        lines: list[str],
+        title: str,
+    ) -> None:
+        """Draw a centered modal overlay (help / detail) in a hairline box."""
+        if not lines:
+            return
+        box_w = min(width - 2, max(len(line) for line in lines) + 4)
+        box_h = min(height - 2, len(lines) + 2)
+        top = max(0, (height - box_h) // 2)
+        left = max(0, (width - box_w) // 2)
+        blank = " " * box_w
+        for ry in range(top, top + box_h):
+            self._safe(screen, ry, left, blank, self._attr("neutral"))
+        self._box(screen, top, left, box_h, box_w, title)
+        row = top + 1
+        for line in lines[: box_h - 2]:
+            attr = (
+                self._attr("accent", bold=True)
+                if line == lines[0]
+                else self._attr("neutral")
+            )
+            self._safe(screen, row, left + 2, line, attr)
+            row += 1
+
+    def _draw_help(self, screen: Any, height: int, width: int) -> None:
+        lines = [
+            "KEYS",
+            "",
+            "D             generate demo checkpoint",
+            "I             inspect / re-index the source",
+            "M             migrate (static transfer)",
+            "R             restore drill on the source",
+            "E O W T       edit source/output/work/target",
+            "C N Y         edit drill command / steps / rank",
+            "V             toggle demo / real mode",
+            "B             toggle transfer type",
+            "j / k         move the selection (or up / down)",
+            "Enter / →     open the selected checkpoint detail",
+            "Tab           cycle panel focus",
+            "/             filter checkpoints by name",
+            "q             quit",
+            "",
+            "? or Esc      close this help",
+        ]
+        self._overlay(screen, height, width, lines, "HELP")
+
+    def _draw_detail(self, screen: Any, height: int, width: int) -> None:
+        view = self._selected()
+        if view is None:
+            self._overlay(
+                screen,
+                height,
+                width,
+                ["DETAIL", "", "nothing selected", "", "← / Esc  back"],
+                "DETAIL",
+            )
+            return
+        readiness = view.readiness
+        record = view.record
+        inner = max(20, min(width - 8, 60))
+        fields = [
+            ("PATH", view.path),
+            ("STATUS", status_label(str(readiness.get("status", "UNKNOWN")))),
+            ("COMPLETE", self._bool(record.get("complete"))),
+            ("FRESH", self._bool(readiness.get("fresh"))),
+            ("LOADABLE", self._bool(readiness.get("loadable"))),
+            ("MOVABLE", self._bool(readiness.get("movable"))),
+        ]
+        lines = ["DETAIL", ""]
+        for label, value in fields:
+            text = f"{label:<10} {value}"
+            lines.extend(textwrap.wrap(text, inner) or [text])
+        reasons = readiness.get("reasons") or []
+        if reasons:
+            lines.append("")
+            lines.append("REASONS")
+            for reason in reasons[:4]:
+                text = f"{reason.get('code')}: {reason.get('detail')}"
+                lines.extend(textwrap.wrap(text, inner)[:2])
+        ranks = record.get("ranks") or []
+        if ranks:
+            lines.append("")
+            lines.append("RANKS")
+            cells = " ".join(
+                f"R{item.get('rank')}:{len(item.get('shards') or [])}"
+                for item in ranks[:12]
+            )
+            lines.extend(textwrap.wrap(cells, inner))
+        lines.append("")
+        lines.append("← / Esc  back")
+        self._overlay(screen, height, width, lines, "DETAIL")
 
     @staticmethod
     def _bool(value: Any) -> str:
