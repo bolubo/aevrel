@@ -3,6 +3,29 @@
 This page covers the main Aevrel workflows. Start with
 [Quick start](QUICKSTART.md) for installation and the first DCP demo.
 
+## Which surface am I using?
+
+Two command surfaces share the same vocabulary but not the same scope:
+
+| Surface | Runs against | Use it for |
+|---|---|---|
+| `aevrel` (Python, local) | a checkpoint path on the machine you are on | read-only inspection, readiness, restore drills, local migration, resume state, the TUI |
+| `aevrelctl` (Go, cluster) | a Kubernetes cluster and the agents registered in it | migration resources, plan and preflight, rescue decisions, Kueue facts, cluster inventory |
+
+Use `aevrel` when the checkpoint is a directory you can read. Use `aevrelctl`
+when the checkpoint sits behind a cluster and the decision has to be recorded
+as a resource that other people and the scheduler can see.
+
+`readiness` and `migrate` exist on both surfaces and answer different
+questions:
+
+- `aevrel readiness --checkpoint /path/to/checkpoint --target-world 3` inspects
+  that path, here and now, and prints the verdict.
+- `aevrelctl readiness NAME` asks the cluster what it recorded for a workload.
+- `aevrel migrate --checkpoint ... --output ...` writes a new checkpoint tree
+  locally. `aevrelctl migrate -f migration.yaml` submits a migration resource
+  and can `--dry-run` or `--wait` on it.
+
 ## Local checkpoint inspection
 
 ```bash
