@@ -16,6 +16,14 @@ def _kv(label: str, value: object, width: int = 12) -> None:
 
 
 def run_restore_drill_command(args) -> int:
+    """Run a restore drill with the user's target command and report it.
+
+    The drill report defaults to ``aevrel-drill-report.json`` in the
+    current directory. Returns 0 when the target command succeeds and its
+    report matches the drill. Returns 2 and prints the ``LocalError`` code
+    (text or JSON) on invalid drill arguments, a command that fails or
+    times out, or a missing or mismatched report.
+    """
     report = (
         Path(args.report).expanduser().resolve()
         if args.report

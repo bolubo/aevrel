@@ -25,6 +25,12 @@ def _listen(value: str) -> tuple[str, int]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the parser for ``--listen``, ``--token`` and ``--state-dir``.
+
+    ``--listen`` accepts ``HOST:PORT`` or a bare port (bound on
+    ``0.0.0.0``) and defaults to ``0.0.0.0:9460``. ``--token`` defaults to
+    ``AEVREL_LIVE_TOKEN``, read when the parser is built.
+    """
     parser = argparse.ArgumentParser(
         description="Run the on-demand LRS live-rank-split worker",
     )
@@ -49,6 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Serve the LRS live worker until SIGTERM or SIGINT.
+
+    Either signal stops the server cleanly and the function returns 0.
+    Invalid arguments exit through argparse with ``SystemExit``.
+    """
     args = build_parser().parse_args(argv)
     host, port = args.listen
     server = LiveWorkerServer(

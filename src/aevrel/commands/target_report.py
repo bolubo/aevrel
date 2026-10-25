@@ -73,6 +73,14 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Write this rank's target-ready report and print it as JSON.
+
+    The report is bound to the digest of the ``--resume-state`` manifest.
+    The rank defaults to ``JOB_COMPLETION_INDEX`` and the report path to
+    ``AEVREL_REPORT_PATH``. ``--quiet`` suppresses the output. Returns 0
+    once written, or 2 when the manifest, rank or report is invalid or
+    cannot be read or written.
+    """
     args = _parser().parse_args(argv)
     try:
         rank = environment_rank() if args.rank is None else args.rank
