@@ -57,6 +57,8 @@ REQUIRED_FILES = (
     "docs/SUPPORT.md",
     "docs/TARGET-READY.md",
     "docs/TARGET-LOAD.md",
+    "scripts/README.md",
+    "experiments/README.md",
 )
 
 CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")

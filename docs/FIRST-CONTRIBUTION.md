@@ -3,17 +3,19 @@
 This path takes about 15–30 minutes and uses the existing DCP demo. It does not
 require a GPU or Kubernetes cluster.
 
-## 1. Run the first-run acceptance path
+## 1. Set up and run the first-run acceptance path
 
 ```bash
 git clone https://github.com/bolubo/aevrel.git
 cd aevrel
-python3 -m venv .venv
+make dev
 . .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -e ".[dev,dcp]"
-python -m aevrel demo --dcp --work-dir /tmp/aevrel-first-run --json
+aevrel demo --dcp --work-dir /tmp/aevrel-first-run --json
 ```
+
+`make dev` creates `.venv`, installs the editable package with the `dev` and
+`dcp` extras, and builds the Go binaries. Add `make dev-native` if you want
+the native hot-path tests enabled as well.
 
 The expected result includes `verification.passed=true`, source and target
 readiness `READY`, and `target_load=ok`.
@@ -57,15 +59,13 @@ issue at a time.
 ## 4. Find the code
 
 Use the [development map](DEVELOPMENT-MAP.md) to locate the first file and the
-smallest relevant test.
+smallest relevant test. The map also states the language boundary for each
+area.
 
 Run the narrow test first, then the full checks:
 
 ```bash
-python -m pytest -q
-go test ./...
-python scripts/check_repo.py
-python scripts/check_release.py
+make check
 helm lint deploy/helm/aevrel
 ```
 
