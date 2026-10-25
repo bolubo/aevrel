@@ -31,13 +31,11 @@ another issue.
 
 ## 2. Pick a starter issue
 
-The active starter batch is unassigned until a contributor claims an item:
+The pinned [Start here](https://github.com/bolubo/aevrel/issues/53) issue maps
+the three roadmap tracks onto the open work. For a first task, use the label
+query rather than a list copied into this page, so the set cannot go stale:
 
-- [#11 restore-drill failure paths](https://github.com/bolubo/aevrel/issues/11)
-- [#14 UI state fixtures](https://github.com/bolubo/aevrel/issues/14)
-- [#20 target-load failure paths](https://github.com/bolubo/aevrel/issues/20)
-- [#21 Helm optional components](https://github.com/bolubo/aevrel/issues/21)
-- [#23 capability metadata source](https://github.com/bolubo/aevrel/issues/23)
+<https://github.com/bolubo/aevrel/issues?q=is%3Aopen+label%3A%22good+first+issue%22>
 
 An unassigned issue is not owned by someone else. Do not assume it is already
 taken because it has a label.
