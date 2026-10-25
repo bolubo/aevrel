@@ -2,6 +2,7 @@ package kueueadapter
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -419,5 +420,46 @@ func assertFacts(
 			wantValid,
 			source.Facts.Conformance.Violations,
 		)
+	}
+}
+
+// failingReader fails every read. The fifth fail-closed state in the contract is
+// "the adapter cannot read Kubernetes", and it must surface as an error rather
+// than as a fact set that looks usable.
+type failingReader struct {
+	err error
+}
+
+func (f failingReader) Get(
+	context.Context,
+	client.ObjectKey,
+	client.Object,
+	...client.GetOption,
+) error {
+	return f.err
+}
+
+func (f failingReader) List(
+	context.Context,
+	client.ObjectList,
+	...client.ListOption,
+) error {
+	return f.err
+}
+
+func TestCheckpointRecordSourceReportsReaderFailure(t *testing.T) {
+	_, workload := sourceWorkload(map[string]string{
+		AnnotationProtection: "enabled",
+	})
+	reader := failingReader{err: errors.New("api server unavailable")}
+	source, err := (CheckpointRecordSource{Reader: reader}).Resolve(
+		context.Background(),
+		workload,
+	)
+	if err == nil {
+		t.Fatal("a reader failure must not be swallowed")
+	}
+	if source.Enabled || source.HasFacts {
+		t.Fatalf("a failed read must not produce facts: %+v", source)
 	}
 }

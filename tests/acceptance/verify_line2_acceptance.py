@@ -44,7 +44,7 @@ CONSUMER_FIELDS = (
     "  Source:",
     "  ReasonCodes:",
     "  RestoreMode:",
-    "  RTO:",
+    "  EstimatedRTO:",
     "  Selected:",
     "  Schema:",
 )
@@ -63,6 +63,11 @@ VIOLATION_CODES = (
     "UnknownSourceClaimsFacts",
     "AmbiguousRecordSelection",
 )
+
+# Every fact label lives inside the v1 namespace. The schema-version label is
+# the one exception: it is what names the namespace in the first place.
+ENVELOPE_NAMESPACE = "aevrel.dev/v1-"
+SCHEMA_LABEL = "LabelEnvelopeSchemaVersion"
 
 FAIL_CLOSED_MARKERS = (
     "no `CheckpointRecord`, no annotations",
@@ -105,6 +110,10 @@ def check_envelope_registry(errors: list[str]) -> None:
     for name, key in labels:
         if not key.startswith("aevrel.dev/"):
             errors.append(f"{name} is outside the aevrel.dev namespace")
+        if name != SCHEMA_LABEL and not key.startswith(ENVELOPE_NAMESPACE):
+            errors.append(
+                f"{name} ({key}) is outside the {ENVELOPE_NAMESPACE} namespace"
+            )
         if key not in text:
             errors.append(f"{name} ({key}) is not documented in the contract")
 

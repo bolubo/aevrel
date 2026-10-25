@@ -219,13 +219,33 @@ func envelopeLabelValues(facts CheckpointFacts) map[string]string {
 		LabelEnvelopeEstimatedRTO:  factRTOLabel(facts.EstimatedRTOSeconds),
 		LabelEnvelopeConformance:   "valid",
 	}
-	if codes := strings.Join(facts.ReasonCodes, "_"); codes != "" {
+	if codes := reasonCodesLabel(facts.ReasonCodes); codes != "" {
 		values[LabelEnvelopeReasonCodes] = codes
 	}
 	if observedAt := factTimeLabel(facts.ObservedAt); observedAt != "" {
 		values[LabelEnvelopeObservedAt] = observedAt
 	}
 	return values
+}
+
+// maxLabelValueLength is the Kubernetes limit for one label value. A fact that
+// does not fit inside it is published as "unknown" instead of as a truncated
+// string: a truncated code list would read as the complete list.
+const maxLabelValueLength = 63
+
+// reasonCodesLabel renders the readiness reasons for the label transport. The
+// authoritative list always stays on the CheckpointRecord; when it cannot be
+// carried verbatim the label says "unknown" so a consumer knows to read the
+// record rather than trust a partial list.
+func reasonCodesLabel(codes []string) string {
+	joined := strings.Join(codes, "_")
+	if joined == "" {
+		return ""
+	}
+	if len(joined) > maxLabelValueLength {
+		return FactValueUnknown
+	}
+	return joined
 }
 
 func factBoolLabel(value *bool) string {

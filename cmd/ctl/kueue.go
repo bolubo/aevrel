@@ -237,7 +237,7 @@ func writeFactsText(
 	}
 	fmt.Fprintf(
 		out,
-		"  RTO:           %s\n",
+		"  EstimatedRTO:  %s\n",
 		factRTOSecondsText(facts.EstimatedRTOSeconds),
 	)
 	fmt.Fprintf(

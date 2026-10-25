@@ -87,16 +87,16 @@ envelope is withdrawn in the same patch.
 
 ```text
 aevrel.dev/schema-version=v1
-aevrel.dev/complete=1|0|unknown
-aevrel.dev/fresh=1|0|unknown
-aevrel.dev/loadable=1|0|unknown
-aevrel.dev/movable=1|0|unknown
-aevrel.dev/observed-at=20060102T150405Z
-aevrel.dev/fact-source=checkpoint-record|checkpoint-record-ambiguous|annotation-fallback|unknown
-aevrel.dev/reason-codes=...
-aevrel.dev/restore-mode=restore|restart|migrate|hold
-aevrel.dev/estimated-rto-seconds=<integer>|unknown
-aevrel.dev/envelope-conformance=valid
+aevrel.dev/v1-complete=1|0|unknown
+aevrel.dev/v1-fresh=1|0|unknown
+aevrel.dev/v1-loadable=1|0|unknown
+aevrel.dev/v1-movable=1|0|unknown
+aevrel.dev/v1-observed-at=20060102T150405Z
+aevrel.dev/v1-fact-source=checkpoint-record|checkpoint-record-ambiguous|annotation-fallback|unknown
+aevrel.dev/v1-reason-codes=...
+aevrel.dev/v1-restore-mode=restore|restart|migrate|hold
+aevrel.dev/v1-estimated-rto-seconds=<integer>|unknown
+aevrel.dev/v1-envelope-conformance=valid
 ```
 
 See [scheduler-runtime-contract-v1.md](scheduler-runtime-contract-v1.md) for the

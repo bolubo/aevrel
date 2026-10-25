@@ -255,6 +255,63 @@ func TestReconcilerClearsTheEnvelopeWhenProtectionIsDisabled(t *testing.T) {
 	assertNoEnvelopeLabels(t, getWorkload(t, kubeClient, workload))
 }
 
+func TestProjectFactsCarriesReasonCodesVerbatim(t *testing.T) {
+	workload := factWorkload()
+	kubeClient := sourceClient(t, workload)
+	projector := WorkloadLabelProjector{
+		Client:         kubeClient,
+		EnvelopeLabels: true,
+	}
+	facts := validRecordFacts()
+	facts.ReasonCodes = []string{"CHECKPOINT_COMPLETE", "DRILL_VERIFIED"}
+	if _, err := projector.ProjectFacts(
+		context.Background(),
+		workload,
+		facts,
+	); err != nil {
+		t.Fatal(err)
+	}
+	assertLabel(
+		t,
+		getWorkload(t, kubeClient, workload),
+		LabelEnvelopeReasonCodes,
+		"CHECKPOINT_COMPLETE_DRILL_VERIFIED",
+	)
+}
+
+func TestProjectFactsNeverTruncatesReasonCodes(t *testing.T) {
+	// A Kubernetes label value holds at most 63 characters. A code list that
+	// does not fit must degrade to "unknown", because a truncated list would
+	// read as the complete list and a consumer would never go look at the
+	// record that holds the authoritative reasons.
+	workload := factWorkload()
+	kubeClient := sourceClient(t, workload)
+	projector := WorkloadLabelProjector{
+		Client:         kubeClient,
+		EnvelopeLabels: true,
+	}
+	facts := validRecordFacts()
+	facts.ReasonCodes = []string{
+		"CHECKPOINT_COMPLETE",
+		"DRILL_VERIFIED",
+		"TARGET_WORLD_SIZE_COMPATIBLE",
+		"ARTIFACT_DIGEST_PINNED",
+	}
+	if _, err := projector.ProjectFacts(
+		context.Background(),
+		workload,
+		facts,
+	); err != nil {
+		t.Fatal(err)
+	}
+	assertLabel(
+		t,
+		getWorkload(t, kubeClient, workload),
+		LabelEnvelopeReasonCodes,
+		FactValueUnknown,
+	)
+}
+
 func assertNoEnvelopeLabels(
 	t *testing.T,
 	object *unstructured.Unstructured,

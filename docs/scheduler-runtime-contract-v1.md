@@ -92,19 +92,24 @@ it never means "fine".
 Kueue only understands labels, so each fact also has a label form. Labels are
 written only when the fact set passed conformance.
 
+The namespace is `aevrel.dev/v1/*`. A Kubernetes label key cannot contain `/`
+after the prefix, so the namespace is realised as the `v1-` leader on every fact
+name: `aevrel.dev/v1-complete` is the label form of `aevrel.dev/v1/complete`.
+`aevrel.dev/schema-version=v1` names the namespace those facts live in.
+
 | Label | Value | Note |
 | --- | --- | --- |
-| `aevrel.dev/schema-version` | `v1` | the `aevrel.dev/` key prefix carries the domain, because `/` is not legal in a label value |
-| `aevrel.dev/complete` | `1`, `0`, `unknown` | |
-| `aevrel.dev/fresh` | `1`, `0`, `unknown` | |
-| `aevrel.dev/loadable` | `1`, `0`, `unknown` | |
-| `aevrel.dev/movable` | `1`, `0`, `unknown` | |
-| `aevrel.dev/observed-at` | `20060102T150405Z` | compact UTC, because `:` is not legal in a label value |
-| `aevrel.dev/fact-source` | fact source | |
-| `aevrel.dev/reason-codes` | codes joined by `_` | omitted when empty |
-| `aevrel.dev/restore-mode` | advisory action | |
-| `aevrel.dev/estimated-rto-seconds` | integer seconds or `unknown` | never `0` |
-| `aevrel.dev/envelope-conformance` | `valid` | present only on a published envelope |
+| `aevrel.dev/schema-version` | `v1` | names the namespace; the `aevrel.dev/` key prefix carries the domain |
+| `aevrel.dev/v1-complete` | `1`, `0`, `unknown` | |
+| `aevrel.dev/v1-fresh` | `1`, `0`, `unknown` | |
+| `aevrel.dev/v1-loadable` | `1`, `0`, `unknown` | |
+| `aevrel.dev/v1-movable` | `1`, `0`, `unknown` | |
+| `aevrel.dev/v1-observed-at` | `20060102T150405Z` | compact UTC, because `:` is not legal in a label value |
+| `aevrel.dev/v1-fact-source` | fact source | |
+| `aevrel.dev/v1-reason-codes` | codes joined by `_`, or `unknown` | omitted when empty; `unknown` when the joined form exceeds the 63-character label limit |
+| `aevrel.dev/v1-restore-mode` | advisory action | |
+| `aevrel.dev/v1-estimated-rto-seconds` | integer seconds or `unknown` | never `0` |
+| `aevrel.dev/v1-envelope-conformance` | `valid` | present only on a published envelope |
 
 `unknown` is a first-class value. A missing number is never published as `0`,
 because a consumer reading `0` would conclude "measured, and it is zero".
@@ -216,6 +221,7 @@ the only signal. This is the intended consequence, not an oversight.
 | an unknown source carries no values at all | `UnknownSourceClaimsFacts` |
 | `estimatedRTOSeconds`, when present, is greater than zero | `RTOMustBePositiveOrNull` |
 | an ambiguous selection is never published | `AmbiguousRecordSelection` |
+| a value that does not fit the transport is `unknown`, never truncated | no code; the source list stays authoritative on the record |
 
 Any violation makes the whole set invalid. There is no partial publication and
 no silent repair: a violation is always reported with its code, in

@@ -34,22 +34,24 @@ const (
 // authoritative readiness, never a second source of truth, and nothing in the
 // binary protection policy reads them.
 //
-// Label values must be label-safe: SchemaLabelValue is used instead of
-// SchemaVersion because "/" is not a legal label value character, and the
-// observation time is published in the compact layout defined by
-// EnvelopeTimeLayout because RFC3339 contains ":".
+// The contract names the namespace aevrel.dev/v1/*. A Kubernetes label key
+// cannot contain "/" after the prefix, so the namespace is realised as the
+// "v1-" leader on every fact name: aevrel.dev/v1-complete is the label form of
+// aevrel.dev/v1/complete. Label values must be label-safe too, which is why
+// SchemaLabelValue replaces SchemaVersion and the observation time uses
+// EnvelopeTimeLayout instead of RFC3339.
 const (
 	LabelEnvelopeSchemaVersion = "aevrel.dev/schema-version"
-	LabelEnvelopeComplete      = "aevrel.dev/complete"
-	LabelEnvelopeFresh         = "aevrel.dev/fresh"
-	LabelEnvelopeLoadable      = "aevrel.dev/loadable"
-	LabelEnvelopeMovable       = "aevrel.dev/movable"
-	LabelEnvelopeObservedAt    = "aevrel.dev/observed-at"
-	LabelEnvelopeSource        = "aevrel.dev/fact-source"
-	LabelEnvelopeReasonCodes   = "aevrel.dev/reason-codes"
-	LabelEnvelopeRestoreMode   = "aevrel.dev/restore-mode"
-	LabelEnvelopeEstimatedRTO  = "aevrel.dev/estimated-rto-seconds"
-	LabelEnvelopeConformance   = "aevrel.dev/envelope-conformance"
+	LabelEnvelopeComplete      = "aevrel.dev/v1-complete"
+	LabelEnvelopeFresh         = "aevrel.dev/v1-fresh"
+	LabelEnvelopeLoadable      = "aevrel.dev/v1-loadable"
+	LabelEnvelopeMovable       = "aevrel.dev/v1-movable"
+	LabelEnvelopeObservedAt    = "aevrel.dev/v1-observed-at"
+	LabelEnvelopeSource        = "aevrel.dev/v1-fact-source"
+	LabelEnvelopeReasonCodes   = "aevrel.dev/v1-reason-codes"
+	LabelEnvelopeRestoreMode   = "aevrel.dev/v1-restore-mode"
+	LabelEnvelopeEstimatedRTO  = "aevrel.dev/v1-estimated-rto-seconds"
+	LabelEnvelopeConformance   = "aevrel.dev/v1-envelope-conformance"
 
 	// EnvelopeTimeLayout is the label-safe UTC form of an observation time.
 	EnvelopeTimeLayout = "20060102T150405Z"

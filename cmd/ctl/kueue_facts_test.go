@@ -112,7 +112,7 @@ func TestKueueExplainReportsAuthoritativeFacts(t *testing.T) {
 		"Loadable:      true",
 		"Movable:       unknown",
 		"RestoreMode:   restore",
-		"RTO:           45",
+		"EstimatedRTO:  45",
 		"Selected:      training-checkpoint (1 candidate records)",
 		"Conformance:   valid",
 	} {
