@@ -58,19 +58,22 @@ providers. They must not become alternate sources of truth for core status.
 ## Development setup
 
 ```bash
+make dev
+```
+
+That creates `.venv`, installs the editable package with the `dev` and `dcp`
+extras, and builds the Go binaries. The equivalent manual steps:
+
+```bash
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip
-python -m pip install -e ".[dev]"
-go test ./...
-helm lint deploy/helm/aevrel
+python -m pip install -e ".[dev,dcp]"
+go build ./...
 ```
 
-For real DCP work, install the CPU PyTorch extra:
-
-```bash
-python -m pip install -e ".[dcp]"
-```
+Use `python -m pip install -e ".[dev]"` instead if you do not need the
+PyTorch-backed DCP paths. `make dev-native` also builds the Rust hot path.
 
 The repository is split deliberately:
 
@@ -81,13 +84,12 @@ The repository is split deliberately:
 
 ## Validation
 
-Run the relevant checks before opening a pull request:
+Run the relevant checks before opening a pull request. `make check` runs the
+repository hygiene check, the release check, the Python suite, and the Go
+suite; the remaining gates need extra tooling:
 
 ```bash
-python scripts/check_repo.py
-python scripts/check_release.py
-python -m pytest -q
-go test ./...
+make check
 go vet ./...
 go build ./cmd/controller ./cmd/ctl ./cmd/gateway ./cmd/kueue-adapter
 helm lint deploy/helm/aevrel
