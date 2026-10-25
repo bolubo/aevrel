@@ -10,7 +10,7 @@ default registries is slow:
 
 ```bash
 docker build -f deploy/docker/Dockerfile.controller \
-  --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.24-bookworm \
+  --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.26-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
   -t ghcr.io/bolubo/aevrel-controller:0.3.0 .
 
@@ -20,7 +20,7 @@ docker build -f deploy/docker/Dockerfile.agent \
   -t ghcr.io/bolubo/aevrel-agent:0.3.0 .
 
 docker build -f deploy/docker/Dockerfile.gateway \
-  --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.24-bookworm \
+  --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.26-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
   -t ghcr.io/bolubo/aevrel-gateway:0.3.0 .
 
@@ -30,7 +30,7 @@ docker build -f deploy/docker/Dockerfile.live-worker \
   -t ghcr.io/bolubo/aevrel-live-worker:0.3.0 .
 
 docker build -f deploy/docker/Dockerfile.kueue-adapter \
-  --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.24-bookworm \
+  --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.26-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
   -t ghcr.io/bolubo/aevrel-kueue-adapter:0.3.0 .
 ```
