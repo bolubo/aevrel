@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -221,6 +222,31 @@ def _check_file_modes(errors: list[str]) -> None:
             and relative.lower().endswith(EXECUTABLE_TEXT_SUFFIXES)
         ):
             errors.append(f"text file has the executable bit: {relative}")
+
+    # Tracked modes only cover files already in the index. New files copied
+    # from a Windows or network filesystem carry the executable bit before
+    # their first commit, so the guard must also look at the working tree:
+    # otherwise the failure is first seen in CI, not locally.
+    status = subprocess.run(
+        ["git", "-C", str(REPO), "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for line in status.stdout.splitlines():
+        if not line.startswith("??"):
+            continue
+        relative = line[3:].strip().rstrip("/")
+        candidate = REPO / relative
+        if (
+            candidate.is_file()
+            and relative.lower().endswith(EXECUTABLE_TEXT_SUFFIXES)
+            and os.access(candidate, os.X_OK)
+        ):
+            errors.append(
+                "untracked text file has the executable bit "
+                f"(committing it would fail CI): {relative}"
+            )
 
 
 def _check_yaml(errors: list[str]) -> None:
