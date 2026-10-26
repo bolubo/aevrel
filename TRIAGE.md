@@ -38,9 +38,11 @@ follow [SECURITY.md](SECURITY.md) and must not be filed publicly.
 3. Label the affected area and add `needs-repro` or `needs-design` when needed.
 4. Close only after a maintainer decision, duplicate resolution, or explicit
    reporter confirmation.
-5. Keep claimable starter issues unassigned until a contributor comments with a
-   plan or a maintainer starts work. Assign only the person currently working
-   on it; do not use assignment as a placeholder for ownership.
+5. Keep claimable starter issues unassigned until a contributor claims one.
+   Claiming is self-service: commenting `/assign` makes the `claim` workflow
+   assign the commenter within seconds, so nobody waits for a maintainer.
+   Assign only the person currently working on it; do not use assignment as a
+   placeholder for ownership.
 
 There is no automatic stale closure. Issues that are not actionable should be
 closed manually with a reason and can be reopened when new evidence appears.

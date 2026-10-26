@@ -1,0 +1,138 @@
+name: claim
+
+# Self-service claim. A contributor comments "/assign" as the first thing in a
+# comment and the bot assigns them; "/unassign" releases. No maintainer has to
+# be awake, which is the whole point: an unassigned issue with a helper waiting
+# is a lost contributor.
+#
+# Runs from the default branch, so a fork cannot alter it.
+
+on:
+  issue_comment:
+    types: [created]
+
+# Two people commenting at once must not both win. Queue them instead of racing.
+concurrency:
+  group: claim-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  claim:
+    # Issues only (a PR comment has .pull_request set), humans only.
+    if: |
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.type != 'Bot' &&
+      (contains(github.event.comment.body, '/assign') ||
+       contains(github.event.comment.body, '/unassign'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assign or release the claimant
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          LOGIN: ${{ github.event.comment.user.login }}
+          BODY: ${{ github.event.comment.body }}
+          ASSOCIATION: ${{ github.event.comment.author_association }}
+        run: |
+          set -euo pipefail
+
+          # Only a command as the first word of the first line counts. A comment
+          # that merely mentions "/assign" in passing is not a claim. No pipes
+          # here: `set -o pipefail` plus an early-exiting reader would report a
+          # SIGPIPE as a failure.
+          firstline=${BODY%%$'\n'*}
+          read -r first _ <<< "$firstline" || true
+          case "$first" in
+            /assign)   action=assign ;;
+            /unassign) action=release ;;
+            *) echo "first word is '$first', not a command; ignoring"; exit 0 ;;
+          esac
+
+          json=$(gh api "repos/$REPO/issues/$ISSUE")
+          state=$(printf '%s' "$json" | jq -r .state)
+          if [ "$state" != "open" ]; then
+            echo "issue is $state; nothing to do"
+            exit 0
+          fi
+
+          labels=$(printf '%s' "$json" | jq -r '[.labels[].name] | join(",")')
+          current=$(printf '%s' "$json" | jq -r '[.assignees[].login] | join(",")')
+
+          has_login() {
+            case ",$1," in
+              *",$2,"*) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          # ---- /unassign -----------------------------------------------
+          if [ "$action" = release ]; then
+            if ! has_login "$current" "$LOGIN"; then
+              case "$ASSOCIATION" in
+                OWNER|MEMBER|COLLABORATOR) ;;
+                *)
+                  gh issue comment "$ISSUE" -R "$REPO" \
+                    --body "Only the assignee or a maintainer can release this issue."
+                  exit 0
+                  ;;
+              esac
+            fi
+            gh issue edit "$ISSUE" -R "$REPO" --remove-assignee "$LOGIN"
+            gh issue comment "$ISSUE" -R "$REPO" --body "$(printf '%s\n' \
+              "Released. Thanks for saying so early — that is better than going quiet." \
+              "" \
+              "The issue is open for anyone again.")"
+            exit 0
+          fi
+
+          # ---- /assign -------------------------------------------------
+          case "$labels" in
+            *blocked*|*needs-design*|*design/rfc*)
+              gh issue comment "$ISSUE" -R "$REPO" --body "$(printf '%s\n' \
+                "This issue is not ready to be claimed yet (labels: \`$labels\`)." \
+                "" \
+                "It is waiting on a decision, not on hands. Watch the issue; the label changes when it opens up.")"
+              exit 0
+              ;;
+          esac
+
+          if [ -n "$current" ]; then
+            if has_login "$current" "$LOGIN"; then
+              gh issue comment "$ISSUE" -R "$REPO" \
+                --body "You already have this one, @$LOGIN. Comment \`/unassign\` if you want to drop it."
+            else
+              gh issue comment "$ISSUE" -R "$REPO" --body "$(printf '%s\n' \
+                "Already assigned to @$current." \
+                "" \
+                "If that claim has gone stale, a maintainer can release it. Otherwise pick another open issue — most of them are unclaimed.")"
+            fi
+            exit 0
+          fi
+
+          # GitHub only honours an assignee who is a collaborator or who has
+          # commented on the issue. The claimant just commented, so this works
+          # for a first-time contributor from a fork as well.
+          gh issue edit "$ISSUE" -R "$REPO" --add-assignee "$LOGIN"
+
+          after=$(gh api "repos/$REPO/issues/$ISSUE" | jq -r '[.assignees[].login] | join(",")')
+          if ! has_login "$after" "$LOGIN"; then
+            gh issue comment "$ISSUE" -R "$REPO" --body "$(printf '%s\n' \
+              "GitHub would not let the bot assign @$LOGIN automatically." \
+              "" \
+              "A maintainer will assign this by hand — the claim still counts, so start whenever you like.")"
+            exit 0
+          fi
+
+          gh issue comment "$ISSUE" -R "$REPO" --body "$(printf '%s\n' \
+            "Assigned to @$LOGIN. Go ahead." \
+            "" \
+            "- Read [CONTRIBUTING.md](https://github.com/$REPO/blob/main/CONTRIBUTING.md) first if you have not." \
+            "- Keep the change to what this issue describes. Anything wider needs its own issue first." \
+            "- CI must be green. If it is red, fix it or ask here — do not merge around it." \
+            "- Going quiet for a week may get the issue released so it is not stuck. Comment \`/unassign\` to drop it yourself.")"
