@@ -45,6 +45,15 @@
   because a name cannot be invalidated when the checkpoint changes.
 - `aevrel readiness` labels `movable=true` as a coarse check in its text output.
 
+### Fixed
+
+- The native CAS ingest no longer fails when two worker threads ingest files
+  with identical content at the same time. Chunks are written to a private
+  temp file and renamed into place, so a concurrent reader sees either no
+  chunk or the whole chunk. A partial chunk left behind by an interrupted
+  writer is repaired from the bytes being ingested instead of aborting the
+  ingest with `existing CAS chunk has wrong size`.
+
 ## 0.3.0 - 2026-10-23
 
 Aevrel identity release. The project, Go module, Python package and CLI,

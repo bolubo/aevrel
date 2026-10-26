@@ -300,16 +300,13 @@ fn ingest_whole(
     }
     let (digest, hex) = digest_hex(hasher);
     let destination = cas_path(cas, &hex);
-    if destination.is_file() {
-        let existing = fs::metadata(&destination)?.len();
-        if existing != size {
-            return Err(format!(
-                "existing CAS chunk has wrong size: {} != {}",
-                existing, size
-            )
-            .into());
+    if let Ok(metadata) = fs::metadata(&destination) {
+        if metadata.len() == size {
+            return Ok((digest, size));
         }
-        return Ok((digest, size));
+        // A file of the wrong length cannot be the content this digest names:
+        // a crashed or concurrent writer left it partial. The source is
+        // authoritative here, so fall through and publish it again.
     }
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent)?;
@@ -317,7 +314,7 @@ fn ingest_whole(
     if hardlink && fs::hard_link(source, &destination).is_ok() {
         return Ok((digest, size));
     }
-    fs::copy(source, &destination)?;
+    publish_copy(source, &destination, size)?;
     Ok((digest, size))
 }
 
@@ -423,21 +420,15 @@ fn store_chunk(cas: &Path, data: &[u8]) -> Result<(String, u64), Box<dyn std::er
     let (digest, hex) = digest_hex(hasher);
     let destination = cas_path(cas, &hex);
     let size = data.len() as u64;
-    if destination.is_file() {
-        let existing = fs::metadata(&destination)?.len();
-        if existing != size {
-            return Err(format!(
-                "existing CAS chunk has wrong size: {} != {}",
-                existing, size
-            )
-            .into());
+    if let Ok(metadata) = fs::metadata(&destination) {
+        if metadata.len() == size {
+            return Ok((digest, size));
         }
-        return Ok((digest, size));
+        // A file of the wrong length cannot be the content this digest names:
+        // a crashed or concurrent writer left it partial. The bytes we hold
+        // are authoritative, so republish the chunk atomically.
     }
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(destination, data)?;
+    publish_chunk(&destination, data)?;
     Ok((digest, size))
 }
 
@@ -448,6 +439,75 @@ fn digest_hex(hasher: Sha256) -> (String, String) {
 
 fn cas_path(cas: &Path, hex: &str) -> PathBuf {
     cas.join("sha256").join(&hex[..2]).join(&hex[2..])
+}
+
+/// A directory-unique temp name for one atomic publish.
+///
+/// The process id separates concurrent processes and the counter separates
+/// threads inside one process, so two writers never share a temp file.
+fn temp_path(destination: &Path) -> PathBuf {
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    let suffix = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut name = destination.file_name().unwrap_or_default().to_os_string();
+    name.push(format!(".tmp-{}-{suffix}", std::process::id()));
+    destination.with_file_name(name)
+}
+
+/// Move a fully written temp file into place, accepting a racing winner.
+fn commit_temp(temp: &Path, destination: &Path, expected: u64) -> io::Result<()> {
+    if fs::rename(temp, destination).is_ok() {
+        return Ok(());
+    }
+    // `rename` may refuse to replace an existing file (Windows). A racing
+    // winner already published the right bytes; a stale partial chunk did not,
+    // and the payload we just wrote is authoritative for this digest.
+    let result = match fs::metadata(destination) {
+        Ok(metadata) if metadata.len() == expected => Ok(()),
+        Ok(_) => fs::remove_file(destination).and_then(|()| fs::rename(temp, destination)),
+        Err(_) => fs::rename(temp, destination),
+    };
+    let _ = fs::remove_file(temp);
+    result
+}
+
+/// Publish `data` under `destination` without ever exposing a partial file.
+///
+/// Files are ingested by several worker threads, and two files with the same
+/// content race for the same digest. Writing in place let a concurrent reader
+/// observe a zero-length file and reject the chunk; writing a private temp file
+/// and renaming it publishes the chunk in one atomic step, so a reader sees
+/// either no file or the whole file.
+fn publish_chunk(destination: &Path, data: &[u8]) -> io::Result<()> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "CAS path has no parent"))?;
+    fs::create_dir_all(parent)?;
+    let temp = temp_path(destination);
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)?;
+    if let Err(error) = file.write_all(data) {
+        drop(file);
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
+    drop(file);
+    commit_temp(&temp, destination, data.len() as u64)
+}
+
+/// Copy `source` into the CAS through the same atomic publish path.
+fn publish_copy(source: &Path, destination: &Path, expected: u64) -> io::Result<()> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "CAS path has no parent"))?;
+    fs::create_dir_all(parent)?;
+    let temp = temp_path(destination);
+    if let Err(error) = fs::copy(source, &temp) {
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
+    commit_temp(&temp, destination, expected)
 }
 
 #[cfg(test)]
@@ -591,5 +651,59 @@ mod tests {
         assert_eq!(ChunkAlgorithm::parse("fixed"), Some(ChunkAlgorithm::Fixed));
         assert_eq!(ChunkAlgorithm::parse("cdc"), Some(ChunkAlgorithm::Cdc));
         assert_eq!(ChunkAlgorithm::parse("file"), Some(ChunkAlgorithm::File));
+    }
+
+    #[test]
+    fn concurrent_identical_chunks_publish_one_complete_file() {
+        // Two worker threads that ingest files with the same content race for
+        // the same digest. The loser used to observe the winner's half-written
+        // file (length 0) and fail; publishing through a temp file plus a
+        // rename makes the chunk appear complete or not at all.
+        let dir = temp_dir("cas-race");
+        let cas = dir.join("cas");
+        let data = vec![0x5au8; 256 * 1024];
+        std::thread::scope(|scope| {
+            for _ in 0..32 {
+                let cas = cas.clone();
+                let data = data.clone();
+                scope.spawn(move || {
+                    let (digest, size) = store_chunk(&cas, &data).expect("concurrent store");
+                    assert_eq!(size, data.len() as u64);
+                    assert!(digest.starts_with("sha256:"));
+                });
+            }
+        });
+        // Exactly one chunk exists, it holds the whole payload, and no temp
+        // file was left behind.
+        let mut entries = Vec::new();
+        collect_files(&cas, Path::new(""), &mut entries).expect("walk cas");
+        assert_eq!(
+            entries.len(),
+            1,
+            "expected one published chunk, got {entries:?}"
+        );
+        assert_eq!(fs::read(&entries[0].1).expect("read chunk"), data);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn store_chunk_repairs_a_partial_chunk() {
+        // A writer that stopped after creating the file left a zero-length
+        // chunk at the right digest. The bytes we hold are authoritative, so
+        // the next ingest repairs it instead of failing.
+        let dir = temp_dir("cas-repair");
+        let cas = dir.join("cas");
+        let data = b"same";
+        let (digest, size) = store_chunk(&cas, data).expect("first store");
+        let hex = digest.strip_prefix("sha256:").expect("digest prefix");
+        let destination = cas_path(&cas, hex);
+        fs::write(&destination, b"").expect("simulate partial chunk");
+        assert_eq!(fs::metadata(&destination).unwrap().len(), 0);
+
+        let (again, again_size) = store_chunk(&cas, data).expect("repair");
+        assert_eq!(again, digest);
+        assert_eq!(again_size, size);
+        assert_eq!(fs::read(&destination).expect("read repaired chunk"), data);
+        let _ = fs::remove_dir_all(&dir);
     }
 }
