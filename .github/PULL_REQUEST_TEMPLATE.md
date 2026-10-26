@@ -8,6 +8,15 @@ Fixes #
 
 <!-- Link the issue, user workflow, or design/RFC. -->
 
+## Process
+
+Pick one:
+
+- [ ] Small, self-contained fix — direct pull request is fine (see
+      CONTRIBUTING, "Do you need an issue first?")
+- [ ] Issue discussed first: #
+- [ ] Design/RFC discussed first
+
 ## Scope and compatibility
 
 - [ ] No public contract change

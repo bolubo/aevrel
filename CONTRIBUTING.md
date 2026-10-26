@@ -18,6 +18,37 @@ For a concrete first path, read
 [First contribution](docs/FIRST-CONTRIBUTION.md) and the
 [development map](docs/DEVELOPMENT-MAP.md).
 
+## Do you need an issue first?
+
+Two paths, chosen by what a maintainer could veto:
+
+- **Direct pull request** — when the only debatable part is *how* it is
+  implemented. Typos and documentation wording, dead-code removal, comment
+  fixes, CI or build tweaks, and small bug fixes with a clear symptom are all
+  fine without an issue. Keep one pull request to one concern and describe the
+  behavior change in the description.
+- **Issue first** — when a maintainer could reasonably veto *whether* it
+  should be done at all. Open an issue (or a `design/rfc`) before writing code
+  when the change touches any of the following, regardless of its size:
+
+  - shared cross-language contracts: `spec/` and
+    `tests/fixtures/readiness/conformance/` — both implementations read these
+    fixtures, so one edit moves two test suites and two acceptance gates;
+  - public interfaces: `api/v1`, `config/crd`, the CRDs under
+    `deploy/helm/aevrel/crds`, or the command surface of `aevrel` and
+    `aevrelctl`;
+  - semantic documents: `docs/READINESS-SEMANTICS.md`,
+    `docs/scheduler-runtime-contract-v1.md`, and `docs/FAILURE-CODES.md`;
+  - policy behavior: readiness, rescue, or migration decisions;
+  - the Go and Python sides of one contract in the same change;
+  - new dependencies or any breaking change.
+
+  For contentious designs, use the [RFC guide](docs/RFC-GUIDE.md) instead of
+  opening an implementation PR first.
+
+When in doubt, open the issue: a maintainer will tell you a pull request was
+enough, not the other way around.
+
 ## Claiming an issue
 
 Comment `/assign` on the issue you want. A bot assigns you within a few seconds,
@@ -32,10 +63,10 @@ If a claimed issue has no pull request after about a week, a maintainer may
 release it so it does not sit idle. Being slow is fine; say so and it stays
 yours.
 
-Start with an issue for design changes, new providers, scheduler integrations,
-public contract changes, or anything that affects recovery or safety.
-Use the [RFC guide](docs/RFC-GUIDE.md) for design decisions rather than
-opening an implementation PR first.
+Whether a change needs an issue at all is decided by
+[Do you need an issue first?](#do-you-need-an-issue-first): small,
+self-contained fixes go straight to a pull request, while contract and
+behavior changes start with an issue.
 
 ## Issue and discussion forms
 
@@ -128,7 +159,8 @@ were skipped.
 ## Pull requests
 
 - Keep the change focused and explain the behavior change, not only the files.
-- Link the issue or user workflow that motivates the change.
+- Link the issue or user workflow that motivates the change, when one exists —
+  small, self-contained fixes are welcome without an issue.
 - Add a regression test for write boundaries, retry, recovery, and failure
   paths.
 - Update public docs when the user-visible contract changes.

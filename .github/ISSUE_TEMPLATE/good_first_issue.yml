@@ -20,7 +20,8 @@ body:
     id: scope
     attributes:
       label: Scope and starting points
-      description: Relevant files, functions, commands, or docs to start from.
+      description: Relevant files, functions, and — where possible — the exact
+        lines, commands, or docs to start from.
     validations:
       required: true
   - type: textarea
@@ -42,6 +43,12 @@ body:
     attributes:
       label: Out of scope
       description: What should not be changed in this issue?
+  - type: textarea
+    id: found_by
+    attributes:
+      label: Found by
+      description: Credit the review, contributor, or tool that surfaced this
+        task, and link the pull request or discussion where it came up.
   - type: dropdown
     id: implementation_intent
     attributes:
