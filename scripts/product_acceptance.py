@@ -152,23 +152,13 @@ def main() -> int:
             results["support_bundle"] = {
                 "ok": "support bundle" in support_help.stdout.lower(),
             }
-            run(["go", "test", "./cmd/ctl", "./internal/controller"])
-            run(["helm", "lint", "deploy/helm/aevrel", "--set", "tls.enabled=false"])
-            ctl = run(
-                [
-                    "go",
-                    "run",
-                    "./cmd/ctl",
-                    "migrate",
-                    "-f",
-                    "examples/k8s/migration.yaml",
-                    "--dry-run",
-                ]
-            )
-            results["aevrelctl"] = {
-                "ok": "agentSelector" in ctl.stdout,
-                "dry_run": True,
-            }
+            # The Go and Helm end-to-end checks that used to live here now run
+            # as their own steps in the `go` and `helm` CI jobs. Keeping them
+            # here cold-compiled the Kubernetes dependency tree inside the
+            # Python job on every run; those jobs already have warm caches.
+            # The coverage is unchanged: `go test ./cmd/ctl ./internal/controller`
+            # is a subset of `go test ./...`, the non-TLS chart lint moved to
+            # the helm job, and `ctl migrate --dry-run` moved to the go job.
         results["ok"] = all(
             bool(value.get("ok"))
             for key, value in results.items()

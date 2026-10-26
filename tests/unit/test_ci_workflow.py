@@ -50,3 +50,38 @@ def test_ci_workflow_builds_the_native_artefacts_before_pytest() -> None:
     assert pytest_steps, "the python job must run pytest"
     assert commands.index(build) < pytest_steps[0]
 
+
+def test_python_job_does_not_shell_out_to_go_or_helm() -> None:
+    """The Python job must stay Python-only.
+
+    Every Go or Helm call here cold-compiled the Kubernetes tree because the
+    job has no toolchain cache. Those checks now run in the jobs that already
+    own the tool: `go test ./...`, `helm lint` and `go run ./cmd/ctl`.
+    """
+    commands = run_commands(workflow()["jobs"]["python"])
+    for command in commands:
+        assert "go test" not in command
+        assert "go run" not in command
+        assert "helm lint" not in command
+
+
+def test_ci_workflow_lints_the_non_tls_chart_in_the_helm_job() -> None:
+    """The non-TLS template branch must keep a non-skipping lint.
+
+    The Python suite lints it too, but only when `helm` happens to be on the
+    runner; the helm job installs the tool, so this step is the real gate.
+    """
+    commands = run_commands(workflow()["jobs"]["helm"])
+    assert "helm lint deploy/helm/aevrel --set tls.enabled=false" in commands
+
+
+def test_ci_workflow_dry_runs_the_ctl_in_the_go_job() -> None:
+    """`aevrelctl migrate --dry-run` is an end-to-end binary check.
+
+    It moved out of the Python job, so the go job has to keep asserting that
+    the rendered resource still carries `agentSelector`.
+    """
+    script = "\n".join(run_commands(workflow()["jobs"]["go"]))
+    assert "go run ./cmd/ctl migrate -f examples/k8s/migration.yaml --dry-run" in script
+    assert "grep -q agentSelector" in script
+
