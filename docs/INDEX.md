@@ -53,4 +53,5 @@ Start with the path that matches your goal.
 
 ## Release
 
+- [Aevrel 0.4.0 release notes](RELEASE-NOTES-0.4.0.md)
 - [Aevrel 0.3.0 release notes](RELEASE-NOTES-0.3.0.md)

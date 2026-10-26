@@ -125,6 +125,14 @@ Physical multi-node and GPU checks are environment-dependent. Record them as
 evidence when they actually run; never describe them as validated when they
 were skipped.
 
+Two machine gates are easy to miss because they check docs and the TUI, not
+runtime behavior: `tests/acceptance/verify_line3_acceptance.py` fails when
+README, QUICKSTART or USAGE stop linking the readiness semantics and
+failure-code catalog, and when the TUI stops rendering `state_complete`, the
+L3/L4 level, rank coverage, or the full reason list. `make check` runs both,
+so run it before pushing anything that touches `README.md`, `docs/`, or
+`src/aevrel/tui.py`.
+
 ## Pull requests
 
 - Keep the change focused and explain the behavior change, not only the files.

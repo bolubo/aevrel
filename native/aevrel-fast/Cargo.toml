@@ -1,6 +1,6 @@
 [package]
 name = "aevrel-fast"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 
 # The crate builds two artifacts from one source tree:

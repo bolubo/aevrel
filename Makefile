@@ -20,6 +20,8 @@ check:
 	@test -x $(PY) || { echo "make check: no interpreter at $(PY) -- run 'make dev' first, or pass PY=<path>"; exit 1; }
 	$(PY) scripts/check_repo.py
 	$(PY) scripts/check_release.py --json
+	$(PY) tests/acceptance/verify_line2_acceptance.py
+	$(PY) tests/acceptance/verify_line3_acceptance.py
 	$(PY) -m pytest -q -n auto --dist loadfile
 	go test ./...
 

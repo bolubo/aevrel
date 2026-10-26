@@ -109,7 +109,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aevrel restore-drill --checkpoint /path/to/target.dcp "
             "--target-command 'python train_resume.py --checkpoint {checkpoint}'\n"
             "  aevrel migrate --checkpoint /path/to/source.dcp --target-world 3\n"
-            "Advanced: aevrel state"
+            "Advanced: aevrel state\n"
+            "Docs: github.com/bolubo/aevrel/tree/main/docs\n"
+            "  (QUICKSTART, USAGE, READINESS-SEMANTICS, FAILURE-CODES)"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

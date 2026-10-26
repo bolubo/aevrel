@@ -6,6 +6,10 @@ scheduler workflows.
 
 ## Current focus
 
+All three focus areas below are implemented and shipped in
+[0.4.0](RELEASE-NOTES-0.4.0.md). The near-term milestones at the bottom of
+this page are the current focus.
+
 ### Resume-state closure
 
 Define the state required to continue training:
@@ -63,6 +67,8 @@ it needs and what withdraws it, both implementations are held to the same
 reason codes, and the shared fixtures fail on either side when the two drift.
 
 ## Near-term milestones
+
+These are the current focus now that the three areas above have shipped:
 
 1. Complete one real runtime integration and one real checkpoint fixture.
 2. Run a pilot on a non-critical training workflow.

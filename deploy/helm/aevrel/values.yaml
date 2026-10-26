@@ -1,9 +1,9 @@
 image:
-  controller: ghcr.io/bolubo/aevrel-controller:0.3.0
-  gateway: ghcr.io/bolubo/aevrel-gateway:0.3.0
-  agent: ghcr.io/bolubo/aevrel-agent:0.3.0
-  liveWorker: ghcr.io/bolubo/aevrel-live-worker:0.3.0
-  kueueAdapter: ghcr.io/bolubo/aevrel-kueue-adapter:0.3.0
+  controller: ghcr.io/bolubo/aevrel-controller:0.4.0
+  gateway: ghcr.io/bolubo/aevrel-gateway:0.4.0
+  agent: ghcr.io/bolubo/aevrel-agent:0.4.0
+  liveWorker: ghcr.io/bolubo/aevrel-live-worker:0.4.0
+  kueueAdapter: ghcr.io/bolubo/aevrel-kueue-adapter:0.4.0
   pullPolicy: IfNotPresent
 
 agentToken:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aevrel"
-version = "0.3.0"
+version = "0.4.0"
 description = "Scheduler-neutral training-state control plane for AI infrastructure."
 readme = "README.md"
 license = { file = "LICENSE" }

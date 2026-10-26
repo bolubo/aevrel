@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-10-26
 
 ### Added
 
@@ -34,6 +34,12 @@
 - A conformance gate that withholds the envelope when its facts contradict each
   other, when a fact set cannot describe itself, or when a source claims values
   it does not have.
+- `aevrel --help` lists every subcommand, including the `inspect`/`plan`/
+  `apply`/`verify` workflow, and each one carries a help string; the
+  `readiness` help names loadability, movability, and the L3/L4 level.
+- The TUI detail views render the resume-state closure verdict
+  (`state_complete`), the L3/L4 readiness level, and drill rank coverage, and
+  no longer truncate the reason list to the first few entries.
 
 ### Changed
 
@@ -44,6 +50,11 @@
   recommends `restore` with a drill name but no `lastDrillDigest` is withheld,
   because a name cannot be invalidated when the checkpoint changes.
 - `aevrel readiness` labels `movable=true` as a coarse check in its text output.
+- README, the quickstart and the usage guide explain how to read a verdict
+  (reason codes, tri-state facts, L3/L4) and link the readiness semantics and
+  the failure-code catalog; the line3 acceptance gate holds them to it.
+- `aevrel demo` without `--work-dir` writes to a unique temp directory instead
+  of `./aevrel-demo` in the current directory.
 
 ### Fixed
 

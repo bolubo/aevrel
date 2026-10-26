@@ -86,12 +86,15 @@ catalogued in [Failure codes](docs/FAILURE-CODES.md).
 
 ## Status
 
-[0.3.0](https://github.com/bolubo/aevrel/releases/tag/v0.3.0) is the current
-release: the local CPU path and control-plane contracts are usable, while real
-Kubernetes, multi-node, and GPU validation remain environment-specific. There
-is no production SLA, source checkpoint trees are read-only, and LRS is
-experimental. The source of truth for current claims is the docs and release
-notes, not issue comments or old design notes.
+[0.4.0](https://github.com/bolubo/aevrel/releases/tag/v0.4.0) is the current
+release: readiness claims are bound to evidence (drill steps, rank coverage,
+proof staleness), the L4 resume-state closure gate is opt-in, and the
+scheduler/runtime contract v1 is published. The local CPU path and
+control-plane contracts are usable, while real Kubernetes, multi-node, and GPU
+validation remain environment-specific. There is no production SLA, source
+checkpoint trees are read-only, and LRS is experimental. The source of truth
+for current claims is the docs and release notes, not issue comments or old
+design notes.
 
 ## Where things live
 

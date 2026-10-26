@@ -12,27 +12,27 @@ default registries is slow:
 docker build -f deploy/docker/Dockerfile.controller \
   --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.26-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
-  -t ghcr.io/bolubo/aevrel-controller:0.3.0 .
+  -t ghcr.io/bolubo/aevrel-controller:0.4.0 .
 
 docker build -f deploy/docker/Dockerfile.agent \
   --build-arg PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.11-slim \
   --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-  -t ghcr.io/bolubo/aevrel-agent:0.3.0 .
+  -t ghcr.io/bolubo/aevrel-agent:0.4.0 .
 
 docker build -f deploy/docker/Dockerfile.gateway \
   --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.26-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
-  -t ghcr.io/bolubo/aevrel-gateway:0.3.0 .
+  -t ghcr.io/bolubo/aevrel-gateway:0.4.0 .
 
 docker build -f deploy/docker/Dockerfile.live-worker \
   --build-arg PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.11-slim \
   --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-  -t ghcr.io/bolubo/aevrel-live-worker:0.3.0 .
+  -t ghcr.io/bolubo/aevrel-live-worker:0.4.0 .
 
 docker build -f deploy/docker/Dockerfile.kueue-adapter \
   --build-arg BUILDER_IMAGE=docker.m.daocloud.io/library/golang:1.26-bookworm \
   --build-arg RUNTIME_IMAGE=gcr.m.daocloud.io/distroless/static-debian12:nonroot \
-  -t ghcr.io/bolubo/aevrel-kueue-adapter:0.3.0 .
+  -t ghcr.io/bolubo/aevrel-kueue-adapter:0.4.0 .
 ```
 
 A release tag triggers `.github/workflows/release.yml`, which builds and
