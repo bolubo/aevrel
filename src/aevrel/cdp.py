@@ -22,10 +22,6 @@ try:
 except ImportError:  # pragma: no cover - POSIX path
     msvcrt = None
 
-try:
-    import msvcrt
-except ImportError:  # pragma: no cover - POSIX path
-    msvcrt = None
 
 
 MARKER_NAME = ".aevrel-complete"
@@ -140,43 +136,6 @@ def _atomic_write(path: Path, data: bytes) -> None:
         except OSError:
             pass
         raise CDPError(f"could not write {path}: {exc}") from exc
-
-
-class TargetLock:
-    """Cross-process lock for one target root's fence and current pointer."""
-
-    def __init__(self, root: str | Path) -> None:
-        self.root = Path(root).resolve()
-        self.path = self.root / ".aevrel" / "target.lock"
-        self._stream = None
-
-    def __enter__(self) -> "TargetLock":
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._stream = self.path.open("a+b")
-        if fcntl is not None:
-            fcntl.flock(self._stream.fileno(), fcntl.LOCK_EX)
-        elif msvcrt is not None:  # pragma: no cover - Windows
-            self._stream.seek(0)
-            if self._stream.read(1) == b"":
-                self._stream.write(b"\0")
-                self._stream.flush()
-            self._stream.seek(0)
-            msvcrt.locking(self._stream.fileno(), msvcrt.LK_LOCK, 1)
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> None:
-        del exc_type, exc, traceback
-        if self._stream is None:
-            return
-        try:
-            if fcntl is not None:
-                fcntl.flock(self._stream.fileno(), fcntl.LOCK_UN)
-            elif msvcrt is not None:  # pragma: no cover - Windows
-                self._stream.seek(0)
-                msvcrt.locking(self._stream.fileno(), msvcrt.LK_UNLCK, 1)
-        finally:
-            self._stream.close()
-            self._stream = None
 
 
 class TargetLock:
