@@ -46,6 +46,7 @@ and not a file-copy utility without a readiness and proof model.
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 python -m pip install -e ".[dev,dcp]"
+cargo build --release --manifest-path native/aevrel-fast/Cargo.toml
 
 # Toy migration, dependency-free
 aevrel demo
@@ -68,6 +69,20 @@ only becomes `READY` with a complete set of rank drill reports, and
 `aevrel-target-load` gives the rank-local load proof. Full walkthrough:
 [Quick start](docs/QUICKSTART.md) and
 [Usage and workflows](docs/USAGE.md).
+
+## Reading a verdict
+
+Every readiness verdict is built from a small set of facts: `complete`,
+`fresh`, `loadable`, `movable`, and — for the L3/L4 distinction —
+`state_complete`. Each is tri-state where evidence can be missing: `null`
+means *no evidence*, `false` means *evidence says no*, and the two are never
+interchangeable. Unverified, stale, or incomplete states are never rendered
+as OK, and every withheld claim is named by a reason code
+(`DRILL_MISSING`, `DRILL_RANK_COVERAGE_UNREPORTED`, ...).
+
+The normative semantics live in
+[Readiness semantics](docs/READINESS-SEMANTICS.md); every reason code is
+catalogued in [Failure codes](docs/FAILURE-CODES.md).
 
 ## Status
 
@@ -94,7 +109,9 @@ docs/             product, usage, operator and integration docs
 - **Users:** [Quick start](docs/QUICKSTART.md) ·
   [Usage and workflows](docs/USAGE.md) ·
   [Target-ready validation](docs/TARGET-READY.md) ·
-  [Target DCP load](docs/TARGET-LOAD.md)
+  [Target DCP load](docs/TARGET-LOAD.md) ·
+  [Readiness semantics](docs/READINESS-SEMANTICS.md) ·
+  [Failure codes](docs/FAILURE-CODES.md)
 - **Cluster operators:** [Helm installation](deploy/helm/aevrel/README.md) ·
   [Kueue preemption guard](docs/KUEUE-PREEMPTION-GUARD.md) ·
   [Support bundle](docs/SUPPORT.md) (`aevrel-support-bundle`)

@@ -44,7 +44,8 @@ def test_module_entrypoint_and_product_help() -> None:
     assert "aevrel demo" in result.stdout
     assert "readiness" in result.stdout
     assert "state" in result.stdout
-    assert "dcp-migrate" not in result.stdout
+    assert "inspect" in result.stdout
+    assert "dcp-migrate" in result.stdout
 
 
 def test_inspect_process_writes_valid_spec(tmp_path) -> None:

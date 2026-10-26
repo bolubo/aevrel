@@ -9,7 +9,7 @@ catalogued in [Failure code catalog](FAILURE-CODES.md).
 
 ## What this change delivers
 
-- **A closed component set.** The resume closure is an enumerated,
+- **A closed component set.** The state closure is an enumerated,
   required-vs-optional component set: `model`, `optimizer`, `global_step`,
   `dataloader`, `rng` are required; `lr_scheduler`, `sampler`, `rank_local` are
   optional but must still be *declared*. Every component is always present in

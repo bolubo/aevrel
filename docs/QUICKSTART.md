@@ -171,6 +171,20 @@ workflow.
   for example `aevrel migrate: DCP checkpoint directory not found: ...`.
 - Unverified, stale, or incomplete states are never rendered as OK.
 
+### Why a verdict is not READY: reason codes and L3/L4
+
+Every reason line above is a reason code from the failure-code catalog:
+`DRILL_MISSING` (no drill yet), `DRILL_RANK_COVERAGE_UNREPORTED` (the drill
+did not say which ranks it proved), `DRILL_STEPS_MISSING` (it loaded bytes
+but did not train), and so on. A code never says "maybe" — it names the
+claim it withholds.
+
+The default verdict is an L3 claim: loaded and trainable. L4 additionally
+proves resume-state closure (dataloader, RNG and sampler state) bound to
+one manifest; opt in with `readiness --require-state-complete`. The
+normative semantics: [Readiness semantics](READINESS-SEMANTICS.md). Every
+code: [Failure codes](FAILURE-CODES.md).
+
 ## Validation
 
 ```bash

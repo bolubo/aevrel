@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -26,11 +27,13 @@ def run_demo(
     *,
     include_dcp: bool = False,
 ) -> dict[str, Any]:
-    root = (
-        Path(work_dir).resolve()
-        if work_dir is not None
-        else (Path.cwd() / DEFAULT_DEMO_DIR).resolve()
-    )
+    if work_dir is not None:
+        root = Path(work_dir).resolve()
+    else:
+        # A demo the user did not aim at a directory must not litter the
+        # current working directory, so it lands in a unique temp dir that
+        # is reported in the output.
+        root = Path(tempfile.mkdtemp(prefix=f"{DEFAULT_DEMO_DIR}-")).resolve()
     if root.exists() and any(root.iterdir()):
         raise DemoError(
             f"demo directory already exists and is not empty: {root}; "

@@ -68,8 +68,58 @@ EVIDENCE_FIXTURES = (
 EVIDENCE_FIELDS = ("complete", "fresh", "loadable", "movable", "state_complete")
 
 
+ENTRYPOINT_DOCS = (
+    ROOT / "README.md",
+    ROOT / "docs" / "QUICKSTART.md",
+    ROOT / "docs" / "USAGE.md",
+)
+PY_TUI = ROOT / "src" / "aevrel" / "tui.py"
+
+
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def check_entrypoint_links(errors: list[str]) -> None:
+    """The entry-point docs must lead readers to the semantic source of truth.
+
+    INDEX.md and ROADMAP.md linking the semantics page is not enough: a user
+    who starts at the README, the quickstart or the usage page never reaches
+    them. The null/false rule only protects people who can find it.
+    """
+    for doc in ENTRYPOINT_DOCS:
+        text = read(doc)
+        name = doc.relative_to(ROOT)
+        if not text:
+            errors.append(f"missing {name}")
+            continue
+        for marker in ("READINESS-SEMANTICS.md", "FAILURE-CODES.md"):
+            if marker not in text:
+                errors.append(f"{name} does not link {marker}")
+
+
+def check_tui_surfaces(errors: list[str]) -> None:
+    """The TUI must show the same evidence facts the CLI prints.
+
+    A user who only ever opens the TUI cannot see state_complete, the L3/L4
+    level, or whether the drill reported rank coverage unless the detail view
+    renders them. Silently hiding them is how 'unknown' drifts back into
+    looking like a pass. The same view must not truncate the reason list:
+    a hidden reason is an unexplained verdict.
+    """
+    tui = read(PY_TUI)
+    if not tui:
+        errors.append("missing src/aevrel/tui.py")
+        return
+    for marker in ('"state_complete"', '"readiness_level"', "COVERAGE"):
+        if marker not in tui:
+            errors.append(f"the TUI detail view does not render {marker}")
+    for truncated in ("reasons[:2]", "reasons[:4]"):
+        if truncated in tui:
+            errors.append(
+                f"the TUI truncates reasons ({truncated}); "
+                "evidence may be hidden"
+            )
 
 
 def check_min_drill_steps(errors: list[str]) -> None:
@@ -347,6 +397,8 @@ def main() -> int:
         ("documentation", check_documentation),
         ("reason code declarations", check_reason_codes_are_declared),
         ("registrations", check_registrations),
+        ("entry-point links", check_entrypoint_links),
+        ("tui surfaces", check_tui_surfaces),
     )
     failures: list[str] = []
     for name, check in checks:

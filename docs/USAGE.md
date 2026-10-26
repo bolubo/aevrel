@@ -63,6 +63,26 @@ python -m aevrel readiness \
 Every expected rank must be represented. A partial report set remains
 unverified.
 
+### Reason codes, rank coverage, and movable
+
+A verdict never rounds up. Every claim it withholds is named by a reason
+code (`DRILL_MISSING`, `DRILL_STEPS_MISSING`,
+`DRILL_RANK_COVERAGE_INCOMPLETE`, `DRILL_RANK_COVERAGE_UNREPORTED`, ...):
+`null` means no evidence, `false` means the evidence says no, and the two
+are never interchangeable.
+
+Rank coverage is measured against the checkpoint's own inventory, so a
+drill must report every expected rank. A drill that names no ranks is
+*unreported*, not zero, and stays non-`READY`; a partial one names the
+missing ranks so an operator can act on them.
+
+`movable` is a coarse filter — completeness and target world size only —
+not a topology verdict. When the target world size differs from the
+source, the verdict attaches `TARGET_TOPOLOGY_UNVERIFIED`; mesh, placement
+and format compatibility need a real target load. The full catalog:
+[Failure codes](FAILURE-CODES.md). The normative field semantics:
+[Readiness semantics](READINESS-SEMANTICS.md).
+
 ## Resume-state closure (L3 vs L4)
 
 Pass the manifest the checkpoint actually stores to bind the verdict to one
@@ -91,6 +111,30 @@ Without the flag the assessment stays an L3 claim and reports
 
 Only an anchored, complete closure on a `READY` checkpoint reports
 `readiness_level: L4`.
+
+## Rank-local resume state (`aevrel state`)
+
+The `aevrel state` command captures, verifies, and restores the rank-local
+resume state (dataloader position, RNG and sampler state) that the L4
+claim is built on:
+
+```bash
+python -m aevrel state capture \
+  --root /data/job/resume-state \
+  --checkpoint-id ckpt-7 \
+  --checkpoint-version v7 \
+  --rank 0 \
+  --source-world 4
+
+python -m aevrel state verify --root /data/job/resume-state --require-complete
+
+python -m aevrel state restore --root /data/job/resume-state --target-rank 0
+```
+
+`capture` writes the manifest under `--root`; `verify` checks it (with
+`--require-complete` it fails while any required component is missing);
+`restore` reinstates one rank's state on the target. The manifest format
+and proof binding: [Resume state](RESUME-STATE.md).
 
 ## DCP migration
 
@@ -164,6 +208,19 @@ steps. See [Target-ready](TARGET-READY.md).
 
 LRS is experimental. See [Live Rank Split workflow](LIVE-RANK-SPLIT-USAGE.md)
 and [LRS worker](LRS-WORKER.md) for the supported CPU-contract path.
+
+## Automation and CI
+
+The TUI is interactive and needs a terminal. In CI, scripts, and cron, use
+the command surface with `--json` and treat exit code 2 as "not ready or
+failed":
+
+```bash
+python -m aevrel readiness --checkpoint /data/job/checkpoint --json
+```
+
+`NO_COLOR` (or `--no-color`) keeps every text surface plain, uncolored, and
+diffable.
 
 ## Troubleshooting
 

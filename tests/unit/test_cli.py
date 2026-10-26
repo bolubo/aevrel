@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import pytest
@@ -126,7 +125,7 @@ def test_demo_dcp_cli(tmp_path, capsys) -> None:
     assert payload["dcp"]["target_load"] == "ok"
 
 
-def test_help_only_exposes_product_commands(capsys) -> None:
+def test_help_exposes_all_commands(capsys) -> None:
     with pytest.raises(SystemExit) as exc:
         main(["--help"])
     assert exc.value.code == 0
@@ -140,11 +139,17 @@ def test_help_only_exposes_product_commands(capsys) -> None:
         "restore-drill",
         "state",
         "tui",
+        # The plan/apply/verify workflow and the internal surfaces are all
+        # listed: a command that exists but is invisible from --help is a
+        # command nobody can find.
+        "inspect",
+        "plan",
+        "apply",
+        "verify",
+        "dcp-migrate",
+        "serve",
     ):
         assert command in output
-    for command in ("inspect", "dcp-migrate", "serve", "apply"):
-        assert command not in output
-    assert not re.search(r"^\s{2,}verify\b", output, re.MULTILINE)
 
 
 def test_unknown_command_does_not_expose_internal_commands(capsys) -> None:

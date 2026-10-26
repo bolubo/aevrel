@@ -173,7 +173,7 @@ specific, not a silent partial restore.
 
 A migration proof (proof schema version `2`) carries exactly one
 `resume_manifest_digest` field, and that field is folded into the proof
-`root`. A proof therefore states *which* resume closure its bytes belong
+`root`. A proof therefore states *which* state closure its bytes belong
 to, and the binding cannot be edited after the fact without breaking the
 root.
 

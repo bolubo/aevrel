@@ -119,22 +119,26 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="disable ANSI color (also honored via NO_COLOR env)",
     )
-    sub = parser.add_subparsers(
-        dest="command",
-        metavar=(
-            "{demo,migrate,doctor,capabilities,readiness,restore-drill,state,tui}"
-        ),
-    )
+    sub = parser.add_subparsers(dest="command")
 
-    inspect = sub.add_parser("inspect")
+    inspect = sub.add_parser(
+        "inspect",
+        help="inspect a checkpoint spec and print its facts (YAML)",
+    )
     inspect.add_argument("--input", required=True)
     inspect.add_argument("--out", required=False)
 
-    plan = sub.add_parser("plan")
+    plan = sub.add_parser(
+        "plan",
+        help="build a migration plan (JSON) from a spec",
+    )
     plan.add_argument("--spec", required=True)
     plan.add_argument("--out", required=False)
 
-    apply = sub.add_parser("apply")
+    apply = sub.add_parser(
+        "apply",
+        help="execute a migration plan against a spec (--dry-run to preview)",
+    )
     apply.add_argument("--plan", required=True)
     apply.add_argument("--spec", required=True)
     apply.add_argument("--source", required=False)
@@ -143,14 +147,20 @@ def _build_parser() -> argparse.ArgumentParser:
     apply.add_argument("--target-rank", type=int, required=False)
     apply.add_argument("--target-root", required=False)
 
-    verify = sub.add_parser("verify")
+    verify = sub.add_parser(
+        "verify",
+        help="verify an applied migration against its plan",
+    )
     verify.add_argument("--spec", required=True)
     verify.add_argument("--plan", required=True)
     verify.add_argument("--report", required=False)
     verify.add_argument("--target-rank", type=int, required=False)
     verify.add_argument("--target-root", required=False)
 
-    proof_build = sub.add_parser("proof-build")
+    proof_build = sub.add_parser(
+        "proof-build",
+        help="build a rank load proof bound to a target root",
+    )
     proof_build.add_argument("--spec", required=True)
     proof_build.add_argument("--plan", required=True)
     proof_build.add_argument("--target-root", required=True)
@@ -164,7 +174,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     proof_build.add_argument("--out", required=True)
 
-    proof_verify = sub.add_parser("proof-verify")
+    proof_verify = sub.add_parser(
+        "proof-verify",
+        help="verify a load proof against a target root",
+    )
     proof_verify.add_argument("--proof", required=True)
     proof_verify.add_argument("--target-root", required=True)
     proof_verify.add_argument("--plan", required=False)
@@ -176,11 +189,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="require the proof to be bound to this manifest digest",
     )
 
-    proof_merge = sub.add_parser("proof-merge")
+    proof_merge = sub.add_parser(
+        "proof-merge",
+        help="merge several rank load proofs into one",
+    )
     proof_merge.add_argument("--proof", action="append", required=True)
     proof_merge.add_argument("--out", required=True)
 
-    serve = sub.add_parser("serve")
+    serve = sub.add_parser(
+        "serve",
+        help="serve checkpoint shards over HTTP",
+    )
     serve.add_argument("--manifest", required=True)
     serve.add_argument("--listen", default=DEFAULT_LISTEN)
     serve.add_argument(
@@ -195,7 +214,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="bind 0.0.0.0:9000 for a physical A/B run",
     )
 
-    agent = sub.add_parser("agent")
+    agent = sub.add_parser(
+        "agent",
+        help="run a checkpoint agent (serves ranks, reports facts)",
+    )
     agent.add_argument("--listen", default="0.0.0.0:9443")
     agent.add_argument("--state-dir", required=True)
     agent.add_argument("--spec", required=False)
@@ -220,7 +242,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="verify each completed target rank with a local DCP load",
     )
 
-    dcp_inspect = sub.add_parser("dcp-inspect")
+    dcp_inspect = sub.add_parser(
+        "dcp-inspect",
+        help="inspect a DCP checkpoint and plan a re-shard",
+    )
     dcp_inspect.add_argument("--input", required=True)
     dcp_inspect.add_argument("--work-dir", required=False)
     dcp_inspect.add_argument("--out", required=False)
@@ -234,12 +259,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--target-placements", default=",".join(DEFAULT_TARGET_PLACEMENTS)
     )
 
-    dcp_export = sub.add_parser("dcp-export")
+    dcp_export = sub.add_parser(
+        "dcp-export",
+        help="export a spec to a DCP checkpoint",
+    )
     dcp_export.add_argument("--spec", required=True)
     dcp_export.add_argument("--output", required=True)
     dcp_export.add_argument("--force", action="store_true")
 
-    dcp_migrate = sub.add_parser("dcp-migrate")
+    dcp_migrate = sub.add_parser(
+        "dcp-migrate",
+        help="migrate a DCP checkpoint to a new world size",
+    )
     dcp_migrate.add_argument("--input", required=True)
     dcp_migrate.add_argument("--output", required=False)
     dcp_migrate.add_argument("--work-dir", required=False)
@@ -263,7 +294,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     demo.add_argument(
         "--work-dir",
-        help="output directory (default: ./aevrel-demo)",
+        help="output directory (default: a unique temp directory)",
     )
     demo.add_argument(
         "--json",
@@ -353,18 +384,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="target placements (default: Shard(0))",
     )
 
-    spec_http = sub.add_parser("spec-http")
+    spec_http = sub.add_parser(
+        "spec-http",
+        help="rewrite a spec to load its shards over HTTP",
+    )
     spec_http.add_argument("--spec", required=True)
     spec_http.add_argument("--base-url", required=True)
     spec_http.add_argument("--out", required=True)
     spec_http.add_argument("--target-storage", required=False)
 
-    fetch = sub.add_parser("fetch-spec")
+    fetch = sub.add_parser(
+        "fetch-spec",
+        help="fetch a spec from an agent and bind it to target storage",
+    )
     fetch.add_argument("--server", required=True)
     fetch.add_argument("--target-storage", required=True)
     fetch.add_argument("--out", required=True)
 
-    summarize = sub.add_parser("summarize")
+    summarize = sub.add_parser(
+        "summarize",
+        help="summarize rank reports into one verification summary",
+    )
     summarize.add_argument("--reports-dir", required=True)
     summarize.add_argument("--plan", required=False)
     summarize.add_argument("--spec", required=False)
@@ -411,7 +451,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     readiness = sub.add_parser(
         "readiness",
-        help="show checkpoint completeness, freshness, and readiness",
+        help=(
+            "show checkpoint completeness, freshness, loadability, "
+            "movability, and L3/L4 readiness"
+        ),
     )
     readiness.add_argument("--checkpoint", "-c", required=True)
     readiness.add_argument("--namespace", default="")

@@ -296,7 +296,7 @@ class TuiApp:
                     phase="Succeeded",
                     succeeded=True,
                     steps_ran=3,
-                    proof_ref="tui-demo-dcp-load",
+                    proof_ref="tui-demo-simulated-load",
                 )
                 for key in ("source", "target"):
                     path = dcp.get(key)
@@ -310,6 +310,10 @@ class TuiApp:
                             )
                         )
             result["views"] = views
+            if views:
+                self._log(
+                    "demo views use a synthesized drill (simulated coverage)"
+                )
             progress(95, "demo complete")
             return result
 
@@ -924,6 +928,9 @@ class TuiApp:
             ("FRESH", self._bool(readiness.get("fresh"))),
             ("LOADABLE", self._bool(readiness.get("loadable"))),
             ("MOVABLE", self._bool(readiness.get("movable"))),
+            ("CLOSURE", self._bool(readiness.get("state_complete"))),
+            ("LEVEL", str(readiness.get("readiness_level") or "L3")),
+            ("COVERAGE", self._coverage(readiness)),
         ]
         for label, value in details:
             if row >= y + h - 2:
@@ -940,9 +947,9 @@ class TuiApp:
         if reasons and row < y + h - 2:
             self._safe(screen, row, x + 2, "REASONS", self._attr("warn", bold=True))
             row += 1
-            for reason in reasons[:2]:
+            for reason in reasons:
                 text = f"{reason.get('code')}: {reason.get('detail')}"
-                for line in textwrap.wrap(text, max(20, w - 4))[:2]:
+                for line in textwrap.wrap(text, max(20, w - 4)):
                     if row >= y + h - 2:
                         return
                     self._safe(screen, row, x + 2, line, self._attr("warn"))
@@ -1178,6 +1185,9 @@ class TuiApp:
             ("FRESH", self._bool(readiness.get("fresh"))),
             ("LOADABLE", self._bool(readiness.get("loadable"))),
             ("MOVABLE", self._bool(readiness.get("movable"))),
+            ("CLOSURE", self._bool(readiness.get("state_complete"))),
+            ("LEVEL", str(readiness.get("readiness_level") or "L3")),
+            ("COVERAGE", self._coverage(readiness)),
         ]
         lines = ["DETAIL", ""]
         for label, value in fields:
@@ -1187,7 +1197,7 @@ class TuiApp:
         if reasons:
             lines.append("")
             lines.append("REASONS")
-            for reason in reasons[:4]:
+            for reason in reasons:
                 text = f"{reason.get('code')}: {reason.get('detail')}"
                 lines.extend(textwrap.wrap(text, inner)[:2])
         ranks = record.get("ranks") or []
@@ -1209,6 +1219,26 @@ class TuiApp:
             return "true"
         if value is False:
             return "false"
+        return "unknown"
+
+    @staticmethod
+    def _coverage(readiness: dict[str, Any]) -> str:
+        """Rank-coverage verdict derived from the published reasons.
+
+        The readiness payload does not carry the drill's reported ranks, so
+        the TUI states what the evidence says instead of restating it: a
+        coverage reason names the gap, a proven ``loadable`` implies full
+        coverage, and anything else stays unknown.
+        """
+        codes = {
+            reason.get("code") for reason in readiness.get("reasons") or []
+        }
+        if "DRILL_RANK_COVERAGE_INCOMPLETE" in codes:
+            return "partial"
+        if "DRILL_RANK_COVERAGE_UNREPORTED" in codes:
+            return "unreported"
+        if readiness.get("loadable") is True:
+            return "full"
         return "unknown"
 
     def _safe(
