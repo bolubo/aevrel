@@ -83,7 +83,14 @@ jobs:
                   ;;
               esac
             fi
-            gh issue edit "$ISSUE" -R "$REPO" --remove-assignee "$LOGIN"
+            gh api -X DELETE "repos/$REPO/issues/$ISSUE/assignees" \
+              -f "assignees[]=$LOGIN" >/dev/null
+            still=$(gh api "repos/$REPO/issues/$ISSUE" | jq -r '[.assignees[].login] | join(",")')
+            if has_login "$still" "$LOGIN"; then
+              gh issue comment "$ISSUE" -R "$REPO" \
+                --body "Could not release this issue automatically. A maintainer will do it by hand."
+              exit 0
+            fi
             gh issue comment "$ISSUE" -R "$REPO" --body "$(printf '%s\n' \
               "Released. Thanks for saying so early — that is better than going quiet." \
               "" \
@@ -115,10 +122,14 @@ jobs:
             exit 0
           fi
 
-          # GitHub only honours an assignee who is a collaborator or who has
-          # commented on the issue. The claimant just commented, so this works
-          # for a first-time contributor from a fork as well.
-          gh issue edit "$ISSUE" -R "$REPO" --add-assignee "$LOGIN"
+          # Call the endpoint directly. `gh issue edit --add-assignee` checks
+          # the login against /repos/{owner}/{repo}/assignees first, and that
+          # list holds collaborators only — so it refuses every outside
+          # contributor before a request is sent, which is precisely the case
+          # this workflow exists for. The endpoint itself accepts any user who
+          # has commented on the issue, and the claimant has just commented.
+          gh api -X POST "repos/$REPO/issues/$ISSUE/assignees" \
+            -f "assignees[]=$LOGIN" >/dev/null
 
           after=$(gh api "repos/$REPO/issues/$ISSUE" | jq -r '[.assignees[].login] | join(",")')
           if ! has_login "$after" "$LOGIN"; then
