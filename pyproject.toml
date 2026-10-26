@@ -39,6 +39,10 @@ dev = [
   "pytest>=8.0",
   "hypothesis>=6.100",
   "pytest-cov>=5.0",
+  # Tests that need a real X.509 certificate (TLS validation) generate one at
+  # run time instead of committing a key. Dev-only: aevrel/tls.py itself only
+  # uses `ssl`, so nothing here reaches the runtime dependency set.
+  "cryptography>=42",
 ]
 dcp = [
   "torch>=2.9",

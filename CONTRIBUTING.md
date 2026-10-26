@@ -75,6 +75,12 @@ go build ./...
 Use `python -m pip install -e ".[dev]"` instead if you do not need the
 PyTorch-backed DCP paths. `make dev-native` also builds the Rust hot path.
 
+If a test needs a third-party package, add it to the `dev` extra in
+`pyproject.toml` in the same pull request. CI installs `.[dev]` and nothing
+else, so an undeclared import does not fail in your environment — it fails at
+collection time in CI, taking the entire Python suite down with it rather than
+just the one test.
+
 The repository is split deliberately:
 
 - Go owns the Kubernetes/control-plane authority;
