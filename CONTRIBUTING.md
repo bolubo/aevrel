@@ -18,9 +18,19 @@ For a concrete first path, read
 [First contribution](docs/FIRST-CONTRIBUTION.md) and the
 [development map](docs/DEVELOPMENT-MAP.md).
 
-Starter issues are unassigned until someone claims one in a comment. Do not
-assume an issue is already owned because it has a label or a maintainer
-comment. A maintainer will assign it after the claim is confirmed.
+## Claiming an issue
+
+Comment `/assign` on the issue you want. A bot assigns you within a few seconds,
+so you do not have to wait for a maintainer to be awake. Comment `/unassign` to
+drop it again — that is always better than going quiet.
+
+Check the assignee field before you start. An issue with a label, or with a
+maintainer comment on it, is not thereby taken: only the assignee is. If it is
+already someone else's, pick another one — most issues are unclaimed.
+
+If a claimed issue has no pull request after about a week, a maintainer may
+release it so it does not sit idle. Being slow is fine; say so and it stays
+yours.
 
 Start with an issue for design changes, new providers, scheduler integrations,
 public contract changes, or anything that affects recovery or safety.
