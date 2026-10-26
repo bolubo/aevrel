@@ -34,6 +34,19 @@ DEFAULT_CHUNK_BYTES = 4 * 1024 * 1024
 
 @dataclass(frozen=True)
 class ChunkingPolicy:
+    """How checkpoint files are cut into content-addressed chunks.
+
+    ``algorithm`` is ``"fixed"`` (``chunk_bytes``-sized pieces), ``"cdc"``
+    (content-defined boundaries bounded by ``min_bytes``, ``avg_bytes`` and
+    ``max_bytes``) or ``"file"`` (one chunk per file). Sizes the algorithm
+    does not use are ignored when chunking, but the CDC bounds are still
+    validated for ``"cdc"`` and ``"file"``.
+
+    Raises:
+        ValueError: on an unknown algorithm, a non-positive size, or CDC
+            sizes that do not satisfy ``min <= avg <= max``.
+    """
+
     algorithm: str = "fixed"
     chunk_bytes: int = DEFAULT_CHUNK_BYTES
     min_bytes: int = 32 * 1024
@@ -205,6 +218,14 @@ class TargetLock:
 
 @dataclass(frozen=True)
 class VersionMarker:
+    """The ``.aevrel-complete`` marker a source writes beside a version.
+
+    A version directory is only considered for transfer when it carries
+    this marker, and only when ``complete`` is true. ``metadata_hash`` must
+    be a ``sha256:`` digest; ``from_dict`` raises ``CDPError`` when the
+    payload is malformed or ``version_id``/``job_uid`` is empty.
+    """
+
     version: str
     version_id: str
     job_uid: str
@@ -256,6 +277,8 @@ class VersionMarker:
 
 @dataclass(frozen=True)
 class VersionDescriptor:
+    """One marked version directory found by ``scan_versions``."""
+
     version_id: str
     path: Path
     marker: VersionMarker
@@ -266,6 +289,15 @@ class VersionDescriptor:
 
 
 def read_marker(path: str | Path) -> VersionMarker:
+    """Load and validate a version marker.
+
+    ``path`` is either the marker file itself or a version directory, in
+    which case ``.aevrel-complete`` inside it is read.
+
+    Raises:
+        CDPError: if the file cannot be read, is not a JSON object, or
+            fails ``VersionMarker`` validation.
+    """
     marker_path = Path(path)
     if marker_path.is_dir():
         marker_path = marker_path / MARKER_NAME
@@ -279,6 +311,16 @@ def read_marker(path: str | Path) -> VersionMarker:
 
 
 def write_marker(path: str | Path, marker: VersionMarker) -> Path:
+    """Atomically write ``marker`` as JSON and return the file written.
+
+    When ``path`` is an existing directory the marker is written to
+    ``.aevrel-complete`` inside it; otherwise ``path`` is the marker file.
+    The file is written to a temporary name, fsynced and renamed into
+    place, so readers never observe a partial marker.
+
+    Raises:
+        CDPError: if the marker cannot be written.
+    """
     marker_path = Path(path)
     if marker_path.is_dir():
         marker_path = marker_path / MARKER_NAME
@@ -294,6 +336,18 @@ def scan_versions(
     *,
     include_incomplete: bool = False,
 ) -> list[VersionDescriptor]:
+    """List the marked versions directly under a source checkpoint root.
+
+    Only immediate, non-hidden subdirectories that contain a marker file
+    are considered; anything else is ignored. Versions whose marker says
+    ``complete: false`` are skipped unless ``include_incomplete`` is set.
+    The result is ordered by marker ``created_at``, then ``version_id``.
+
+    Raises:
+        CDPError: if ``root`` is not a directory, a marker is invalid, or
+            two directories claim the same ``version_id`` (complete or
+            not).
+    """
     source = Path(root).resolve()
     if not source.is_dir():
         raise CDPError(f"checkpoint root not found: {source}")
@@ -324,6 +378,15 @@ def scan_versions(
 
 @dataclass(frozen=True)
 class ChunkRef:
+    """A byte range of one checkpoint-relative file, stored by digest.
+
+    ``file`` is the path relative to the version root, ``offset`` and
+    ``length`` locate the range in that file, and ``digest`` names the CAS
+    object holding its bytes. ``size`` must equal ``length``;
+    ``from_dict`` raises ``CDPError`` when it does not, when a size is
+    negative, or when the digest is not ``sha256:``.
+    """
+
     digest: str
     size: int
     file: str
@@ -362,6 +425,14 @@ class ChunkRef:
 
 @dataclass(frozen=True)
 class VersionManifest:
+    """The chunk list and identity of one checkpoint version.
+
+    ``root`` is the ``manifest_root`` digest over the identity fields and
+    the chunk list, so it changes whenever any chunk or field changes.
+    ``from_dict`` recomputes it and raises ``CDPError`` on a mismatch or a
+    malformed payload.
+    """
+
     version: str
     version_id: str
     parent_id: str | None
@@ -422,6 +493,14 @@ def manifest_root(
     created_at: str,
     chunks: tuple[ChunkRef, ...],
 ) -> str:
+    """Compute the content digest that identifies a version manifest.
+
+    The digest is SHA-256 over canonical JSON (sorted keys, no whitespace)
+    of the manifest format version, the identity fields and the chunk
+    list sorted by ``(file, offset, length, digest)``. The input order of
+    ``chunks`` therefore does not affect the result. Returns the digest as
+    ``"sha256:<hex>"``.
+    """
     ordered = sorted(
         chunks,
         key=lambda chunk: (
@@ -583,6 +662,14 @@ class ManifestStore:
 
 @dataclass(frozen=True)
 class FenceToken:
+    """The cutover fence recorded in ``.aevrel/fence.json`` on a target.
+
+    ``FenceStore.acquire`` issues a token with a fresh ``nonce``; a later
+    write that presents an older epoch, another owner or another nonce is
+    rejected as stale. ``from_dict`` raises ``CDPError`` on a malformed
+    payload.
+    """
+
     epoch: int
     owner: str
     version_id: str
@@ -676,6 +763,11 @@ class FenceStore:
 
 @dataclass(frozen=True)
 class CurrentVersion:
+    """The ``current`` pointer of a target: the promoted version and root.
+
+    ``from_dict`` raises ``CDPError`` on a malformed payload.
+    """
+
     version: str
     version_id: str
     root: str
@@ -916,6 +1008,12 @@ class VersionTarget:
 
 @dataclass(frozen=True)
 class RetentionResult:
+    """What ``VersionTarget.prune`` kept and reclaimed.
+
+    ``deleted_chunks`` and ``freed_bytes`` count CAS objects that no
+    retained manifest referenced any more.
+    """
+
     retained_versions: tuple[str, ...]
     deleted_versions: tuple[str, ...]
     deleted_chunks: int
@@ -932,6 +1030,13 @@ class RetentionResult:
 
 @dataclass(frozen=True)
 class SyncResult:
+    """Per-version outcome of ``CheckpointFollower.sync_once``.
+
+    ``staged`` is false when the version was already on the target; its
+    bytes are then all reported as reused. ``delta_ratio`` is
+    ``missing_bytes / total_bytes``, or ``0.0`` for an empty version.
+    """
+
     version_id: str
     parent_id: str | None
     total_bytes: int
@@ -1071,6 +1176,19 @@ def build_manifest(
     chunk_bytes: int = DEFAULT_CHUNK_BYTES,
     chunking: ChunkingPolicy | None = None,
 ) -> VersionManifest:
+    """Chunk a complete source version into ``chunk_store``.
+
+    Every regular file under the version directory is read, except the
+    marker file and anything under a path component starting with
+    ``.aevrel``. Chunks are written to ``chunk_store`` by the native
+    chunker as a side effect. ``chunking`` overrides the policy; without
+    it, fixed ``chunk_bytes`` chunks are used. Returns the manifest.
+
+    Raises:
+        CDPError: if the version is not complete, ``chunk_bytes`` is not
+            positive for fixed chunking, a file path is invalid, or the
+            native aevrel-fast binary is unavailable or fails.
+    """
     if not descriptor.complete:
         raise CDPError(f"checkpoint version is incomplete: {descriptor.version_id}")
     policy = chunking or ChunkingPolicy.fixed(chunk_bytes)
@@ -1218,6 +1336,13 @@ def build_manifest_from_paths(
 
 @dataclass(frozen=True)
 class ManifestDelta:
+    """The chunks a target lacks when moving from one manifest to another.
+
+    Produced by ``delta_manifest``. Chunks are deduplicated by digest, so
+    byte counts are for unique chunk contents. ``delta_ratio`` is
+    ``missing_bytes / total_bytes``, or ``0.0`` for an empty version.
+    """
+
     base_version: str | None
     version_id: str
     missing: tuple[ChunkRef, ...]
@@ -1237,6 +1362,13 @@ def delta_manifest(
     previous: VersionManifest | None,
     current: VersionManifest,
 ) -> ManifestDelta:
+    """Compare ``current`` with ``previous`` by chunk digest.
+
+    A digest of ``current`` is ``reused`` when ``previous`` also contains
+    it, wherever it sits, and ``missing`` otherwise; with no ``previous``
+    every chunk is missing. Both tuples hold one ``ChunkRef`` per unique
+    digest, sorted by digest. Pure computation: no store is read.
+    """
     previous_by_digest = (
         {chunk.digest: chunk for chunk in previous.chunks}
         if previous is not None
@@ -1267,6 +1399,16 @@ def delta_manifest(
 
 
 def verify_manifest(manifest: VersionManifest, chunk_store: ChunkStore) -> int:
+    """Check a manifest against its root and the chunks in ``chunk_store``.
+
+    The root is recomputed, then every unique chunk is re-hashed from the
+    store and its size compared with the manifest. Returns the total size
+    in bytes of the unique chunks.
+
+    Raises:
+        CDPError: if the root does not match, or a chunk is missing,
+            unreadable, has the wrong digest or the wrong size.
+    """
     expected = manifest_root(
         version_id=manifest.version_id,
         parent_id=manifest.parent_id,
@@ -1297,6 +1439,21 @@ def materialize_manifest(
     base_manifest: VersionManifest | None = None,
     base_root: str | Path | None = None,
 ) -> int:
+    """Write the files of a verified manifest under ``target_root``.
+
+    The manifest is checked with ``verify_manifest`` first. Each file is
+    assembled in a temporary file and renamed into place. When
+    ``base_manifest`` and ``base_root`` describe an earlier materialized
+    version, unchanged files are hard-linked or cloned from it and changed
+    files are patched chunk by chunk; a file made of a single whole chunk
+    is linked or cloned from the store. Returns the number of bytes copied
+    out of the chunk store; linked and cloned data is not counted.
+
+    Raises:
+        CDPError: if verification fails, a file already exists and
+            ``overwrite`` is false, a chunk path is invalid, a file's
+            chunks are not contiguous, or a write fails.
+    """
     verify_manifest(manifest, chunk_store)
     root = Path(target_root).resolve()
     base_path = Path(base_root).resolve() if base_root is not None else None

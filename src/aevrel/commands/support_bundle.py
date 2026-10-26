@@ -45,6 +45,14 @@ def redact_text(value: str) -> str:
 
 @dataclass
 class CommandResult:
+    """How one collection command ran, as recorded in ``manifest.json``.
+
+    ``stdout_file`` and ``stderr_file`` are bundle-relative paths to the
+    redacted output, or ``None`` when nothing was captured. A missing
+    executable is recorded as return code 127 and a timeout as 124, with
+    ``error`` set; dry runs record ``error="dry-run"``.
+    """
+
     name: str
     argv: list[str]
     returncode: int
@@ -243,6 +251,15 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Collect the support bundle and print the archive path.
+
+    Writes ``aevrel-support-<timestamp>.tar.gz`` (or ``--output``) holding
+    the redacted command outputs, pod logs unless ``--no-logs``, and a
+    ``manifest.json``. With ``--dry-run`` the kubectl commands are printed
+    instead and no archive is written. Returns 2 when ``kubectl`` is not on
+    ``PATH``, otherwise 0; individual command failures are recorded in the
+    manifest and do not change the exit code.
+    """
     args = _parser().parse_args(argv)
     if shutil.which("kubectl") is None:
         print("support-bundle: kubectl not found in PATH", file=sys.stderr)

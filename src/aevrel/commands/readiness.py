@@ -34,6 +34,15 @@ def _tri_state(value: bool | None) -> str:
 
 
 def run_readiness(args: Namespace) -> int:
+    """Assess one checkpoint and print the readiness verdict.
+
+    Inventories the checkpoint, optionally folds in drill reports and a
+    resume-state manifest, and prints the result as text or JSON. Returns
+    2 when the input cannot be read or validated, with a
+    ``RESULT: FAILED (code)`` line (or a JSON error), and when
+    ``--strict`` is set and the status is not ``READY``; otherwise 0, even
+    for a NOT READY verdict.
+    """
     require_state_complete = bool(getattr(args, "require_state_complete", False))
     resume_state_path = getattr(args, "resume_state", None)
     if require_state_complete and not resume_state_path:

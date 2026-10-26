@@ -146,6 +146,15 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Load a target DCP checkpoint, optionally restore state, and report.
+
+    Loads the whole checkpoint, or only ``--rank``'s local chunks, through
+    ``DcpTargetReady``; with ``--state-root`` it then restores the
+    rank-local state bundle. Prints a text line or, with ``--json``, a
+    result object. Returns 0 on success and 2 on invalid arguments,
+    missing checkpoint or ``.metadata``, a metadata file with no tensors,
+    or any load or restore failure.
+    """
     args = _parser().parse_args(argv)
     checkpoint = Path(args.checkpoint).expanduser().resolve()
     metadata_dir = (
