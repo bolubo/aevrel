@@ -520,6 +520,14 @@ def _emit_failure(command: str, exc: Exception, json_mode: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the ``aevrel`` command line and return its exit code.
+
+    ``argv`` defaults to ``sys.argv[1:]``. Returns 0 on success, 2 for an
+    unknown command, a missing command, a failed or not-ready result, or
+    an unimplemented command, and 130 when ``migrate`` is interrupted.
+    Expected failures are printed rather than raised; argparse still
+    exits through ``SystemExit`` for ``--help`` and invalid arguments.
+    """
     parser = _build_parser()
     arguments = list(sys.argv[1:] if argv is None else argv)
     if (
