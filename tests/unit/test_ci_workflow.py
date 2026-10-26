@@ -41,5 +41,12 @@ def test_ci_workflow_builds_the_native_artefacts_before_pytest() -> None:
     commands = run_commands(workflow()["jobs"]["python"])
     build = "cargo build --release --manifest-path native/aevrel-fast/Cargo.toml"
     assert build in commands
-    assert commands.index(build) < commands.index("python -m pytest -q")
+    # Match the step by what it runs, not by its exact flags: the suite gained
+    # `-n auto --dist loadfile` and would gain more, while the ordering rule
+    # this test exists to protect is unchanged.
+    pytest_steps = [
+        index for index, command in enumerate(commands) if "pytest" in command
+    ]
+    assert pytest_steps, "the python job must run pytest"
+    assert commands.index(build) < pytest_steps[0]
 

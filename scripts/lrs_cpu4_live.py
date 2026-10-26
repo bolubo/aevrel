@@ -41,6 +41,11 @@ PER_RANK_DATA = int(os.environ.get("LRS_CPU4_PER_RANK_DATA", "32"))
 GLOBAL_BATCH = WORLD * BATCH_PER_RANK
 PARAM_DIM = 8
 DATA_SIZE = WORLD * PER_RANK_DATA
+# Rank 1 leaves the world at the cutover and its state is carried to the
+# target, so the live phase reports from the three surviving ranks. The count
+# is a protocol fact, and the harness relies on it instead of waiting for the
+# queue to fall silent.
+LIVE_RANKS = (0, 2, 3)
 
 if not (0 < S < CUTOVER < STEPS):
     raise ValueError(
@@ -339,6 +344,29 @@ def _wait_for(queue, wanted: str):
             return payload
 
 
+def _drain(queue, expected: int, timeout: float = 60.0) -> list:
+    """Collect exactly the messages the run promised, then prove there are no
+    others.
+
+    Reading until the queue reports empty would block for the whole timeout on
+    every single run: the workers have already been joined, so the queue is
+    empty the moment the last message is consumed. The count is known from the
+    protocol, the queue is still checked for extras afterwards, and a worker
+    error aborts immediately, so no message can slip through unnoticed.
+    """
+    items = []
+    while len(items) < expected:
+        item = queue.get(timeout=timeout)
+        if item[0] == "error":
+            raise RuntimeError(str(item[1]))
+        items.append(item)
+    try:
+        extra = queue.get_nowait()
+    except Empty:
+        return items
+    raise RuntimeError(f"unexpected extra message from a worker: {extra!r}")
+
+
 def main() -> int:
     context = mp.get_context("spawn")
     with tempfile.TemporaryDirectory(prefix="lrs-cpu4-") as temp:
@@ -356,14 +384,7 @@ def main() -> int:
         for process in baseline:
             process.join(timeout=300.0)
         baseline_results = {}
-        while True:
-            try:
-                item = baseline_queue.get(timeout=5.0)
-            except Empty:
-                break
-            kind = item[0]
-            if kind == "error":
-                raise RuntimeError(str(item[1]))
+        for item in _drain(baseline_queue, WORLD):
             _, rank, payload = item
             baseline_results[rank] = payload
         if len(baseline_results) != WORLD:
@@ -413,19 +434,17 @@ def main() -> int:
 
         live_results = {}
         target_result = None
-        while True:
-            try:
-                item = live_queue.get(timeout=10.0)
-            except Empty:
-                break
+        # Three surviving ranks report, and the target reports once. Rank 1
+        # left the world at the cutover and sends no terminal message.
+        for item in _drain(live_queue, len(LIVE_RANKS) + 1):
             kind = item[0]
-            if kind == "error":
-                raise RuntimeError(str(item[1]))
             if kind == "live_rank":
                 live_results[item[1]] = item[2]
             elif kind == "live_target":
                 target_result = item[1]
-        live_ranks = {0, 2, 3}
+            else:
+                raise RuntimeError(f"unexpected message kind from a worker: {kind!r}")
+        live_ranks = set(LIVE_RANKS)
         if set(live_results) != live_ranks or target_result is None:
             raise RuntimeError(
                 "live split did not produce all results: "

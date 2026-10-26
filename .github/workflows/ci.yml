@@ -34,7 +34,10 @@ jobs:
       - run: python scripts/check_repo.py
       - run: python tests/acceptance/verify_line2_acceptance.py
       - run: python tests/acceptance/verify_line3_acceptance.py
-      - run: python -m pytest -q
+      # One worker per core, whole files per worker: the suite is independent,
+      # but a file's module-level state must stay on one worker as it does in
+      # a serial run.
+      - run: python -m pytest -q -n auto --dist loadfile
       - run: python scripts/check_release.py --json
       - run: python scripts/acceptance.py --work-dir /tmp/aevrel-acceptance
       - run: python scripts/product_acceptance.py

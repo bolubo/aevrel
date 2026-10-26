@@ -104,6 +104,12 @@ Run the relevant checks before opening a pull request. `make check` runs the
 repository hygiene check, the release check, the Python suite, and the Go
 suite; the remaining gates need extra tooling:
 
+The Python suite runs in parallel (`-n auto --dist loadfile`) in both `make
+check` and CI: about 55 seconds serial, about 16 seconds on eight workers. Keep
+it that way — do not add a test that depends on another test having run first,
+and if you need to debug one file, run it alone without `-n` so the workers do
+not get in the way.
+
 ```bash
 make check
 go vet ./...
