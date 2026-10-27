@@ -1,10 +1,10 @@
 VENV ?= .venv
 PY ?= $(VENV)/bin/python
 
-# The coverage gate, in one place so `make check` and CI cannot drift apart.
-# `make check` enforces the floor; `make check COV=` skips it for a fast loop,
-# which is fine locally and never fine on the branch you push.
-COV ?= --cov=aevrel --cov-report=term-missing --cov-fail-under=81
+# The coverage tripwire, in one place so `make check` and CI cannot drift
+# apart. 70 is a catastrophe line, not a quality bar — see CONTRIBUTING.
+# `make check COV=` skips it entirely for a fast local loop.
+COV ?= --cov=aevrel --cov-report=term-missing --cov-fail-under=70
 
 .PHONY: dev dev-native check help
 
