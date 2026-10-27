@@ -75,13 +75,24 @@ class StorageRouter:
         return self._storage(uri).checksum(uri)
 
     def _storage(self, uri: str):
-        scheme = urlsplit(uri).scheme
+        parts = urlsplit(uri)
+        scheme = parts.scheme
         if scheme == "file":
             return self.file
         if scheme == "dcpzip":
             return self.dcpzip
         if scheme in {"http", "https"}:
             return self.http
-        if self.http.base_url is not None:
+        # A scheme-less relative reference is the only thing a configured
+        # source base may resolve — that is what the base is for. Everything
+        # else (s3://, ftp://, a protocol-relative //host/path, an empty URI)
+        # is sent to nobody: handing it to the HTTP backend would build a
+        # request against that base and fail far away from the actual mistake.
+        if (
+            scheme == ""
+            and not parts.netloc
+            and parts.path
+            and self.http.base_url is not None
+        ):
             return self.http
         raise StorageError(f"unsupported storage URI: {uri}")
