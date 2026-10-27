@@ -31,7 +31,7 @@ another issue.
 
 ## 2. Pick a starter issue
 
-The pinned [Start here](https://github.com/bolubo/aevrel/issues/53) issue maps
+The pinned [Start here](https://github.com/bolubo/aevrel/issues/76) issue maps
 the three roadmap tracks onto the open work. For a first task, use the label
 query rather than a list copied into this page, so the set cannot go stale:
 
