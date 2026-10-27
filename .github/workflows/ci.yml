@@ -71,11 +71,12 @@ jobs:
       # a serial run.
       #
       # Coverage runs on this same pass rather than a second one, and the floor
-      # turns a quiet regression into a red job. 80 is deliberately below the
-      # measured total: it catches a deleted test or a new uncovered module
-      # without making every unrelated pull request argue about a percentage.
-      # The number and its provenance are in CONTRIBUTING, "Validation".
-      - run: python -m pytest -q -n auto --dist loadfile --cov=aevrel --cov-report=term-missing --cov-fail-under=80
+      # turns a quiet regression into a red job. 81.59% was measured on the run
+      # that introduced this step, so the floor sits 0.59pp under it — about 75
+      # statements, which is what deleting a real test file costs. It is not a
+      # target and it is not "today's number" frozen: it moves up with the tests
+      # that earn it, never down. See CONTRIBUTING, "Validation".
+      - run: python -m pytest -q -n auto --dist loadfile --cov=aevrel --cov-report=term-missing --cov-fail-under=81
       - run: python scripts/check_release.py --json
       - run: python scripts/acceptance.py --work-dir /tmp/aevrel-acceptance
       - run: python scripts/product_acceptance.py
