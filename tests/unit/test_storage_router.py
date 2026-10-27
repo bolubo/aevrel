@@ -125,21 +125,39 @@ def test_unknown_scheme_without_source_base_raises(uri) -> None:
     assert all(recorder.calls == [] for recorder in recorders.values())
 
 
-def test_unknown_scheme_falls_back_to_http_when_source_base_is_configured(
-    monkeypatch,
-) -> None:
-    router = StorageRouter(source_base="http://agent.example/")
-    assert router.http.base_url == "http://agent.example"
-    seen: list[tuple] = []
+def test_relative_reference_resolves_against_the_configured_source_base() -> None:
+    router, recorders = _router_with_recorders(source_base="http://agent.example/")
+    recorders["http"].base_url = "http://agent.example"
+    assert router.read_range("relative/data.bin", 0, 1) == b"http"
+    assert recorders["http"].calls == [("read_range", "relative/data.bin", 0, 1)]
+    assert recorders["file"].calls == []
+    assert recorders["dcpzip"].calls == []
 
-    def fake_read_range(uri, offset, size):
-        seen.append((uri, offset, size))
-        return b"x"
 
-    monkeypatch.setattr(router.http, "read_range", fake_read_range)
-    assert router.read_range("relative/data.bin", 0, 1) == b"x"
-    assert router.read_range("ftp://host/data.bin", 2, 3) == b"x"
-    assert seen == [("relative/data.bin", 0, 1), ("ftp://host/data.bin", 2, 3)]
+@pytest.mark.parametrize(
+    "uri",
+    ["ftp://host/data.bin", "s3://bucket/key", "//host/data.bin", ""],
+)
+def test_explicit_unsupported_scheme_is_refused_even_with_a_source_base(uri) -> None:
+    """A configured base resolves relative references, nothing else.
+
+    Handing s3:// to the HTTP backend turns a one-line mistake into a network
+    error somewhere else, which is the whole point of this dispatch.
+    """
+    router, recorders = _router_with_recorders(source_base="http://agent.example/")
+    recorders["http"].base_url = "http://agent.example"
+    operations = [
+        lambda: router.read_range(uri, 0, 1),
+        lambda: router.exists(uri),
+        lambda: router.size(uri),
+        lambda: router.checksum(uri),
+    ]
+    for operation in operations:
+        with pytest.raises(StorageError) as excinfo:
+            operation()
+        assert str(excinfo.value) == f"unsupported storage URI: {uri}"
+    # Nothing may be guessed: no backend saw the call.
+    assert all(recorder.calls == [] for recorder in recorders.values())
 
 
 def test_file_scheme_routes_to_real_local_storage(tmp_path) -> None:
