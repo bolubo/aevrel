@@ -1,6 +1,11 @@
 VENV ?= .venv
 PY ?= $(VENV)/bin/python
 
+# The coverage gate, in one place so `make check` and CI cannot drift apart.
+# `make check` enforces the floor; `make check COV=` skips it for a fast loop,
+# which is fine locally and never fine on the branch you push.
+COV ?= --cov=aevrel --cov-report=term-missing --cov-fail-under=80
+
 .PHONY: dev dev-native check help
 
 ## dev: local toolchain in one command (venv + editable install + Go build)
@@ -22,12 +27,13 @@ check:
 	$(PY) scripts/check_release.py --json
 	$(PY) tests/acceptance/verify_line2_acceptance.py
 	$(PY) tests/acceptance/verify_line3_acceptance.py
-	$(PY) -m pytest -q -n auto --dist loadfile
+	$(PY) -m pytest -q -n auto --dist loadfile $(COV)
 	go test ./...
 
 help:
 	@echo "make dev        create .venv, install editable package (dev + dcp extras), build Go"
 	@echo "make dev-native dev + build the Rust hot path"
-	@echo "make check      repo hygiene + release check + Python suite + Go suite"
+	@echo "make check      repo hygiene + release check + Python suite (with the coverage floor) + Go suite"
 	@echo ""
-	@echo "Overrides: VENV=<dir> (default .venv), PY=<python> (default \$$(VENV)/bin/python)"
+	@echo "Overrides: VENV=<dir> (default .venv), PY=<python> (default \$$(VENV)/bin/python),"
+	@echo "           COV= (empty to skip coverage, e.g. make check COV=)"

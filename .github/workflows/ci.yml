@@ -69,7 +69,13 @@ jobs:
       # One worker per core, whole files per worker: the suite is independent,
       # but a file's module-level state must stay on one worker as it does in
       # a serial run.
-      - run: python -m pytest -q -n auto --dist loadfile
+      #
+      # Coverage runs on this same pass rather than a second one, and the floor
+      # turns a quiet regression into a red job. 80 is deliberately below the
+      # measured total: it catches a deleted test or a new uncovered module
+      # without making every unrelated pull request argue about a percentage.
+      # The number and its provenance are in CONTRIBUTING, "Validation".
+      - run: python -m pytest -q -n auto --dist loadfile --cov=aevrel --cov-report=term-missing --cov-fail-under=80
       - run: python scripts/check_release.py --json
       - run: python scripts/acceptance.py --work-dir /tmp/aevrel-acceptance
       - run: python scripts/product_acceptance.py

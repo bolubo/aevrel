@@ -141,6 +141,29 @@ it that way — do not add a test that depends on another test having run first,
 and if you need to debug one file, run it alone without `-n` so the workers do
 not get in the way.
 
+That same pass also computes coverage and fails under **80%** — there is no
+second run, and the floor is deliberately below the measured total. The point is
+to catch a deleted test file or a module that lands with no tests at all; it is
+not a target, and an ordinary refactor must not turn into an argument about a
+percentage.
+
+```bash
+make check              # enforces the floor
+make check COV=         # same suite, no coverage, for a fast local loop
+```
+
+To reproduce exactly what CI reports:
+
+```bash
+.venv/bin/python -m pytest -q -n auto --dist loadfile \
+  --cov=aevrel --cov-report=term-missing --cov-fail-under=80
+```
+
+`--cov-report=term-missing` prints the uncovered lines, which is what makes a
+failed gate actionable. When a batch of tests genuinely lifts the total, raise
+the floor in `Makefile` (`COV`) and in `.github/workflows/ci.yml` in the same
+pull request. Never lower either one to get a change through.
+
 ```bash
 make check
 go vet ./...
