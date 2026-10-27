@@ -6,7 +6,7 @@ PY ?= $(VENV)/bin/python
 # `make check COV=` skips it entirely for a fast local loop.
 COV ?= --cov=aevrel --cov-report=term-missing --cov-fail-under=70
 
-.PHONY: dev dev-native check help
+.PHONY: dev dev-light dev-native check help
 
 ## dev: local toolchain in one command (venv + editable install + Go build)
 dev:
@@ -15,6 +15,14 @@ dev:
 	$(PY) -m pip install -e ".[dev,dcp]"
 	go build ./...
 	@echo "ready: . $(VENV)/bin/activate && aevrel demo --dcp"
+
+## dev-light: what a docs, docstring or unit-test change needs (no PyTorch)
+dev-light:
+	@test -x $(PY) || python3 -m venv $(VENV)
+	$(PY) -m pip install -U pip
+	$(PY) -m pip install -e ".[dev]"
+	@echo "ready: . $(VENV)/bin/activate -- no PyTorch and no Go build; DCP tests skip"
+	@echo "       run 'make dev' instead if your change touches those paths"
 
 ## dev-native: also build the Rust hot path (enables native/aevrel-fast tests)
 dev-native: dev
@@ -32,6 +40,7 @@ check:
 
 help:
 	@echo "make dev        create .venv, install editable package (dev + dcp extras), build Go"
+	@echo "make dev-light  venv + editable install, no PyTorch (docs, comments, most tests)"
 	@echo "make dev-native dev + build the Rust hot path"
 	@echo "make check      repo hygiene + release check + Python suite (with the coverage floor) + Go suite"
 	@echo ""

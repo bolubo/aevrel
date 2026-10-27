@@ -114,7 +114,10 @@ go build ./...
 ```
 
 Use `python -m pip install -e ".[dev]"` instead if you do not need the
-PyTorch-backed DCP paths. `make dev-native` also builds the Rust hot path.
+PyTorch-backed DCP paths — `make dev-light` is the one-command version, and it
+also skips the Go build, which is enough for documentation, docstrings, comments
+and any test that never loads a checkpoint. `make dev-native` also builds the
+Rust hot path.
 
 If a test needs a third-party package, add it to the `dev` extra in
 `pyproject.toml` in the same pull request. CI installs `.[dev]` and nothing

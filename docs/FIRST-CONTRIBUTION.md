@@ -17,6 +17,12 @@ aevrel demo --dcp --work-dir /tmp/aevrel-first-run --json
 `dcp` extras, and builds the Go binaries. Add `make dev-native` if you want
 the native hot-path tests enabled as well.
 
+The `dcp` extra is PyTorch, so `make dev` is a large download. If your first
+change is documentation, docstrings, Go comments, or tests that never touch a
+checkpoint, use `make dev-light` instead — it installs `.[dev]` only and skips
+the Go build. The DCP tests then report as skipped rather than failed, which is
+fine for everything except work on those paths.
+
 The expected result includes `verification.passed=true`, source and target
 readiness `READY`, and `target_load=ok`.
 
