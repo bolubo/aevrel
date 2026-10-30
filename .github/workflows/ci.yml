@@ -28,7 +28,7 @@ jobs:
       # suite actually needs, so a stale or path-shifted cache rebuilds rather
       # than failing the run for the wrong reason.
       - name: Restore the Python environment
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .venv
@@ -49,7 +49,7 @@ jobs:
         run: echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
       # The compiled crate is shared with the `native` job under the same key,
       # so it is built at most once per Cargo.lock instead of once per job.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -95,7 +95,7 @@ jobs:
       - uses: actions/checkout@v7
       # Share the compiled target with the `python` job: both build the same
       # crate, so the second job to run starts warm instead of recompiling it.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
